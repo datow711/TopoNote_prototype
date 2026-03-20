@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>語音調查系統 (完美UX版)</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+    button { padding: 15px 20px; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold;}
+    #startBtn { background-color: #4CAF50; color: white; width: 100%;}
+    #stopBtn { background-color: #f44336; color: white; width: 100%; display: none;}
+    .audio-item { margin-top: 15px; padding: 15px; border: 1px solid #ddd; background: #f9f9f9; border-radius: 8px;}
+    audio { width: 100%; margin-top: 10px; }
+    .upload-btn { background-color: #2196F3; color: white; width: 100%; margin-top: 10px;}
+    .upload-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <h2>語音調查系統</h2>
+  <p>網頁內直接錄音，不跳轉、不打斷工作流。</p>
+
+  <div>
+    <button id="startBtn">🔴 按下開始錄音</button>
+    <button id="stopBtn">⏹ 結束錄音</button>
+  </div>
+
+  <div id="status" style="margin-top: 15px; font-weight: bold; color: #555;">狀態：準備就緒</div>
+  <div id="audioList"></div>
+
+  <script>
+    // ==========================================
+    // 請將剛剛 GAS 產生的 Web App 網址貼在下方引號內
+    // ==========================================
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw/exec'; 
+
+    let mediaRecorder;
+    let audioChunks = [];
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusDiv = document.getElementById('status');
+    const audioList = document.getElementById('audioList');
+
+    // 檢查瀏覽器是否支援
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      startBtn.onclick = () => {
+        navigator.mediaDevices.getUserMedia({
+            audio: {                
+                // 強制關閉所有自動處理功能
+                echoCancellation: false,  // 關閉回音消除
+                noiseSuppression: false,  // 關閉雜音抑制
+                autoGainControl: false,   // 關鍵：關閉自動增益控制 (防止音量忽大忽小)
+                channelCount: 1,          // 調查紀錄用單聲道即可，節省空間
+                sampleRate: 44100         // 設定標準採樣率
+  }
+})
+          .then(stream => {
+
+            // 優先檢查瀏覽器支援的格式
+            let options = { mimeType: 'audio/webm;codecs=opus' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'audio/ogg;codecs=opus' };
+            }
+
+            // 設定位元率為 128kbps，確保音質清晰
+            options.audioBitsPerSecond = 128000;
+
+            mediaRecorder = new MediaRecorder(stream, options);
+            mediaRecorder.start();
+            
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            statusDiv.innerText = "狀態：🎙️ 錄音中...";
+            statusDiv.style.color = "red";
+
+            mediaRecorder.ondataavailable = e => {
+              audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+              const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+              audioChunks = []; // 清空準備下次錄音
+              
+              startBtn.style.display = 'block';
+              stopBtn.style.display = 'none';
+              statusDiv.innerText = "狀態：錄音完成，可繼續錄製下一筆。";
+              statusDiv.style.color = "#555";
+
+              // 轉 Base64 並產生介面
+              const reader = new FileReader();
+              reader.readAsDataURL(audioBlob);
+              reader.onloadend = function() {
+                createAudioElement(audioBlob, reader.result);
+              };
+              
+              // 停止所有麥克風軌道，釋放硬體資源
+              stream.getTracks().forEach(track => track.stop());
+            };
+          })
+          .catch(err => {
+            statusDiv.innerText = "麥克風存取被拒絕：" + err;
+          });
+      };
+
+      stopBtn.onclick = () => {
+        mediaRecorder.stop();
+      };
+    } else {
+      statusDiv.innerText = "你的瀏覽器不支援網頁錄音功能。";
+    }
+
+    function createAudioElement(blob, base64Data) {
+      const audioUrl = URL.createObjectURL(blob);
+      const div = document.createElement('div');
+      div.className = 'audio-item';
+      
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = audioUrl; 
+      
+      const uploadBtn = document.createElement('button');
+      uploadBtn.innerText = "⬆️ 上傳至雲端";
+      uploadBtn.className = "upload-btn";
+      
+      const itemStatus = document.createElement('div');
+      itemStatus.style.marginTop = "10px";
+
+      uploadBtn.onclick = () => {
+        uploadBtn.disabled = true;
+        uploadBtn.innerText = "⏳ 傳送中...";
+        itemStatus.innerText = "正在連線到 Google Drive...";
+        
+        const payload = {
+          filename: "調查錄音_" + new Date().getTime() + ".webm",
+          audioBase64: base64Data
+        };
+
+        // 透過 fetch API 傳送資料給 GAS
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(result => {
+          if(result.success) {
+            itemStatus.innerText = "✅ 上傳成功！";
+            itemStatus.style.color = "green";
+            uploadBtn.style.display = "none";
+          } else {
+            throw new Error(result.error);
+          }
+        })
+        .catch(error => {
+          itemStatus.innerText = "❌ 上傳失敗：" + error.message;
+          itemStatus.style.color = "red";
+          uploadBtn.innerText = "⬆️ 重新上傳";
+          uploadBtn.disabled = false;
+        });
+      };
+
+      div.appendChild(audio);
+      div.appendChild(uploadBtn);
+      div.appendChild(itemStatus);
+      audioList.prepend(div); 
+    }
+  </script>
+</body>
+</html>
