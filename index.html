@@ -1,105 +1,250 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>語音調查系統 (完美UX版)</title>
+  <title>語音地理調查系統</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-    button { padding: 15px 20px; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold;}
-    #startBtn { background-color: #4CAF50; color: white; width: 100%;}
-    #stopBtn { background-color: #f44336; color: white; width: 100%; display: none;}
-    .audio-item { margin-top: 15px; padding: 15px; border: 1px solid #ddd; background: #f9f9f9; border-radius: 8px;}
+    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f4f7f6; color: #333;}
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;}
+    h2 { text-align: center; color: #2c3e50; margin-top: 0;}
+    
+    /* 表單選單樣式 */
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; color: #555;}
+    select { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; background-color: #fff;}
+    select:disabled { background-color: #e9ecef; }
+    
+    /* 按鈕樣式 */
+    button { padding: 15px 20px; font-size: 16px; margin-top: 10px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold; width: 100%; transition: 0.2s;}
+    #startBtn { background-color: #4CAF50; color: white; }
+    #startBtn:disabled { background-color: #a5d6a7; cursor: not-allowed;}
+    #stopBtn { background-color: #f44336; color: white; display: none;}
+    .upload-btn { background-color: #2196F3; color: white; margin-top: 10px;}
+    .upload-btn:disabled { background-color: #90caf9; cursor: not-allowed; }
+    
+    .audio-item { margin-top: 15px; padding: 15px; border: 1px solid #ddd; background: #fafafa; border-radius: 8px;}
     audio { width: 100%; margin-top: 10px; }
-    .upload-btn { background-color: #2196F3; color: white; width: 100%; margin-top: 10px;}
-    .upload-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    #loadingMsg { text-align: center; font-weight: bold; color: #e67e22; margin-bottom: 15px;}
   </style>
 </head>
 <body>
 
-  <h2>語音調查系統</h2>
-  <p>網頁內直接錄音，不跳轉、不打斷工作流。</p>
+  <div class="card">
+    <h2>語音地理調查系統</h2>
+    
+    <div id="loadingMsg">⏳ 正在載入地名資料庫，請稍候...</div>
 
-  <div>
-    <button id="startBtn">🔴 按下開始錄音</button>
-    <button id="stopBtn">⏹ 結束錄音</button>
+    <div class="form-group">
+      <label>1. 選擇縣市</label>
+      <select id="countySelect" disabled>
+        <option value="">請先選擇縣市...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>2. 選擇鄉鎮</label>
+      <select id="townSelect" disabled>
+        <option value="">請先選擇鄉鎮...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>3. 選擇地名條目</label>
+      <select id="placeSelect" disabled>
+        <option value="">請先選擇地名...</option>
+      </select>
+    </div>
   </div>
 
-  <div id="status" style="margin-top: 15px; font-weight: bold; color: #555;">狀態：準備就緒</div>
-  <div id="audioList"></div>
+  <div class="card">
+    <div id="status" style="margin-bottom: 15px; font-weight: bold; color: #555; text-align: center;">狀態：請先選取上方地名</div>
+    <button id="startBtn" disabled>🔴 按下開始錄音</button>
+    <button id="stopBtn">⏹ 結束錄音</button>
+    
+    <div id="audioList"></div>
+  </div>
 
   <script>
     // ==========================================
-    // 請將剛剛 GAS 產生的 Web App 網址貼在下方引號內
+    // ⚠️ 請將下方引號內換成你最新的 GAS Web App 網址
     // ==========================================
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw/exec'; 
 
-    let mediaRecorder;
-    let audioChunks = [];
+    // 存放從資料庫抓回來的完整地名資料
+    let placesData = []; 
+
+    // DOM 元素
+    const countySelect = document.getElementById('countySelect');
+    const townSelect = document.getElementById('townSelect');
+    const placeSelect = document.getElementById('placeSelect');
+    const loadingMsg = document.getElementById('loadingMsg');
+    
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const statusDiv = document.getElementById('status');
     const audioList = document.getElementById('audioList');
 
-    // 檢查瀏覽器是否支援
+    let mediaRecorder;
+    let audioChunks = [];
+
+    // 1. 網頁載入時，立刻向 GAS API 取得地名資料
+    window.onload = () => {
+      fetch(GAS_API_URL)
+        .then(response => response.json())
+        .then(result => {
+          if(result.success) {
+            placesData = result.data;
+            loadingMsg.style.display = 'none';
+            initCountySelect(); // 初始化縣市下拉選單
+          } else {
+            loadingMsg.innerText = "❌ 載入失敗：" + result.error;
+            loadingMsg.style.color = 'red';
+          }
+        })
+        .catch(err => {
+          loadingMsg.innerText = "❌ 連線錯誤：" + err;
+          loadingMsg.style.color = 'red';
+        });
+    };
+
+    // 2. 處理下拉選單連動邏輯
+    function initCountySelect() {
+      // 提取不重複的縣市
+      const counties = [...new Set(placesData.map(item => item.county))].filter(c => c);
+      counties.forEach(county => {
+        let option = document.createElement('option');
+        option.value = county;
+        option.text = county;
+        countySelect.appendChild(option);
+      });
+      countySelect.disabled = false;
+    }
+
+    countySelect.addEventListener('change', (e) => {
+      townSelect.innerHTML = '<option value="">請選擇鄉鎮...</option>';
+      placeSelect.innerHTML = '<option value="">請選擇地名...</option>';
+      placeSelect.disabled = true;
+      startBtn.disabled = true;
+
+      const selectedCounty = e.target.value;
+      if (!selectedCounty) {
+        townSelect.disabled = true;
+        return;
+      }
+
+      // 篩選該縣市下的不重複鄉鎮
+      const towns = [...new Set(placesData.filter(item => item.county === selectedCounty).map(item => item.town))].filter(t => t);
+      towns.forEach(town => {
+        let option = document.createElement('option');
+        option.value = town;
+        option.text = town;
+        townSelect.appendChild(option);
+      });
+      townSelect.disabled = false;
+    });
+
+    townSelect.addEventListener('change', (e) => {
+      placeSelect.innerHTML = '<option value="">請選擇地名...</option>';
+      startBtn.disabled = true;
+
+      const selectedCounty = countySelect.value;
+      const selectedTown = e.target.value;
+      if (!selectedTown) {
+        placeSelect.disabled = true;
+        return;
+      }
+
+      // 篩選該縣市與鄉鎮下的地名
+      const places = placesData.filter(item => item.county === selectedCounty && item.town === selectedTown);
+      places.forEach(place => {
+        let option = document.createElement('option');
+        // value 存序號(id)，text 顯示地名
+        option.value = place.id; 
+        option.text = place.placeName;
+        // 把地名名稱也藏在 dataset 裡面方便取用
+        option.dataset.name = place.placeName; 
+        placeSelect.appendChild(option);
+      });
+      placeSelect.disabled = false;
+    });
+
+    placeSelect.addEventListener('change', (e) => {
+      if(e.target.value) {
+        startBtn.disabled = false;
+        statusDiv.innerText = `狀態：準備錄製【${e.target.options[e.target.selectedIndex].text}】`;
+      } else {
+        startBtn.disabled = true;
+        statusDiv.innerText = "狀態：請先選取上方地名";
+      }
+    });
+
+    // 3. 錄音邏輯 (已優化音質)
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       startBtn.onclick = () => {
-        navigator.mediaDevices.getUserMedia({
-            audio: {                
-                // 強制關閉所有自動處理功能
-                echoCancellation: false,  // 關閉回音消除
-                noiseSuppression: false,  // 關閉雜音抑制
-                autoGainControl: false,   // 關鍵：關閉自動增益控制 (防止音量忽大忽小)
-                channelCount: 1,          // 調查紀錄用單聲道即可，節省空間
-                sampleRate: 44100         // 設定標準採樣率
-  }
-})
-          .then(stream => {
+        navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 44100
+          } 
+        })
+        .then(stream => {
+          let options = { mimeType: 'audio/webm;codecs=opus' };
+          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+              options = { mimeType: 'audio/ogg;codecs=opus' };
+          }
+          options.audioBitsPerSecond = 128000;
 
-            // 優先檢查瀏覽器支援的格式
-            let options = { mimeType: 'audio/webm;codecs=opus' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'audio/ogg;codecs=opus' };
-            }
+          mediaRecorder = new MediaRecorder(stream, options);
+          mediaRecorder.start();
+          
+          startBtn.style.display = 'none';
+          stopBtn.style.display = 'block';
+          
+          // 鎖定選單，防止錄音中途更換地名
+          countySelect.disabled = true;
+          townSelect.disabled = true;
+          placeSelect.disabled = true;
 
-            // 設定位元率為 128kbps，確保音質清晰
-            options.audioBitsPerSecond = 128000;
+          const currentPlaceName = placeSelect.options[placeSelect.selectedIndex].text;
+          statusDiv.innerText = `狀態：🎙️ 正在錄製【${currentPlaceName}】...`;
+          statusDiv.style.color = "red";
 
-            mediaRecorder = new MediaRecorder(stream, options);
-            mediaRecorder.start();
+          mediaRecorder.ondataavailable = e => {
+            audioChunks.push(e.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: options.mimeType });
+            audioChunks = []; 
             
-            startBtn.style.display = 'none';
-            stopBtn.style.display = 'block';
-            statusDiv.innerText = "狀態：🎙️ 錄音中...";
-            statusDiv.style.color = "red";
+            startBtn.style.display = 'block';
+            stopBtn.style.display = 'none';
+            statusDiv.innerText = "狀態：錄音完成，可試聽或繼續錄製下一筆。";
+            statusDiv.style.color = "#555";
 
-            mediaRecorder.ondataavailable = e => {
-              audioChunks.push(e.data);
+            // 解鎖選單
+            countySelect.disabled = false;
+            townSelect.disabled = false;
+            placeSelect.disabled = false;
+
+            // 取得當下選擇的地名資料
+            const selectedPlaceId = placeSelect.value;
+            const selectedPlaceName = placeSelect.options[placeSelect.selectedIndex].dataset.name;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = function() {
+              createAudioElement(audioBlob, reader.result, selectedPlaceId, selectedPlaceName);
             };
-
-            mediaRecorder.onstop = () => {
-              const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-              audioChunks = []; // 清空準備下次錄音
-              
-              startBtn.style.display = 'block';
-              stopBtn.style.display = 'none';
-              statusDiv.innerText = "狀態：錄音完成，可繼續錄製下一筆。";
-              statusDiv.style.color = "#555";
-
-              // 轉 Base64 並產生介面
-              const reader = new FileReader();
-              reader.readAsDataURL(audioBlob);
-              reader.onloadend = function() {
-                createAudioElement(audioBlob, reader.result);
-              };
-              
-              // 停止所有麥克風軌道，釋放硬體資源
-              stream.getTracks().forEach(track => track.stop());
-            };
-          })
-          .catch(err => {
-            statusDiv.innerText = "麥克風存取被拒絕：" + err;
-          });
+            
+            stream.getTracks().forEach(track => track.stop());
+          };
+        })
+        .catch(err => {
+          statusDiv.innerText = "麥克風存取被拒絕：" + err;
+        });
       };
 
       stopBtn.onclick = () => {
@@ -109,17 +254,23 @@
       statusDiv.innerText = "你的瀏覽器不支援網頁錄音功能。";
     }
 
-    function createAudioElement(blob, base64Data) {
+    // 4. 產生播放器與上傳邏輯
+    function createAudioElement(blob, base64Data, placeId, placeName) {
       const audioUrl = URL.createObjectURL(blob);
       const div = document.createElement('div');
       div.className = 'audio-item';
       
+      const title = document.createElement('div');
+      title.innerText = `📌 標籤：${placeName} (ID: ${placeId})`;
+      title.style.fontWeight = 'bold';
+      title.style.marginBottom = '5px';
+
       const audio = document.createElement('audio');
       audio.controls = true;
       audio.src = audioUrl; 
       
       const uploadBtn = document.createElement('button');
-      uploadBtn.innerText = "⬆️ 上傳至雲端";
+      uploadBtn.innerText = "⬆️ 上傳至雲端資料庫";
       uploadBtn.className = "upload-btn";
       
       const itemStatus = document.createElement('div');
@@ -128,14 +279,17 @@
       uploadBtn.onclick = () => {
         uploadBtn.disabled = true;
         uploadBtn.innerText = "⏳ 傳送中...";
-        itemStatus.innerText = "正在連線到 Google Drive...";
+        itemStatus.innerText = "正在連線到資料庫...";
+        itemStatus.style.color = "orange";
         
+        // 準備要傳送給 GAS 的資料 (加上了地名與序號)
         const payload = {
-          filename: "調查錄音_" + new Date().getTime() + ".webm",
-          audioBase64: base64Data
+          filename: `調查錄音_${placeName}_${new Date().getTime()}.webm`,
+          audioBase64: base64Data,
+          placeId: placeId,
+          placeName: placeName
         };
 
-        // 透過 fetch API 傳送資料給 GAS
         fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify(payload)
@@ -143,7 +297,7 @@
         .then(response => response.json())
         .then(result => {
           if(result.success) {
-            itemStatus.innerText = "✅ 上傳成功！";
+            itemStatus.innerText = "✅ 上傳成功！已寫入資料庫。";
             itemStatus.style.color = "green";
             uploadBtn.style.display = "none";
           } else {
@@ -158,6 +312,7 @@
         });
       };
 
+      div.appendChild(title);
       div.appendChild(audio);
       div.appendChild(uploadBtn);
       div.appendChild(itemStatus);
