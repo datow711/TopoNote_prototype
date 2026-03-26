@@ -118,6 +118,17 @@
             selectedType: ""
         };
 
+        // 將 Google Drive 預覽網址轉換為直接播放網址
+        function convertToDirectLink(driveUrl) {
+            if (!driveUrl) return "";
+            // 抓取網址中的檔案 ID
+            const match = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) {
+                return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+            }
+            return driveUrl;
+        }
+
         let mediaRecorder;
         let audioChunks = [];
         let audioBlob = null;
@@ -296,7 +307,7 @@
                     </div>
                     <div style="margin-bottom: 5px;">✏️ 音標：${r.phonetic || '(未填寫)'}</div>
                     <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">ID: ${r.recordId}</div>
-                    <audio src="${r.url}" controls style="width: 100%; height: 30px;"></audio>
+                    <audio src="${directUrl}" controls style="width: 100%; height: 30px;"></audio>
                 </div>
             `).join('');
         }
