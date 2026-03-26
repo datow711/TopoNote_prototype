@@ -103,35 +103,41 @@
             </div>
         </div>
     </div>
-
     <script>
         // ⚠️ 請替換成你最新部署的 Google Apps Script 網址
-        const API_URL = "https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw/exec"; 
-        
+        const API_URL = "https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw/exec";
+    </script>
+    
+    <script>
+
         let state = {
             userId: "",
             assignedPlaces: [],
             allPlaces: [],
-            uploadedRecords: [], // 🚀 新增：存放所有歷史紀錄
+            uploadedRecords: [], 
             currentTab: 'assigned',
             selectedPlace: null,
             selectedType: ""
         };
 
-        // 將 Google Drive 預覽網址轉換為直接播放網址
-        function convertToDirectLink(driveUrl) {
-            if (!driveUrl) return "";
-            // 抓取網址中的檔案 ID
-            const match = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-            if (match && match[1]) {
-                return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-            }
-            return driveUrl;
-        }
-
         let mediaRecorder;
         let audioChunks = [];
         let audioBlob = null;
+
+        // 🚀 1. 新增的網址轉換器 (確保放在最外層，不會找不到)
+        function convertToDirectLink(driveUrl) {
+            try {
+                if (!driveUrl) return "";
+                const urlStr = String(driveUrl);
+                const match = urlStr.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (match && match[1]) {
+                    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+                }
+                return urlStr;
+            } catch(e) {
+                return "";
+            }
+        }
 
         async function login() {
             const acc = document.getElementById('account').value;
@@ -155,7 +161,7 @@
                     state.userId = result.userId;
                     state.assignedPlaces = result.assignedPlaces;
                     state.allPlaces = result.allPlaces;
-                    state.uploadedRecords = result.uploadedRecords || []; // 取得歷史紀錄
+                    state.uploadedRecords = result.uploadedRecords || []; 
                     
                     document.getElementById('login-section').classList.add('hidden');
                     document.getElementById('app-section').classList.remove('hidden');
@@ -223,7 +229,7 @@
 
             const filteredData = dataToFilter.filter(place => {
                 const matchKeyword = (place.placeName && place.placeName.toLowerCase().includes(keyword)) || 
-                                     (place.id && place.id.includes(keyword));
+                                     (place.id && String(place.id).includes(keyword));
                 const matchCounty = county ? place.county === county : true;
                 const matchTown = town ? place.town === town : true;
                 const placeType = place.type || place.Type; 
@@ -253,8 +259,8 @@
                 
                 const typeName = place.type || place.Type || '無類別';
                 
-                // 計算這個地名已經有幾筆錄音
-                const recordCount = state.uploadedRecords.filter(r => r.placeId === place.id).length;
+                // 🚀 防呆機制：強制將 ID 轉成文字來比對，避免「數字 1001 != 文字 1001」的狀況
+                const recordCount = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
                 const badge = recordCount > 0 ? `<span style="background:#2ecc71; color:white;">已錄音: ${recordCount}</span>` : '';
 
                 item.innerHTML = `
@@ -284,22 +290,27 @@
             document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName} (${place.county}${place.town})`;
             
             resetRecordingState();
-            renderHistoryList(place.id); // 🚀 渲染歷史紀錄
+            renderHistoryList(place.id); 
             
             recSection.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // 🚀 新增：渲染該地名的歷史紀錄
+        // 🚀 2. 渲染該地名的歷史紀錄 (修正型別比對與網址轉換)
         function renderHistoryList(placeId) {
             const historyList = document.getElementById('history-list');
-            const records = state.uploadedRecords.filter(r => r.placeId === placeId);
+            // 防呆：強制用 String() 轉型，避免型別不對導致找不到紀錄
+            const records = state.uploadedRecords.filter(r => String(r.placeId) === String(placeId));
             
             if (records.length === 0) {
                 historyList.innerHTML = "<div style='color:#999; text-align:center;'>尚未有任何錄音紀錄。</div>";
                 return;
             }
             
-            historyList.innerHTML = records.map(r => `
+            historyList.innerHTML = records.map(r => {
+                // 將原始網址轉換成可播放的串流網址
+                const directUrl = convertToDirectLink(r.url);
+                
+                return `
                 <div class="history-item">
                     <div class="history-meta">
                         <span>🏷️ 語言：${r.language}</span>
@@ -309,7 +320,8 @@
                     <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">ID: ${r.recordId}</div>
                     <audio src="${directUrl}" controls style="width: 100%; height: 30px;"></audio>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function resetRecordingState() {
@@ -371,7 +383,7 @@
                 const payload = {
                     action: 'upload',
                     userId: state.userId,
-                    placeId: state.selectedPlace.id,
+                    placeId: String(state.selectedPlace.id), // 強制文字
                     placeName: state.selectedPlace.placeName,
                     filename: `Record_${state.userId}_${state.selectedPlace.id}_${new Date().getTime()}.webm`,
                     audioBase64: reader.result,
@@ -391,11 +403,10 @@
                         statusDiv.innerText = `🎉 上傳成功！您可以繼續上傳另一個語言或版本。`;
                         statusDiv.style.color = "blue";
                         
-                        // 🚀 將新上傳的資料即時推入前端快取，並刷新畫面
                         if(result.recordData) {
                             state.uploadedRecords.push(result.recordData);
                             renderHistoryList(state.selectedPlace.id);
-                            applyFilters(); // 刷新外層選單的「已錄音」標籤數量
+                            applyFilters(); 
                         }
 
                         document.getElementById('phonetic-input').value = "";
