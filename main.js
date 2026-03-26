@@ -47,14 +47,22 @@ function switchTab(tab) {
     document.getElementById('search-box').value = ""; applyFilters();
 }
 function initFilters() {
-    const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
-    const types = [...new Set(state.allPlaces.map(p => p.type || p.Type).filter(Boolean))];
-    const countySelect = document.getElementById('county-filter');
-    counties.forEach(c => countySelect.add(new Option(c, c)));
-    const typeContainer = document.getElementById('type-container');
-    typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
-    types.forEach(t => { typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${t}</div>`; });
-}
+            // 動態抓取縣市
+            const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
+            const countySelect = document.getElementById('county-filter');
+            countySelect.innerHTML = '<option value="">所有縣市</option>'; // 確保清空重置
+            counties.forEach(c => countySelect.add(new Option(c, c)));
+
+            // 🚀 動態抓取類別：直接去 state.allPlaces 裡面把有值的 type 抽出來，並去除重複
+            const types = [...new Set(state.allPlaces.map(p => p.type).filter(Boolean))];
+
+            const typeContainer = document.getElementById('type-container');
+            typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
+            
+            types.forEach(t => {
+                typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${t}</div>`;
+            });
+        }
 function updateTowns() {
     const county = document.getElementById('county-filter').value;
     const townSelect = document.getElementById('town-filter');
