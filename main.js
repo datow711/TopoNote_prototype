@@ -1,6 +1,4 @@
 // ⚠️ 請替換成你最新部署的 Google Apps Script 網址
-const API_URL = "你的API_URL填在這裡"; 
-
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
     currentTab: 'assigned', selectedPlace: null, selectedType: ""
