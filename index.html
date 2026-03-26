@@ -5,17 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>地名語音調查系統</title>
     <style>
-        /* (前面的 CSS 都保持不變，新增下方 history 的樣式) */
+        /* CSS 保持不變，略為增加上傳按鈕樣式 */
         :root { --primary: #3498db; --secondary: #2c3e50; --bg: #f4f7f6; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: var(--bg); color: #333; max-width: 600px; margin: 0 auto; }
         h1 { text-align: center; color: var(--secondary); font-size: 24px; }
         .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; color: white; margin-bottom: 10px; }
+        button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; color: white; margin-bottom: 10px; transition: 0.2s; }
         .btn-primary { background-color: var(--primary); }
         .btn-record { background-color: #e74c3c; }
         .btn-stop { background-color: #95a5a6; display: none; }
         .btn-upload { background-color: #2ecc71; display: none; }
+        .btn-file { background-color: #8e44ad; } /* 新增檔案上傳按鈕顏色 */
         
         .tab-container { display: flex; gap: 10px; margin-bottom: 15px; }
         .tab-btn { flex: 1; background-color: #e0e0e0; color: #555; font-weight: bold; border-radius: 8px 8px 0 0; margin-bottom: 0; transition: 0.3s; }
@@ -40,11 +41,11 @@
         .lang-select { display: flex; gap: 15px; margin-bottom: 15px; }
         .lang-select label { display: flex; align-items: center; gap: 5px; font-weight: bold; cursor: pointer; }
         
-        /* 新增：歷史紀錄區塊的 CSS */
         .history-section { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #ccc; }
         .history-item { background: #f9f9f9; border-left: 4px solid #f39c12; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-size: 14px; }
         .history-meta { display: flex; justify-content: space-between; margin-bottom: 5px; color: #555; font-weight: bold; }
         
+        .play-btn { background-color: #f39c12; padding: 6px 10px; font-size: 14px; border-radius: 4px; display: inline-block; width: auto; margin-bottom: 5px;}
         .hidden { display: none !important; }
     </style>
 </head>
@@ -90,10 +91,16 @@
             
             <input type="text" id="phonetic-input" placeholder="✏️ 請輸入音標 (選填)">
             
-            <button class="btn-record" id="start-btn" onclick="startRecording()">🎤 開始錄音</button>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button class="btn-record" id="start-btn" onclick="startRecording()" style="flex: 1; margin: 0;">🎤 現場錄音</button>
+                
+                <input type="file" id="audio-file-input" accept="audio/*" style="display:none;" onchange="handleFileUpload(event)">
+                <button class="btn-file" id="file-btn" onclick="document.getElementById('audio-file-input').click()" style="flex: 1; margin: 0;">📂 選擇本機音檔</button>
+            </div>
+
             <button class="btn-stop" id="stop-btn" onclick="stopRecording()">⏹️ 停止錄音</button>
             <audio id="audio-playback" controls style="width:100%; margin-bottom:10px; display:none;"></audio>
-            <button class="btn-upload" id="upload-btn" onclick="uploadAudio()">⬆️ 上傳並準備下一筆錄音</button>
+            <button class="btn-upload" id="upload-btn" onclick="uploadAudio()">⬆️ 上傳並準備下一筆</button>
             
             <div id="status" style="text-align:center; font-weight:bold;"></div>
 
@@ -103,328 +110,8 @@
             </div>
         </div>
     </div>
-    <script>
-        // ⚠️ 請替換成你最新部署的 Google Apps Script 網址
-        const API_URL = "https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw/exec";
-    </script>
-    
-    <script>
+  <script src="config.js"></script>
+  <script src="main.js"></script>
 
-        let state = {
-            userId: "",
-            assignedPlaces: [],
-            allPlaces: [],
-            uploadedRecords: [], 
-            currentTab: 'assigned',
-            selectedPlace: null,
-            selectedType: ""
-        };
-
-        let mediaRecorder;
-        let audioChunks = [];
-        let audioBlob = null;
-
-        // 🚀 1. 新增的網址轉換器 (確保放在最外層，不會找不到)
-        function convertToDirectLink(driveUrl) {
-            try {
-                if (!driveUrl) return "";
-                const urlStr = String(driveUrl);
-                const match = urlStr.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                if (match && match[1]) {
-                    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-                }
-                return urlStr;
-            } catch(e) {
-                return "";
-            }
-        }
-
-        async function login() {
-            const acc = document.getElementById('account').value;
-            const pwd = document.getElementById('password').value;
-            const loginBtn = document.getElementById('login-btn');
-            
-            if (!acc || !pwd) return alert("請輸入帳號與密碼！");
-            
-            loginBtn.innerText = "驗證與載入資料中...";
-            loginBtn.disabled = true;
-
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'login', account: acc, password: pwd })
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    state.userId = result.userId;
-                    state.assignedPlaces = result.assignedPlaces;
-                    state.allPlaces = result.allPlaces;
-                    state.uploadedRecords = result.uploadedRecords || []; 
-                    
-                    document.getElementById('login-section').classList.add('hidden');
-                    document.getElementById('app-section').classList.remove('hidden');
-                    
-                    initFilters();
-                    switchTab('assigned');
-                } else {
-                    document.getElementById('login-status').innerText = "❌ " + result.error;
-                    loginBtn.innerText = "登入系統";
-                    loginBtn.disabled = false;
-                }
-            } catch (error) {
-                document.getElementById('login-status').innerText = "❌ 網路連線錯誤";
-                loginBtn.innerText = "登入系統";
-                loginBtn.disabled = false;
-            }
-        }
-
-        function switchTab(tab) {
-            state.currentTab = tab;
-            document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
-            document.getElementById('tab-other').classList.toggle('active', tab === 'other');
-            document.getElementById('search-box').value = "";
-            applyFilters();
-        }
-
-        function initFilters() {
-            const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
-            const types = [...new Set(state.allPlaces.map(p => p.type || p.Type).filter(Boolean))];
-
-            const countySelect = document.getElementById('county-filter');
-            counties.forEach(c => countySelect.add(new Option(c, c)));
-
-            const typeContainer = document.getElementById('type-container');
-            typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
-            types.forEach(t => {
-                typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${t}</div>`;
-            });
-        }
-
-        function updateTowns() {
-            const selectedCounty = document.getElementById('county-filter').value;
-            const townSelect = document.getElementById('town-filter');
-            townSelect.innerHTML = '<option value="">所有鄉鎮</option>';
-            
-            if (selectedCounty) {
-                const towns = [...new Set(state.allPlaces.filter(p => p.county === selectedCounty).map(p => p.town).filter(Boolean))];
-                towns.forEach(t => townSelect.add(new Option(t, t)));
-            }
-        }
-
-        function selectType(type, element) {
-            state.selectedType = type;
-            document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
-            element.classList.add('selected');
-            applyFilters();
-        }
-
-        function applyFilters() {
-            const keyword = document.getElementById('search-box').value.toLowerCase();
-            const county = document.getElementById('county-filter').value;
-            const town = document.getElementById('town-filter').value;
-            const type = state.selectedType;
-            let dataToFilter = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
-
-            const filteredData = dataToFilter.filter(place => {
-                const matchKeyword = (place.placeName && place.placeName.toLowerCase().includes(keyword)) || 
-                                     (place.id && String(place.id).includes(keyword));
-                const matchCounty = county ? place.county === county : true;
-                const matchTown = town ? place.town === town : true;
-                const placeType = place.type || place.Type; 
-                const matchType = type ? placeType === type : true;
-                
-                return matchKeyword && matchCounty && matchTown && matchType;
-            });
-
-            renderPlaceList(filteredData);
-        }
-
-        function renderPlaceList(places) {
-            const container = document.getElementById('place-list-container');
-            container.innerHTML = "";
-
-            if (places.length === 0) {
-                container.innerHTML = "<div style='padding:20px; text-align:center; color:#999;'>沒有符合條件的地名</div>";
-                return;
-            }
-
-            places.forEach(place => {
-                const item = document.createElement('div');
-                item.className = 'place-item';
-                if (state.selectedPlace && state.selectedPlace.id === place.id) {
-                    item.classList.add('active');
-                }
-                
-                const typeName = place.type || place.Type || '無類別';
-                
-                // 🚀 防呆機制：強制將 ID 轉成文字來比對，避免「數字 1001 != 文字 1001」的狀況
-                const recordCount = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
-                const badge = recordCount > 0 ? `<span style="background:#2ecc71; color:white;">已錄音: ${recordCount}</span>` : '';
-
-                item.innerHTML = `
-                    <div class="place-info">
-                        <div class="place-title">${place.placeName}</div>
-                        <div class="place-meta">
-                            <span>ID: ${place.id}</span>
-                            <span>${place.county} ${place.town}</span>
-                            <span>${typeName}</span>
-                            ${badge}
-                        </div>
-                    </div>
-                    <div>👉</div>
-                `;
-                item.onclick = () => openRecordingUI(place, item);
-                container.appendChild(item);
-            });
-        }
-
-        function openRecordingUI(place, element) {
-            state.selectedPlace = place;
-            document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
-            if(element) element.classList.add('active');
-            
-            const recSection = document.getElementById('recording-section');
-            recSection.style.display = 'block';
-            document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName} (${place.county}${place.town})`;
-            
-            resetRecordingState();
-            renderHistoryList(place.id); 
-            
-            recSection.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // 🚀 2. 渲染該地名的歷史紀錄 (修正型別比對與網址轉換)
-        function renderHistoryList(placeId) {
-            const historyList = document.getElementById('history-list');
-            // 防呆：強制用 String() 轉型，避免型別不對導致找不到紀錄
-            const records = state.uploadedRecords.filter(r => String(r.placeId) === String(placeId));
-            
-            if (records.length === 0) {
-                historyList.innerHTML = "<div style='color:#999; text-align:center;'>尚未有任何錄音紀錄。</div>";
-                return;
-            }
-            
-            historyList.innerHTML = records.map(r => {
-                // 將原始網址轉換成可播放的串流網址
-                const directUrl = convertToDirectLink(r.url);
-                
-                return `
-                <div class="history-item">
-                    <div class="history-meta">
-                        <span>🏷️ 語言：${r.language}</span>
-                        <span>👤 上傳者：${r.uploaderId}</span>
-                    </div>
-                    <div style="margin-bottom: 5px;">✏️ 音標：${r.phonetic || '(未填寫)'}</div>
-                    <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">ID: ${r.recordId}</div>
-                    <audio src="${directUrl}" controls style="width: 100%; height: 30px;"></audio>
-                </div>
-                `;
-            }).join('');
-        }
-
-        function resetRecordingState() {
-            document.getElementById('phonetic-input').value = "";
-            document.getElementById('audio-playback').style.display = 'none';
-            document.getElementById('upload-btn').style.display = 'none';
-            document.getElementById('status').innerText = "";
-            document.getElementById('start-btn').style.display = 'block';
-            audioBlob = null;
-        }
-
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-                mediaRecorder.onstop = () => {
-                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
-                    document.getElementById('audio-playback').style.display = 'block';
-                    document.getElementById('upload-btn').style.display = 'block';
-                };
-
-                mediaRecorder.start();
-                document.getElementById('start-btn').style.display = 'none';
-                document.getElementById('stop-btn').style.display = 'block';
-                document.getElementById('status').innerText = "🔴 正在錄音中...";
-                document.getElementById('status').style.color = "red";
-            } catch (err) {
-                alert("無法存取麥克風！");
-            }
-        }
-
-        function stopRecording() {
-            mediaRecorder.stop();
-            document.getElementById('start-btn').style.display = 'block';
-            document.getElementById('stop-btn').style.display = 'none';
-            document.getElementById('status').innerText = "✅ 錄音完成，可填寫音標後上傳。";
-            document.getElementById('status').style.color = "green";
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-        }
-
-        function uploadAudio() {
-            if (!audioBlob || !state.selectedPlace) return;
-
-            const uploadBtn = document.getElementById('upload-btn');
-            const statusDiv = document.getElementById('status');
-            const lang = document.querySelector('input[name="lang"]:checked').value;
-            const phonetic = document.getElementById('phonetic-input').value;
-
-            uploadBtn.innerText = "⏳ 上傳中，請稍候...";
-            uploadBtn.disabled = true;
-
-            const reader = new FileReader();
-            reader.readAsDataURL(audioBlob);
-            reader.onloadend = async function() {
-                const payload = {
-                    action: 'upload',
-                    userId: state.userId,
-                    placeId: String(state.selectedPlace.id), // 強制文字
-                    placeName: state.selectedPlace.placeName,
-                    filename: `Record_${state.userId}_${state.selectedPlace.id}_${new Date().getTime()}.webm`,
-                    audioBase64: reader.result,
-                    language: lang,
-                    phonetic: phonetic
-                };
-
-                try {
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        statusDiv.innerText = `🎉 上傳成功！您可以繼續上傳另一個語言或版本。`;
-                        statusDiv.style.color = "blue";
-                        
-                        if(result.recordData) {
-                            state.uploadedRecords.push(result.recordData);
-                            renderHistoryList(state.selectedPlace.id);
-                            applyFilters(); 
-                        }
-
-                        document.getElementById('phonetic-input').value = "";
-                        document.getElementById('audio-playback').style.display = 'none';
-                        uploadBtn.style.display = 'none';
-                        audioBlob = null;
-                    } else {
-                        throw new Error(result.error);
-                    }
-                } catch (error) {
-                    statusDiv.innerText = "❌ 上傳失敗：" + error.message;
-                    statusDiv.style.color = "red";
-                } finally {
-                    uploadBtn.innerText = "⬆️ 上傳並準備下一筆錄音";
-                    uploadBtn.disabled = false;
-                }
-            };
-        }
-    </script>
 </body>
 </html>
