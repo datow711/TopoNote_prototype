@@ -41,6 +41,21 @@ button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radiu
 .place-meta { font-size: 12px; color: #777; }
 .place-meta span { background: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px; }
 
+/* 🚀 清單展開箭頭的預設樣式 (向右) */
+.expand-icon {
+    color: #bdc3c7;
+    font-size: 14px;
+    transition: transform 0.3s ease, color 0.3s ease; /* 讓旋轉和變色有流暢的動畫 */
+    display: flex;
+    align-items: center;
+}
+
+/* 🚀 當項目被點擊 (加上 active 類別時)，箭頭順時針旋轉 90 度變成向下，並改變顏色 */
+.place-item.active .expand-icon {
+    transform: rotate(90deg);
+    color: var(--primary); /* 變成跟主題一樣的藍色 */
+}
+
 #recording-section { display: none; margin-top: 20px; border: 2px solid var(--primary); }
 .lang-select { display: flex; gap: 15px; margin-bottom: 15px; }
 .lang-select label { display: flex; align-items: center; gap: 5px; font-weight: bold; cursor: pointer; }

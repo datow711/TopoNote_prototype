@@ -126,9 +126,14 @@ function renderPlaceList(places) {
     places.forEach(place => {
         const item = document.createElement('div');
         item.className = 'place-item';
+        
+        // 判斷是否為當前選取的項目，如果是就加上 active 讓箭頭向下
         if (state.selectedPlace && state.selectedPlace.id === place.id) item.classList.add('active');
         
-        const typeName = place.type || place.Type || '無類別';
+        // 處理清單內的名稱縮短顯示
+        let typeName = place.type || place.Type || '無類別';
+        if (typeName === "具有地標意義公共設施") typeName = "公共設施";
+        
         const count = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
         const badge = count > 0 ? `<span style="background:#2ecc71; color:white;">已錄音: ${count}</span>` : '';
 
@@ -136,12 +141,14 @@ function renderPlaceList(places) {
             <div class="place-info">
                 <div class="place-title">${place.placeName}</div>
                 <div class="place-meta"><span>ID: ${place.id}</span><span>${place.county} ${place.town}</span><span>${typeName}</span>${badge}</div>
-            </div><div>👉</div>
+            </div>
+            <div class="expand-icon">▶</div>
         `;
         item.onclick = () => openRecordingUI(place, item);
         container.appendChild(item);
     });
 }
+
 function openRecordingUI(place, element) {
     state.selectedPlace = place;
     document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
