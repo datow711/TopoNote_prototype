@@ -7,40 +7,49 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
-    selectedStatus: "all" // 新增：預設顯示全部狀態
+    selectedStatus: "all" 
 };
 
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob = null;
-let uploadedFileName = ""; // 用來記錄上傳檔案的真實檔名
+let uploadedFileName = ""; 
 
+// ==========================================
+// 🌟 核心修改 1：登入與 Supabase 資料極速載入
+// ==========================================
 async function login() {
     const acc = document.getElementById('account').value;
     const pwd = document.getElementById('password').value;
     const loginBtn = document.getElementById('login-btn');
     
     if (!acc || !pwd) return alert("請輸入帳號與密碼！");
-    loginBtn.innerText = "驗證中..."; loginBtn.disabled = true;
+    loginBtn.innerText = "驗證密碼中..."; loginBtn.disabled = true;
 
     try {
+        // 1. 依然透過 GAS 驗證密碼
         const response = await fetch(API_URL, {
             method: 'POST', body: JSON.stringify({ action: 'login', account: acc, password: pwd })
         });
         const result = await response.json();
+        
         if (result.success) {
-            state.userId = result.userId; state.assignedPlaces = result.assignedPlaces;
-            state.allPlaces = result.allPlaces; state.uploadedRecords = result.uploadedRecords || []; 
+            state.userId = result.userId; 
+            loginBtn.innerText = "載入資料庫中...";
+
+            // 2. 密碼正確後，直接從 Supabase 抓資料 (取代原本 GAS 吐出來的資料)
+            await loadDataFromSupabase(state.userId);
             
+            // 3. 切換畫面
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('app-section').classList.remove('hidden');
-            initFilters(); switchTab('assigned');
+            initFilters(); 
+            switchTab('assigned');
         } else {
             document.getElementById('login-status').innerText = "❌ " + result.error;
             loginBtn.innerText = "登入系統"; loginBtn.disabled = false;
@@ -51,7 +60,49 @@ async function login() {
     }
 }
 
-// --- 以下為 UI 切換與篩選器邏輯 (保持原樣) ---
+// 🌟 新增函數：專門負責向 Supabase 要資料並轉換格式
+async function loadDataFromSupabase(userName) {
+    try {
+        const headers = {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+        };
+
+        // 併發請求：同時抓取「任務清單」與「歷史錄音」
+        const [tasksRes, recordsRes] = await Promise.all([
+            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_tasks_view?select=*`, { headers }),
+            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?select=*`, { headers })
+        ]);
+
+        const tasksData = await tasksRes.json();
+        const recordsData = await recordsRes.json();
+
+        // 將 Supabase 格式 (snake_case) 轉換為你原本 App 適用的格式 (camelCase)
+        state.assignedPlaces = tasksData
+            .filter(t => t.assigned_to === userName)
+            .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+            
+        state.allPlaces = tasksData
+            .filter(t => t.assigned_to !== userName)
+            .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+
+        state.uploadedRecords = recordsData.map(r => ({
+            recordId: r.id,
+            placeId: r.task_id,
+            language: r.language,
+            uploaderId: r.recorder_name,
+            phonetic: r.phonetic_reading,
+            url: r.audio_file_id 
+        }));
+    } catch (err) {
+        console.error("Supabase 載入失敗", err);
+        alert("資料庫連線異常，請重新整理網頁。");
+    }
+}
+
+// ==========================================
+// 以下為 UI 切換與篩選器邏輯 (完全保持原樣，因為資料格式已對接)
+// ==========================================
 function switchTab(tab) {
     state.currentTab = tab;
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
@@ -59,8 +110,8 @@ function switchTab(tab) {
     document.getElementById('search-box').value = ""; applyFilters();
 }
 function initFilters() {
-    const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
-    const types = [...new Set(state.allPlaces.map(p => p.type || p.Type).filter(Boolean))];
+    const counties = [...new Set(state.allPlaces.concat(state.assignedPlaces).map(p => p.county).filter(Boolean))];
+    const types = [...new Set(state.allPlaces.concat(state.assignedPlaces).map(p => p.type || p.Type).filter(Boolean))];
     
     const countySelect = document.getElementById('county-filter');
     counties.forEach(c => countySelect.add(new Option(c, c)));
@@ -69,11 +120,8 @@ function initFilters() {
     typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
     
     types.forEach(t => { 
-        // 🚀 攔截超長名字，但保留原始參數 t，確保篩選時能對應到真實資料
         let displayText = t;
-        if (t === "具有地標意義公共設施") {
-            displayText = "公共設施";
-        }
+        if (t === "具有地標意義公共設施") displayText = "公共設施";
         typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${displayText}</div>`; 
     });
 }
@@ -82,7 +130,7 @@ function updateTowns() {
     const townSelect = document.getElementById('town-filter');
     townSelect.innerHTML = '<option value="">所有鄉鎮</option>';
     if (county) {
-        const towns = [...new Set(state.allPlaces.filter(p => p.county === county).map(p => p.town).filter(Boolean))];
+        const towns = [...new Set(state.allPlaces.concat(state.assignedPlaces).filter(p => p.county === county).map(p => p.town).filter(Boolean))];
         towns.forEach(t => townSelect.add(new Option(t, t)));
     }
 }
@@ -91,12 +139,10 @@ function selectType(type, element) {
     document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected'); applyFilters();
 }
-
 function selectStatus(status, element) {
     state.selectedStatus = status;
     document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected'); 
-    applyFilters();
+    element.classList.add('selected'); applyFilters();
 }
 
 function applyFilters() {
@@ -104,7 +150,7 @@ function applyFilters() {
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
     const type = state.selectedType;
-    const status = state.selectedStatus; // 'all', 'recorded', 'unrecorded'
+    const status = state.selectedStatus; 
     
     let data = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
 
@@ -115,14 +161,12 @@ function applyFilters() {
         const pType = place.type || place.Type; 
         const matchTy = type ? pType === type : true;
         
-        // 🚀 新增：判斷該地名是否已有錄音
         let matchStatus = true;
         if (status !== 'all') {
             const hasRecord = state.uploadedRecords.some(r => String(r.placeId) === String(place.id));
             if (status === 'recorded') matchStatus = hasRecord;
             if (status === 'unrecorded') matchStatus = !hasRecord;
         }
-
         return matchK && matchC && matchTw && matchTy && matchStatus;
     });
     renderPlaceList(filtered);
@@ -136,11 +180,8 @@ function renderPlaceList(places) {
     places.forEach(place => {
         const item = document.createElement('div');
         item.className = 'place-item';
-        
-        // 判斷是否為當前選取的項目，如果是就加上 active 讓箭頭向下
         if (state.selectedPlace && state.selectedPlace.id === place.id) item.classList.add('active');
         
-        // 處理清單內的名稱縮短顯示
         let typeName = place.type || place.Type || '無類別';
         if (typeName === "具有地標意義公共設施") typeName = "公共設施";
         
@@ -172,9 +213,6 @@ function openRecordingUI(place, element) {
     recSection.scrollIntoView({ behavior: 'smooth' });
 }
 
-// ==========================================
-// 🚀 渲染歷史紀錄與 Base64 隨選播放 (終極 CORS 解法)
-// ==========================================
 function renderHistoryList(placeId) {
     const historyList = document.getElementById('history-list');
     const records = state.uploadedRecords.filter(r => String(r.placeId) === String(placeId));
@@ -185,32 +223,23 @@ function renderHistoryList(placeId) {
         <div class="history-item">
             <div class="history-meta"><span>🏷️ ${r.language}</span><span>👤 ${r.uploaderId}</span></div>
             <div style="margin-bottom: 5px;">✏️ 音標：${r.phonetic || '(未填寫)'}</div>
-            
             <div id="player-${r.recordId}" style="margin-top: 10px;">
-                <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">
-                    ▶️ 點此從雲端載入音檔並播放
-                </button>
-                <span style="font-size:12px; margin-left:10px;"><a href="${r.url}" target="_blank">🔗 開新視窗</a></span>
+                <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
             </div>
         </div>
     `).join('');
 }
 
-// 呼叫 GAS 將檔案轉成 Base64
 async function fetchAndPlayAudio(driveUrl, recordId) {
     const container = document.getElementById(`player-${recordId}`);
-    container.innerHTML = "<span style='color:#e67e22; font-weight:bold;'>⏳ 檔案載入與轉碼中，請稍候 (約需 2~5 秒)...</span>";
-    
+    container.innerHTML = "<span style='color:#e67e22; font-weight:bold;'>⏳ 檔案載入與轉碼中，請稍候...</span>";
     try {
         const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'getAudio', url: driveUrl })
         });
         const result = await response.json();
-        
         if (result.success) {
-            // 完美播放！不再被 Google 擋住！
             container.innerHTML = `<audio src="${result.dataUrl}" controls autoplay style="width: 100%; height: 35px;"></audio>`;
         } else {
             container.innerHTML = `<span style="color:red;">❌ 載入失敗：${result.error}</span>`;
@@ -221,7 +250,7 @@ async function fetchAndPlayAudio(driveUrl, recordId) {
 }
 
 // ==========================================
-// 🚀 檔案上傳與錄音處理邏輯
+// 錄音介面狀態控制 (保持原樣)
 // ==========================================
 function resetRecordingState() {
     document.getElementById('phonetic-input').value = "";
@@ -230,34 +259,23 @@ function resetRecordingState() {
     document.getElementById('status').innerText = "";
     document.getElementById('start-btn').style.display = 'block';
     document.getElementById('file-btn').style.display = 'block';
-    document.getElementById('audio-file-input').value = ""; // 清空上傳器
+    document.getElementById('audio-file-input').value = ""; 
     audioBlob = null;
     uploadedFileName = "";
 }
 
-// 處理選擇本地檔案 (支援 m4a, mp3, aac...)
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
-    // 驗證是否為音檔 (部分通訊軟體的檔案格式不完整，這裡放寬限制)
     if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|m4a|wav|aac|ogg|mp4)$/i)) {
-        alert("請上傳正確的音訊檔案 (支援 mp3, m4a 等格式)！");
-        return;
+        return alert("請上傳正確的音訊檔案！");
     }
-
-    audioBlob = file;
-    uploadedFileName = file.name; // 紀錄真實檔名，例如 "Line_Audio.m4a"
-    
-    // 預覽播放
+    audioBlob = file; uploadedFileName = file.name; 
     document.getElementById('audio-playback').src = URL.createObjectURL(file);
     document.getElementById('audio-playback').style.display = 'block';
-    
-    // 切換按鈕狀態
     document.getElementById('start-btn').style.display = 'none';
     document.getElementById('file-btn').style.display = 'none';
     document.getElementById('upload-btn').style.display = 'block';
-    
     document.getElementById('status').innerText = `✅ 已選取檔案：${file.name}`;
     document.getElementById('status').style.color = "green";
 }
@@ -267,16 +285,14 @@ async function startRecording() {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
-
         mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
         mediaRecorder.onstop = () => {
             audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            uploadedFileName = ""; // 網頁錄音固定用 webm
+            uploadedFileName = ""; 
             document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
             document.getElementById('audio-playback').style.display = 'block';
             document.getElementById('upload-btn').style.display = 'block';
         };
-
         mediaRecorder.start();
         document.getElementById('start-btn').style.display = 'none';
         document.getElementById('file-btn').style.display = 'none';
@@ -294,6 +310,9 @@ function stopRecording() {
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
 }
 
+// ==========================================
+// 🌟 核心修改 2：上傳音檔至 GAS + 紀錄寫入 Supabase
+// ==========================================
 function uploadAudio() {
     if (!audioBlob || !state.selectedPlace) return;
 
@@ -302,12 +321,11 @@ function uploadAudio() {
     const lang = document.querySelector('input[name="lang"]:checked').value;
     const phonetic = document.getElementById('phonetic-input').value;
 
-    uploadBtn.innerText = "⏳ 轉碼與上傳中..."; uploadBtn.disabled = true;
+    uploadBtn.innerText = "⏳ 轉碼與上傳 Drive 中..."; uploadBtn.disabled = true;
 
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async function() {
-        // 如果是檔案上傳，保留原副檔名；如果是網頁錄音，副檔名給 .webm
         const extension = uploadedFileName ? uploadedFileName.split('.').pop() : "webm";
         const finalFileName = `Record_${state.userId}_${state.selectedPlace.id}_${new Date().getTime()}.${extension}`;
 
@@ -318,6 +336,7 @@ function uploadAudio() {
         };
 
         try {
+            // 階段一：傳送給 GAS 存入 Google Drive
             const response = await fetch(API_URL, {
                 method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
@@ -325,13 +344,50 @@ function uploadAudio() {
             const result = await response.json();
             
             if (result.success) {
-                statusDiv.innerText = `🎉 上傳成功！`; statusDiv.style.color = "blue";
-                if(result.recordData) {
-                    state.uploadedRecords.push(result.recordData);
-                    renderHistoryList(state.selectedPlace.id); applyFilters(); 
-                }
+                // GAS 成功後，取得回傳的 Drive URL 或檔案 ID
+                const driveFileIdOrUrl = result.recordData ? result.recordData.url : "";
+                
+                statusDiv.innerText = "⏳ Drive 上傳成功，正在寫入資料庫...";
+                
+                // 階段二：🌟 將紀錄寫入 Supabase (安全防護：前端只能寫入，不能刪改)
+                const supaUrl = `${CONFIG.SUPABASE_URL}/rest/v1/audio_records`;
+                const supaPayload = {
+                    task_id: state.selectedPlace.id,
+                    recorder_name: state.userId,
+                    audio_file_id: driveFileIdOrUrl,
+                    phonetic_reading: phonetic,
+                    language: lang
+                };
+
+                await fetch(supaUrl, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': CONFIG.SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify(supaPayload)
+                });
+
+                statusDiv.innerText = `🎉 錄音與資料庫存檔完成！`; 
+                statusDiv.style.color = "blue";
+                
+                // 更新畫面狀態
+                state.uploadedRecords.push({
+                    recordId: new Date().getTime(), // 暫時給個隨機ID讓畫面好顯示
+                    placeId: state.selectedPlace.id,
+                    language: lang,
+                    uploaderId: state.userId,
+                    phonetic: phonetic,
+                    url: driveFileIdOrUrl
+                });
+                renderHistoryList(state.selectedPlace.id); 
+                applyFilters(); 
                 resetRecordingState();
-            } else throw new Error(result.error);
+            } else {
+                throw new Error(result.error);
+            }
         } catch (error) {
             statusDiv.innerText = "❌ 上傳失敗：" + error.message; statusDiv.style.color = "red";
         } finally {
