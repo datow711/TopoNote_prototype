@@ -13,6 +13,7 @@ let state = {
     selectedPlace: null, 
     selectedType: "",
     selectedStatus: "all" 
+    allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
 };
 
 let mediaRecorder;
@@ -104,7 +105,7 @@ function renderUserInfo() {
 }
 
 
-// 🌟 更新：載入資料庫，區分管理員與調查員視角
+// 🌟 更新版：載入資料庫，管理員額外抓取全體名單
 async function loadDataFromSupabase(userName) {
     try {
         const headers = {
@@ -120,23 +121,24 @@ async function loadDataFromSupabase(userName) {
         const tasksData = await tasksRes.json();
         const recordsData = await recordsRes.json();
 
-        // 🛑 核心邏輯：判斷是不是管理員
         if (state.userRole === 'admin') {
-            // 如果是管理員：把「所有地名」都塞進 assignedPlaces，讓他一覽無遺
+            // 🛑 核心新增：管理員額外抓取全體調查員名單
+            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=user_name`, { headers });
+            const usersData = await usersRes.json();
+            // 將抓回來的名字存入 state
+            state.allUsers = usersData.map(u => u.user_name);
+
             state.assignedPlaces = tasksData.map(t => ({ 
                 id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type,
-                assignedTo: t.assigned_to // 多記下這個地名目前派給誰了
+                assignedTo: t.assigned_to 
             }));
-            state.allPlaces = []; // 管理員不需要「其他任務」的頁籤資料
+            state.allPlaces = []; 
             
-            // 自動隱藏頁籤切換按鈕 (假設你有寫 tab 的 HTML)
             const tabAssigned = document.getElementById('tab-assigned');
             const tabOther = document.getElementById('tab-other');
             if(tabAssigned) tabAssigned.innerText = "全部地名清單";
             if(tabOther) tabOther.style.display = "none";
-
         } else {
-            // 如果是一般調查員：照舊分開
             state.assignedPlaces = tasksData
                 .filter(t => t.assigned_to === userName)
                 .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
@@ -146,7 +148,6 @@ async function loadDataFromSupabase(userName) {
                 .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
         }
 
-        // 錄音紀錄大家都要看
         state.uploadedRecords = recordsData.map(r => ({
             recordId: r.id, placeId: r.task_id, language: r.language,
             uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id 
@@ -167,13 +168,13 @@ function switchTab(tab) {
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
     document.getElementById('search-box').value = ""; applyFilters();
 }
-// 🌟 升級：初始化篩選器 (加入管理員專屬的「調查員篩選 dropdown」)
+// 🌟 更新版：初始化篩選器
 function initFilters() {
     const counties = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.county).filter(Boolean))];
     const types = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))];
     
     const countySelect = document.getElementById('county-filter');
-    countySelect.innerHTML = '<option value="">所有縣市</option>'; // 清空重置
+    countySelect.innerHTML = '<option value="">所有縣市</option>'; 
     counties.forEach(c => countySelect.add(new Option(c, c)));
     
     const typeContainer = document.getElementById('type-container');
@@ -183,26 +184,24 @@ function initFilters() {
         typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${displayText}</div>`; 
     });
 
-    // 🛑 核心邏輯：如果是管理員，動態插入「調查員篩選器」
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
         if (!assigneeSelect) {
             assigneeSelect = document.createElement('select');
             assigneeSelect.id = 'assignee-filter';
-            assigneeSelect.onchange = applyFilters; // 選擇後觸發篩選
+            assigneeSelect.onchange = applyFilters; 
             assigneeSelect.style = "margin-bottom: 15px; padding: 10px; width: 100%; border-radius: 4px; border: 1px solid #ddd; font-size: 1em;";
             
-            // 將它插入到搜尋框的前面
             const searchBox = document.getElementById('search-box');
             searchBox.parentNode.insertBefore(assigneeSelect, searchBox);
         }
         
-        const uniqueUsers = [...new Set(state.assignedPlaces.map(p => p.assignedTo).filter(Boolean))];
+        // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
-                                   uniqueUsers.map(u => `<option value="${u}">👤 ${u}</option>`).join('');
+                                   state.allUsers.map(u => `<option value="${u}">👤 ${u}</option>`).join('');
                                    
-        renderAdminBatchAssignUI(); // 順便呼叫底部工具列
+        renderAdminBatchAssignUI(); 
     }
 }
 
@@ -517,7 +516,7 @@ function uploadAudio() {
     };
 }
 
-// 🌟 新增：繪製管理員專屬的「底部批次指派工具列」
+// 🌟 更新版：繪製底部批次指派工具列
 function renderAdminBatchAssignUI() {
     if (state.userRole !== 'admin') return;
     
@@ -525,18 +524,13 @@ function renderAdminBatchAssignUI() {
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'admin-assign-bar';
-        // 浮動在畫面底部的樣式
         bar.style = "position: fixed; bottom: 0; left: 0; width: 100%; background: #2c3e50; padding: 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 1000;";
-
         document.body.appendChild(bar);
-        
-        // 為了不擋住最後一筆資料，把 app-section 底部加點空白
         document.getElementById('app-section').style.paddingBottom = "80px"; 
     }
 
-    // 收集所有出現過的調查員名字，做成下拉選單建議 (datalist)
-    const uniqueUsers = [...new Set(state.assignedPlaces.map(p => p.assignedTo).filter(Boolean))];
-    let options = uniqueUsers.map(u => `<option value="${u}">`).join('');
+    // 🛑 核心修改：改用 state.allUsers 來產生建議選單
+    let options = state.allUsers.map(u => `<option value="${u}">`).join('');
 
     bar.innerHTML = `
         <span style="color: white; font-weight: bold;">✅ 批次指派：</span>
