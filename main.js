@@ -1,3 +1,13 @@
+// 註冊 Service Worker (PWA 必備)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('Service Worker 註冊成功! PWA 已就緒。'))
+            .catch(err => console.log('Service Worker 註冊失敗:', err));
+    });
+}
+
+
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
     currentTab: 'assigned', 
