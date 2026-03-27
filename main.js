@@ -12,7 +12,7 @@ let state = {
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
-    selectedStatus: "all" 
+    selectedStatus: "all", 
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
 };
 
