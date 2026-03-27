@@ -1,0 +1,53 @@
+:root { 
+    --primary: #3498db; 
+    --secondary: #2c3e50; 
+    --bg: #f4f7f6; 
+    --status-color: #9b59b6; /* 狀態篩選器的新顏色 (紫色) */
+}
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: var(--bg); color: #333; max-width: 600px; margin: 0 auto; }
+h1 { text-align: center; color: var(--secondary); font-size: 24px; }
+.card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; color: white; margin-bottom: 10px; transition: 0.2s; }
+.btn-primary { background-color: var(--primary); }
+.btn-record { background-color: #e74c3c; }
+.btn-stop { background-color: #95a5a6; display: none; }
+.btn-upload { background-color: #2ecc71; display: none; }
+.btn-file { background-color: #8e44ad; } 
+
+.tab-container { display: flex; gap: 10px; margin-bottom: 15px; }
+.tab-btn { flex: 1; background-color: #e0e0e0; color: #555; font-weight: bold; border-radius: 8px 8px 0 0; margin-bottom: 0; transition: 0.3s; }
+.tab-btn.active { background-color: var(--primary); color: white; }
+
+.filter-section { background: white; padding: 15px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.filter-row { display: flex; gap: 10px; margin-bottom: 10px; }
+
+/* 類別篩選器 (原本的大小) */
+.type-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.type-chip { padding: 6px 12px; border-radius: 20px; background: #eee; cursor: pointer; font-size: 14px; border: 1px solid #ccc; color: #333; }
+.type-chip.selected { background: var(--secondary); color: white; border-color: var(--secondary); }
+
+/* 🚀 新增：狀態篩選器 (較小、不同顏色) */
+.status-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-top: 10px; border-top: 1px dashed #eee; }
+.status-chip { padding: 4px 10px; border-radius: 15px; background: #f9f9f9; cursor: pointer; font-size: 12px; border: 1px solid #ddd; color: #666; transition: 0.2s;}
+.status-chip.selected { background: var(--status-color); color: white; border-color: var(--status-color); font-weight: bold;}
+
+.place-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; background: white; }
+.place-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.place-item:hover { background-color: #f9f9f9; }
+.place-item.active { background-color: #e8f4fd; border-left: 4px solid var(--primary); }
+.place-info { flex: 1; }
+.place-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+.place-meta { font-size: 12px; color: #777; }
+.place-meta span { background: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px; }
+
+#recording-section { display: none; margin-top: 20px; border: 2px solid var(--primary); }
+.lang-select { display: flex; gap: 15px; margin-bottom: 15px; }
+.lang-select label { display: flex; align-items: center; gap: 5px; font-weight: bold; cursor: pointer; }
+
+.history-section { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #ccc; }
+.history-item { background: #f9f9f9; border-left: 4px solid #f39c12; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-size: 14px; }
+.history-meta { display: flex; justify-content: space-between; margin-bottom: 5px; color: #555; font-weight: bold; }
+
+.play-btn { background-color: #f39c12; padding: 6px 10px; font-size: 14px; border-radius: 4px; display: inline-block; width: auto; margin-bottom: 5px; color: white; border: none; cursor: pointer; }
+.hidden { display: none !important; }

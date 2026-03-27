@@ -2,6 +2,7 @@
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
     currentTab: 'assigned', selectedPlace: null, selectedType: ""
+    selectedStatus: "all" // 新增：預設顯示全部狀態
 };
 
 let mediaRecorder;
@@ -47,22 +48,24 @@ function switchTab(tab) {
     document.getElementById('search-box').value = ""; applyFilters();
 }
 function initFilters() {
-            // 動態抓取縣市
-            const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
-            const countySelect = document.getElementById('county-filter');
-            countySelect.innerHTML = '<option value="">所有縣市</option>'; // 確保清空重置
-            counties.forEach(c => countySelect.add(new Option(c, c)));
-
-            // 🚀 動態抓取類別：直接去 state.allPlaces 裡面把有值的 type 抽出來，並去除重複
-            const types = [...new Set(state.allPlaces.map(p => p.type).filter(Boolean))];
-
-            const typeContainer = document.getElementById('type-container');
-            typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
-            
-            types.forEach(t => {
-                typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${t}</div>`;
-            });
+    const counties = [...new Set(state.allPlaces.map(p => p.county).filter(Boolean))];
+    const types = [...new Set(state.allPlaces.map(p => p.type || p.Type).filter(Boolean))];
+    
+    const countySelect = document.getElementById('county-filter');
+    counties.forEach(c => countySelect.add(new Option(c, c)));
+    
+    const typeContainer = document.getElementById('type-container');
+    typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
+    
+    types.forEach(t => { 
+        // 🚀 攔截超長名字，但保留原始參數 t，確保篩選時能對應到真實資料
+        let displayText = t;
+        if (t === "具有地標意義公共設施") {
+            displayText = "公共設施";
         }
+        typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${displayText}</div>`; 
+    });
+}
 function updateTowns() {
     const county = document.getElementById('county-filter').value;
     const townSelect = document.getElementById('town-filter');
@@ -77,11 +80,21 @@ function selectType(type, element) {
     document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected'); applyFilters();
 }
+
+function selectStatus(status, element) {
+    state.selectedStatus = status;
+    document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected'); 
+    applyFilters();
+}
+
 function applyFilters() {
     const keyword = document.getElementById('search-box').value.toLowerCase();
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
     const type = state.selectedType;
+    const status = state.selectedStatus; // 'all', 'recorded', 'unrecorded'
+    
     let data = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
 
     const filtered = data.filter(place => {
@@ -90,10 +103,20 @@ function applyFilters() {
         const matchTw = town ? place.town === town : true;
         const pType = place.type || place.Type; 
         const matchTy = type ? pType === type : true;
-        return matchK && matchC && matchTw && matchTy;
+        
+        // 🚀 新增：判斷該地名是否已有錄音
+        let matchStatus = true;
+        if (status !== 'all') {
+            const hasRecord = state.uploadedRecords.some(r => String(r.placeId) === String(place.id));
+            if (status === 'recorded') matchStatus = hasRecord;
+            if (status === 'unrecorded') matchStatus = !hasRecord;
+        }
+
+        return matchK && matchC && matchTw && matchTy && matchStatus;
     });
     renderPlaceList(filtered);
 }
+
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
