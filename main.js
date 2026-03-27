@@ -561,7 +561,7 @@ async function batchAssignTasks() {
 
     try {
         // 利用 Supabase 的 in 語法，一次更新多筆資料
-        const url = `${CONFIG.SUPABASE_URL}/rest/v1/final_tasks?task_id=in.(${taskIds.join(',')})`;
+        const url = `${CONFIG.SUPABASE_URL}/rest/v1/final_tasks?id=in.(${taskIds.join(',')})`;
         
         const response = await fetch(url, {
             method: 'PATCH',
