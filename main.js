@@ -167,22 +167,45 @@ function switchTab(tab) {
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
     document.getElementById('search-box').value = ""; applyFilters();
 }
+// 🌟 升級：初始化篩選器 (加入管理員專屬的「調查員篩選 dropdown」)
 function initFilters() {
-    const counties = [...new Set(state.allPlaces.concat(state.assignedPlaces).map(p => p.county).filter(Boolean))];
-    const types = [...new Set(state.allPlaces.concat(state.assignedPlaces).map(p => p.type || p.Type).filter(Boolean))];
+    const counties = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.county).filter(Boolean))];
+    const types = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))];
     
     const countySelect = document.getElementById('county-filter');
+    countySelect.innerHTML = '<option value="">所有縣市</option>'; // 清空重置
     counties.forEach(c => countySelect.add(new Option(c, c)));
     
     const typeContainer = document.getElementById('type-container');
     typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
-    
     types.forEach(t => { 
-        let displayText = t;
-        if (t === "具有地標意義公共設施") displayText = "公共設施";
+        let displayText = t === "具有地標意義公共設施" ? "公共設施" : t;
         typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${displayText}</div>`; 
     });
+
+    // 🛑 核心邏輯：如果是管理員，動態插入「調查員篩選器」
+    if (state.userRole === 'admin') {
+        let assigneeSelect = document.getElementById('assignee-filter');
+        if (!assigneeSelect) {
+            assigneeSelect = document.createElement('select');
+            assigneeSelect.id = 'assignee-filter';
+            assigneeSelect.onchange = applyFilters; // 選擇後觸發篩選
+            assigneeSelect.style = "margin-bottom: 15px; padding: 10px; width: 100%; border-radius: 4px; border: 1px solid #ddd; font-size: 1em;";
+            
+            // 將它插入到搜尋框的前面
+            const searchBox = document.getElementById('search-box');
+            searchBox.parentNode.insertBefore(assigneeSelect, searchBox);
+        }
+        
+        const uniqueUsers = [...new Set(state.assignedPlaces.map(p => p.assignedTo).filter(Boolean))];
+        assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
+                                   '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
+                                   uniqueUsers.map(u => `<option value="${u}">👤 ${u}</option>`).join('');
+                                   
+        renderAdminBatchAssignUI(); // 順便呼叫底部工具列
+    }
 }
+
 function updateTowns() {
     const county = document.getElementById('county-filter').value;
     const townSelect = document.getElementById('town-filter');
@@ -203,6 +226,7 @@ function selectStatus(status, element) {
     element.classList.add('selected'); applyFilters();
 }
 
+// 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
     const keyword = document.getElementById('search-box').value.toLowerCase();
     const county = document.getElementById('county-filter').value;
@@ -210,27 +234,42 @@ function applyFilters() {
     const type = state.selectedType;
     const status = state.selectedStatus; 
     
+    // 獲取調查員篩選器的值 (如果有的話)
+    const assigneeInput = document.getElementById('assignee-filter');
+    const assigneeFilter = assigneeInput ? assigneeInput.value : "";
+    
     let data = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
 
     const filtered = data.filter(place => {
         const matchK = (place.placeName && place.placeName.toLowerCase().includes(keyword)) || (place.id && String(place.id).includes(keyword));
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
-        const pType = place.type || place.Type; 
-        const matchTy = type ? pType === type : true;
+        const matchTy = type ? (place.type || place.Type) === type : true;
         
+        // 🛑 新增：調查員篩選邏輯
+        let matchAssignee = true;
+        if (state.userRole === 'admin' && assigneeFilter !== "") {
+            if (assigneeFilter === "UNASSIGNED") {
+                matchAssignee = !place.assignedTo; // 如果沒有 assignedTo 就是 true
+            } else {
+                matchAssignee = place.assignedTo === assigneeFilter;
+            }
+        }
+        
+        // 錄音狀態篩選
         let matchStatus = true;
         if (status !== 'all') {
             const hasRecord = state.uploadedRecords.some(r => String(r.placeId) === String(place.id));
             if (status === 'recorded') matchStatus = hasRecord;
             if (status === 'unrecorded') matchStatus = !hasRecord;
         }
-        return matchK && matchC && matchTw && matchTy && matchStatus;
+        
+        return matchK && matchC && matchTw && matchTy && matchStatus && matchAssignee;
     });
     renderPlaceList(filtered);
 }
 
-// 🌟 更新：渲染清單 (為管理員加上指派標籤)
+// 🌟 升級：渲染清單 (插入 Checkbox)
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
@@ -247,9 +286,14 @@ function renderPlaceList(places) {
         const count = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
         const recordBadge = count > 0 ? `<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em;">已錄音: ${count}</span>` : '';
 
-        // 🛑 管理員專屬：顯示目前指派狀態
+        // 🛑 新增：Checkbox 與指派標籤
+        let checkboxHTML = '';
         let adminAssignBadge = '';
+        
         if (state.userRole === 'admin') {
+            // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
+            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" onclick="event.stopPropagation()" style="transform: scale(1.5); margin-right: 15px; cursor: pointer;">`;
+            
             if (place.assignedTo) {
                 adminAssignBadge = `<span style="background:#8e44ad; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">👤 ${place.assignedTo}</span>`;
             } else {
@@ -258,16 +302,19 @@ function renderPlaceList(places) {
         }
 
         item.innerHTML = `
-            <div class="place-info">
-                <div class="place-title">${place.placeName}</div>
-                <div class="place-meta" style="margin-top: 5px;">
-                    <span style="margin-right:8px; color:#666;">ID: ${place.id}</span>
-                    <span style="margin-right:8px; color:#666;">${place.county} ${place.town}</span>
-                    <span style="margin-right:8px; color:#666;">${typeName}</span>
-                    <div style="margin-top:5px;">${recordBadge} ${adminAssignBadge}</div>
+            <div style="display: flex; align-items: center; width: 100%;">
+                ${checkboxHTML}
+                <div class="place-info" style="flex-grow: 1;">
+                    <div class="place-title">${place.placeName}</div>
+                    <div class="place-meta" style="margin-top: 5px;">
+                        <span style="margin-right:8px; color:#666;">ID: ${place.id}</span>
+                        <span style="margin-right:8px; color:#666;">${place.county} ${place.town}</span>
+                        <span style="margin-right:8px; color:#666;">${typeName}</span>
+                        <div style="margin-top:5px;">${recordBadge} ${adminAssignBadge}</div>
+                    </div>
                 </div>
+                <div class="expand-icon" style="font-size: 1.5em; color: #bdc3c7;">▶</div>
             </div>
-            <div class="expand-icon" style="font-size: 1.5em; color: #bdc3c7;">▶</div>
         `;
         item.onclick = () => openRecordingUI(place, item);
         container.appendChild(item);
@@ -468,4 +515,78 @@ function uploadAudio() {
             uploadBtn.innerText = "⬆️ 上傳並準備下一筆"; uploadBtn.disabled = false;
         }
     };
+}
+
+// 🌟 新增：繪製管理員專屬的「底部批次指派工具列」
+function renderAdminBatchAssignUI() {
+    if (state.userRole !== 'admin') return;
+    
+    let bar = document.getElementById('admin-assign-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'admin-assign-bar';
+        // 浮動在畫面底部的樣式
+        bar.style = "position: fixed; bottom: 0; left: 0; width: 100%; background: #2c3e50; padding: 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 1000;";
+
+        document.body.appendChild(bar);
+        
+        // 為了不擋住最後一筆資料，把 app-section 底部加點空白
+        document.getElementById('app-section').style.paddingBottom = "80px"; 
+    }
+
+    // 收集所有出現過的調查員名字，做成下拉選單建議 (datalist)
+    const uniqueUsers = [...new Set(state.assignedPlaces.map(p => p.assignedTo).filter(Boolean))];
+    let options = uniqueUsers.map(u => `<option value="${u}">`).join('');
+
+    bar.innerHTML = `
+        <span style="color: white; font-weight: bold;">✅ 批次指派：</span>
+        <input list="investigators-list" id="assignee-input" placeholder="選擇或輸入調查員" style="padding: 8px; border-radius: 4px; border: none; width: 160px; font-size: 1em;">
+        <datalist id="investigators-list">${options}</datalist>
+        <button onclick="batchAssignTasks()" style="padding: 8px 20px; background: #f1c40f; color: #2c3e50; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 1em;">確認送出</button>
+    `;
+}
+
+// 🌟 新增：執行批次指派 (寫入 Supabase)
+async function batchAssignTasks() {
+    // 找出所有被打勾的 checkbox
+    const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
+    const taskIds = Array.from(checkboxes).map(cb => cb.value);
+    const targetUser = document.getElementById('assignee-input').value.trim();
+
+    if (taskIds.length === 0) return alert("請先在清單中勾選要指派的地名！");
+    if (!targetUser) return alert("請輸入或選擇要指派的調查員名稱！");
+    if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，指派給「${targetUser}」嗎？`)) return;
+
+    document.querySelector('#admin-assign-bar button').innerText = "處理中...";
+
+    try {
+        // 利用 Supabase 的 in 語法，一次更新多筆資料
+        const url = `${CONFIG.SUPABASE_URL}/rest/v1/final_tasks?task_id=in.(${taskIds.join(',')})`;
+        
+        const response = await fetch(url, {
+            method: 'PATCH',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ assigned_to: targetUser }) // 更新 assigned_to 欄位
+        });
+
+        if (!response.ok) throw new Error('資料庫更新失敗');
+
+        alert('🎉 指派成功！');
+        
+        // 重新載入最新資料並刷新畫面
+        await loadDataFromSupabase(state.userId);
+        initFilters();
+        applyFilters();
+
+    } catch (err) {
+        console.error("指派失敗:", err);
+        alert("指派發生錯誤，請稍後再試。");
+    } finally {
+        renderAdminBatchAssignUI(); // 恢復按鈕文字
+    }
 }
