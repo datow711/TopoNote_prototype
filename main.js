@@ -60,6 +60,9 @@ async function login() {
 
             // 呼叫極速載入函數 (抓取屬於這個使用者的任務)
             await loadDataFromSupabase(state.userId);
+
+            // 把身分標籤畫出來
+            renderUserInfo();
             
             // 切換畫面
             document.getElementById('login-section').classList.add('hidden');
@@ -78,7 +81,30 @@ async function login() {
     }
 }
 
-// 🌟 新增函數：專門負責向 Supabase 要資料並轉換格式
+// 🌟 新增：渲染使用者身分標籤
+function renderUserInfo() {
+    let userInfoDiv = document.getElementById('user-info-badge');
+    
+    // 如果畫面上還沒有這個標籤，就自動建立一個並塞入 app-section 的最上方
+    if (!userInfoDiv) {
+        userInfoDiv = document.createElement('div');
+        userInfoDiv.id = 'user-info-badge';
+        userInfoDiv.style = "padding: 10px 15px; background: #e8f4fd; border-left: 5px solid #3498db; margin-bottom: 15px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #2c3e50;";
+        
+        const appSection = document.getElementById('app-section');
+        appSection.insertBefore(userInfoDiv, appSection.firstChild);
+    }
+
+    // 判斷角色並顯示對應的文字
+    const roleText = state.userRole === 'admin' ? '👑 管理員' : '👤 調查員';
+    userInfoDiv.innerHTML = `
+        <span>${roleText}：${state.userId}</span>
+        <span style="font-size: 0.85em; color: #7f8c8d;">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</span>
+    `;
+}
+
+
+// 🌟 更新：載入資料庫，區分管理員與調查員視角
 async function loadDataFromSupabase(userName) {
     try {
         const headers = {
@@ -86,7 +112,6 @@ async function loadDataFromSupabase(userName) {
             'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
         };
 
-        // 併發請求：同時抓取「任務清單」與「歷史錄音」
         const [tasksRes, recordsRes] = await Promise.all([
             fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_tasks_view?select=*`, { headers }),
             fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?select=*`, { headers })
@@ -95,23 +120,38 @@ async function loadDataFromSupabase(userName) {
         const tasksData = await tasksRes.json();
         const recordsData = await recordsRes.json();
 
-        // 將 Supabase 格式 (snake_case) 轉換為你原本 App 適用的格式 (camelCase)
-        state.assignedPlaces = tasksData
-            .filter(t => t.assigned_to === userName)
-            .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+        // 🛑 核心邏輯：判斷是不是管理員
+        if (state.userRole === 'admin') {
+            // 如果是管理員：把「所有地名」都塞進 assignedPlaces，讓他一覽無遺
+            state.assignedPlaces = tasksData.map(t => ({ 
+                id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type,
+                assignedTo: t.assigned_to // 多記下這個地名目前派給誰了
+            }));
+            state.allPlaces = []; // 管理員不需要「其他任務」的頁籤資料
             
-        state.allPlaces = tasksData
-            .filter(t => t.assigned_to !== userName)
-            .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+            // 自動隱藏頁籤切換按鈕 (假設你有寫 tab 的 HTML)
+            const tabAssigned = document.getElementById('tab-assigned');
+            const tabOther = document.getElementById('tab-other');
+            if(tabAssigned) tabAssigned.innerText = "全部地名清單";
+            if(tabOther) tabOther.style.display = "none";
 
+        } else {
+            // 如果是一般調查員：照舊分開
+            state.assignedPlaces = tasksData
+                .filter(t => t.assigned_to === userName)
+                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+                
+            state.allPlaces = tasksData
+                .filter(t => t.assigned_to !== userName)
+                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+        }
+
+        // 錄音紀錄大家都要看
         state.uploadedRecords = recordsData.map(r => ({
-            recordId: r.id,
-            placeId: r.task_id,
-            language: r.language,
-            uploaderId: r.recorder_name,
-            phonetic: r.phonetic_reading,
-            url: r.audio_file_id 
+            recordId: r.id, placeId: r.task_id, language: r.language,
+            uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id 
         }));
+
     } catch (err) {
         console.error("Supabase 載入失敗", err);
         alert("資料庫連線異常，請重新整理網頁。");
@@ -190,6 +230,7 @@ function applyFilters() {
     renderPlaceList(filtered);
 }
 
+// 🌟 更新：渲染清單 (為管理員加上指派標籤)
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
@@ -204,14 +245,29 @@ function renderPlaceList(places) {
         if (typeName === "具有地標意義公共設施") typeName = "公共設施";
         
         const count = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
-        const badge = count > 0 ? `<span style="background:#2ecc71; color:white;">已錄音: ${count}</span>` : '';
+        const recordBadge = count > 0 ? `<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em;">已錄音: ${count}</span>` : '';
+
+        // 🛑 管理員專屬：顯示目前指派狀態
+        let adminAssignBadge = '';
+        if (state.userRole === 'admin') {
+            if (place.assignedTo) {
+                adminAssignBadge = `<span style="background:#8e44ad; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">👤 ${place.assignedTo}</span>`;
+            } else {
+                adminAssignBadge = `<span style="background:#e74c3c; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">⚠️ 未指派</span>`;
+            }
+        }
 
         item.innerHTML = `
             <div class="place-info">
                 <div class="place-title">${place.placeName}</div>
-                <div class="place-meta"><span>ID: ${place.id}</span><span>${place.county} ${place.town}</span><span>${typeName}</span>${badge}</div>
+                <div class="place-meta" style="margin-top: 5px;">
+                    <span style="margin-right:8px; color:#666;">ID: ${place.id}</span>
+                    <span style="margin-right:8px; color:#666;">${place.county} ${place.town}</span>
+                    <span style="margin-right:8px; color:#666;">${typeName}</span>
+                    <div style="margin-top:5px;">${recordBadge} ${adminAssignBadge}</div>
+                </div>
             </div>
-            <div class="expand-icon">▶</div>
+            <div class="expand-icon" style="font-size: 1.5em; color: #bdc3c7;">▶</div>
         `;
         item.onclick = () => openRecordingUI(place, item);
         container.appendChild(item);
