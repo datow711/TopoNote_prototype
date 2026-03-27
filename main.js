@@ -1,7 +1,8 @@
-// ⚠️ 請替換成你最新部署的 Google Apps Script 網址
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
-    currentTab: 'assigned', selectedPlace: null, selectedType: ""
+    currentTab: 'assigned', 
+    selectedPlace: null, 
+    selectedType: "",
     selectedStatus: "all" // 新增：預設顯示全部狀態
 };
 
