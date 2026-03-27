@@ -29,33 +29,51 @@ async function login() {
     const loginBtn = document.getElementById('login-btn');
     
     if (!acc || !pwd) return alert("請輸入帳號與密碼！");
-    loginBtn.innerText = "驗證密碼中..."; loginBtn.disabled = true;
+    loginBtn.innerText = "驗證中..."; loginBtn.disabled = true;
 
     try {
-        // 1. 依然透過 GAS 驗證密碼
-        const response = await fetch(API_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'login', account: acc, password: pwd })
-        });
-        const result = await response.json();
+        // 🌟 改用 Supabase RPC (預存程序) 進行安全且極速的登入驗證
+        const url = `${CONFIG.SUPABASE_URL}/rest/v1/rpc/verify_login`;
         
-        if (result.success) {
-            state.userId = result.userId; 
-            loginBtn.innerText = "載入資料庫中...";
+        const response = await fetch(url, {
+            method: 'POST', // RPC 必須用 POST
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                p_account: acc, 
+                p_password: pwd 
+            })
+        });
 
-            // 2. 密碼正確後，直接從 Supabase 抓資料 (取代原本 GAS 吐出來的資料)
+        const users = await response.json();
+
+        // 如果回傳的陣列有資料，代表帳號密碼完全正確
+        if (users && users.length > 0) {
+            const user = users[0];
+            state.userId = user.user_name; // 把人名存入 state
+            state.userRole = user.role;    // 把角色存入 state (未來開發管理員介面可用)
+
+            loginBtn.innerText = "載入任務中...";
+
+            // 呼叫極速載入函數 (抓取屬於這個使用者的任務)
             await loadDataFromSupabase(state.userId);
             
-            // 3. 切換畫面
+            // 切換畫面
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('app-section').classList.remove('hidden');
             initFilters(); 
             switchTab('assigned');
         } else {
-            document.getElementById('login-status').innerText = "❌ " + result.error;
+            // 找不到資料，代表帳號或密碼錯誤
+            document.getElementById('login-status').innerText = "❌ 帳號或密碼錯誤";
             loginBtn.innerText = "登入系統"; loginBtn.disabled = false;
         }
     } catch (error) {
-        document.getElementById('login-status').innerText = "❌ 連線錯誤";
+        console.error("登入連線錯誤:", error);
+        document.getElementById('login-status').innerText = "❌ 網路連線錯誤";
         loginBtn.innerText = "登入系統"; loginBtn.disabled = false;
     }
 }
