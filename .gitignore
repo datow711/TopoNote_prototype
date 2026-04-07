@@ -1,1 +1,18 @@
-db
+AudioUploads/
+
+# 忽略 clasp 的本地設定檔 (雖然只包含 Script ID，但養成好習慣不進版控)
+.clasp.json
+
+# 忽略 Node 套件 (如果你未來有使用 npm 安裝東西)
+node_modules/
+
+# 忽略作業系統產生的隱藏檔
+.DS_Store
+Thumbs.db
+
+plan.md
+
+# 排除 Google Drive 虛擬捷徑檔
+*.gsheet
+*.gdoc
+*.gslides
