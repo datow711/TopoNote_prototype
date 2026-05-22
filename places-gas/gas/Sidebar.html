@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: sans-serif; padding: 15px; color: #333; line-height: 1.4; }
+      .field-container { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+      label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #555; }
+      select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: white; }
+      .btn-submit { 
+        width: 100%; padding: 12px; background-color: #4285f4; color: white; 
+        border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px;
+      }
+      .btn-submit:hover { background-color: #357ae8; }
+      #status { margin-top: 15px; font-size: 12px; text-align: center; color: #666; }
+      .loader { color: #4285f4; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <h3>批次修改面板</h3>
+    <p style="font-size: 12px; color: #888;">選取下方數值後，點擊「執行批次更新」會修改試算表中圈選的列。</p>
+    
+    <div id="fields">
+      <div class="loader">正在讀取欄位與下拉選單...</div>
+    </div>
+
+    <button class="btn-submit" onclick="submitUpdate()">🚀 執行批次更新</button>
+    <div id="status"></div>
+
+    <script>
+      // 頁面載入時自動抓取設定
+      window.onload = () => {
+        google.script.run
+          .withSuccessHandler(renderFields)
+          .getColumnConfigs();
+      };
+
+      function renderFields(configs) {
+        const container = document.getElementById('fields');
+        container.innerHTML = '';
+        
+        configs.forEach(conf => {
+          const div = document.createElement('div');
+          div.className = 'field-container';
+          
+          // 產生選單，第一項設為空值表示不修改
+          let optionsHtml = `<option value="">-- 不變動 --</option>`;
+          conf.options.forEach(opt => {
+            optionsHtml += `<option value="${opt}">${opt}</option>`;
+          });
+
+          div.innerHTML = `
+            <label>${conf.name}</label>
+            <select class="status-select" data-index="${conf.index}">
+              ${optionsHtml}
+            </select>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      function submitUpdate() {
+        const selects = document.querySelectorAll('.status-select');
+        const updateData = {};
+        let hasValue = false;
+
+        selects.forEach(s => {
+          if (s.value) {
+            updateData[s.getAttribute('data-index')] = s.value;
+            hasValue = true;
+          }
+        });
+
+        if (!hasValue) {
+          alert('請至少選擇一個要修改的欄位數值');
+          return;
+        }
+
+        document.getElementById('status').innerText = '處理中...';
+        
+        google.script.run
+          .withSuccessHandler(res => {
+            document.getElementById('status').innerText = res;
+            // 執行完後重置選單
+            selects.forEach(s => s.value = "");
+          })
+          .batchUpdateMultiColumns(updateData);
+      }
+    </script>
+  </body>
+</html>

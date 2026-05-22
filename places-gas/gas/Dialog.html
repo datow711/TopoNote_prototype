@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; padding: 15px; }
+      .form-group { margin-bottom: 15px; }
+      label { display: block; font-weight: bold; margin-bottom: 5px; color: #333;}
+      select, input[type="text"], textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
+      button { background-color: #1a73e8; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px;}
+      button:hover { background-color: #1557b0; }
+      #status { margin-top: 10px; color: dimgray; font-size: 14px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <form id="exportForm" onsubmit="handleFormSubmit(this); return false;">
+      
+      <div class="form-group">
+        <label for="batchSelect">1. 選擇匯入梯次</label>
+        <select id="batchSelect" name="batchSelect" onchange="toggleNewBatchInput()">
+          <option value="NEW">➕ 新增自訂梯次...</option>
+          </select>
+      </div>
+
+      <div class="form-group" id="newBatchDiv">
+        <label for="newBatchName">新梯次名稱 (例：2026-04-A)</label>
+        <input type="text" id="newBatchName" name="newBatchName" placeholder="請輸入新梯次名稱">
+      </div>
+
+      <div class="form-group">
+        <label for="conditionLog">2. 本次篩選條件紀錄</label>
+        <textarea id="conditionLog" name="conditionLog" rows="3" placeholder="例如：是現行地名=TRUE, 類型=寺廟" required></textarea>
+      </div>
+
+      <button type="submit" id="submitBtn">確認並匯出</button>
+      <div id="status"></div>
+    </form>
+
+    <script>
+      // 網頁載入時，跟後端要既有的梯次清單
+      window.onload = function() {
+        google.script.run.withSuccessHandler(populateBatches).getExistingBatches();
+      };
+
+      function populateBatches(batches) {
+        var select = document.getElementById('batchSelect');
+        batches.forEach(function(batch) {
+          var option = document.createElement('option');
+          option.value = batch;
+          option.text = batch;
+          select.appendChild(option);
+        });
+      }
+
+      function toggleNewBatchInput() {
+        var select = document.getElementById('batchSelect');
+        var newBatchDiv = document.getElementById('newBatchDiv');
+        var newBatchInput = document.getElementById('newBatchName');
+        if (select.value === 'NEW') {
+          newBatchDiv.style.display = 'block';
+          newBatchInput.setAttribute('required', 'true');
+        } else {
+          newBatchDiv.style.display = 'none';
+          newBatchInput.removeAttribute('required');
+        }
+      }
+
+      function handleFormSubmit(formObject) {
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('status').innerHTML = "資料搬運中，請稍候...";
+        google.script.run
+          .withSuccessHandler(function(msg) {
+            document.getElementById('status').innerHTML = "<span style='color:green'>" + msg + "</span>";
+            setTimeout(google.script.host.close, 2000); // 2秒後自動關閉視窗
+          })
+          .withFailureHandler(function(err) {
+            document.getElementById('status').innerHTML = "<span style='color:red'>發生錯誤: " + err.message + "</span>";
+            document.getElementById('submitBtn').disabled = false;
+          })
+          .processExport(formObject);
+      }
+    </script>
+  </body>
+</html>
