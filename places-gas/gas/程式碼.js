@@ -50,7 +50,8 @@ function onOpen() {
       .addItem('分發任務到標注員表單 (Push)', 'pushTasksToSatelliteSheets')
       .addItem('從各表單回填結果 (Pull)', 'pullResultsFromSatelliteSheets'))
     .addSeparator()
-    .addItem('2. 將 L2 任務同步至 Supabase', 'syncFinalTasksToSupabase')
+    .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
+    .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
     .addToUi();
 }
 
@@ -194,6 +195,118 @@ function processExport(formObject) {
 // ==========================================
 // 4. L2 到 Supabase 的同步邏輯 (更新版)
 // ==========================================
+function normalizeBoolean_(value) {
+  if (value === true || value === false) return value;
+  var text = String(value || '').trim().toUpperCase();
+  if (text === 'TRUE' || text === '1' || text === 'YES') return true;
+  if (text === 'FALSE' || text === '0' || text === 'NO') return false;
+  return null;
+}
+
+function normalizeNumber_(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  var number = Number(value);
+  return isNaN(number) ? null : number;
+}
+
+function getCellValue_(row, colMap, header) {
+  return colMap[header] === undefined ? '' : row[colMap[header]];
+}
+
+function postSupabaseBatches_(url, payload, preferValue) {
+  if (payload.length === 0) return;
+
+  var supabase = getSupabaseConfig_();
+  var batchSize = 500;
+
+  for (var start = 0; start < payload.length; start += batchSize) {
+    var batch = payload.slice(start, start + batchSize);
+    var options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: getSupabaseHeaders_(supabase, {
+        'Prefer': preferValue || 'resolution=merge-duplicates'
+      }),
+      payload: JSON.stringify(batch),
+      muteHttpExceptions: true
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    var statusCode = response.getResponseCode();
+    if (statusCode < 200 || statusCode >= 300) {
+      throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+    }
+  }
+}
+
+function syncThirdPhasePlacesToSupabase() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('第三期工作清單');
+  if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到「第三期工作清單」工作表！');
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var colMap = {};
+  for (var i = 0; i < headers.length; i++) {
+    colMap[String(headers[i]).trim()] = i;
+  }
+
+  var payload = [];
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    var uuid = String(getCellValue_(row, colMap, 'UUID') || '').trim();
+    if (!uuid) continue;
+
+    payload.push({
+      uuid: uuid,
+      source: String(getCellValue_(row, colMap, 'Source') || ''),
+      type: String(getCellValue_(row, colMap, 'Type') || ''),
+      county: String(getCellValue_(row, colMap, 'County') || ''),
+      town: String(getCellValue_(row, colMap, 'Town') || ''),
+      village: String(getCellValue_(row, colMap, 'Village') || ''),
+      hak_area: normalizeBoolean_(getCellValue_(row, colMap, 'HakArea')),
+      longitude: normalizeNumber_(getCellValue_(row, colMap, '經度')),
+      latitude: normalizeNumber_(getCellValue_(row, colMap, '緯度')),
+      place_name: String(getCellValue_(row, colMap, 'PlaceName') || ''),
+      info: String(getCellValue_(row, colMap, 'Info') || ''),
+      taihan: String(getCellValue_(row, colMap, 'TaiHan1') || ''),
+      tl1: String(getCellValue_(row, colMap, 'TL1') || ''),
+      tl2: String(getCellValue_(row, colMap, 'TL2') || ''),
+      tl3: String(getCellValue_(row, colMap, 'TL3') || ''),
+      tai_note: String(getCellValue_(row, colMap, 'TaiNote') || ''),
+      tai_class: String(getCellValue_(row, colMap, 'TaiClass') || ''),
+      hak_class: String(getCellValue_(row, colMap, 'HakClass') || ''),
+      t_state: String(getCellValue_(row, colMap, 'T_State') || ''),
+      t_annotator: String(getCellValue_(row, colMap, 'T_Annotator') || ''),
+      t_created_at: String(getCellValue_(row, colMap, 'T_CreatedAt') || ''),
+      t_updated_at: String(getCellValue_(row, colMap, 'T_UpdatedAt') || ''),
+      honzii: String(getCellValue_(row, colMap, 'Honzii') || ''),
+      hp1: String(getCellValue_(row, colMap, 'HP1') || ''),
+      hp2: String(getCellValue_(row, colMap, 'HP2') || ''),
+      hp3: String(getCellValue_(row, colMap, 'HP3') || ''),
+      h_dialect: String(getCellValue_(row, colMap, 'HDialect') || ''),
+      hak_note: String(getCellValue_(row, colMap, 'HakNote') || ''),
+      h_state: String(getCellValue_(row, colMap, 'H_State') || ''),
+      h_annotator: String(getCellValue_(row, colMap, 'H_Annotator') || ''),
+      h_created_at: String(getCellValue_(row, colMap, 'H_CreatedAt') || ''),
+      h_updated_at: String(getCellValue_(row, colMap, 'H_UpdatedAt') || ''),
+      batch_id: String(getCellValue_(row, colMap, 'BatchID') || ''),
+      sync_warning: String(getCellValue_(row, colMap, '同步警告') || ''),
+      synced_at: new Date().toISOString()
+    });
+  }
+
+  if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有第三期清冊資料可同步。');
+
+  try {
+    var supabase = getSupabaseConfig_();
+    var url = supabase.url + '/rest/v1/third_phase_places?on_conflict=uuid';
+    postSupabaseBatches_(url, payload, 'resolution=merge-duplicates');
+    SpreadsheetApp.getUi().alert('✅ 已同步 ' + payload.length + ' 筆第三期完整清冊至 Supabase。');
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('❌ 第三期清冊同步失敗: ' + e.message);
+  }
+}
+
 function syncFinalTasksToSupabase() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('第三期工作清單');
   if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到「第三期工作清單」工作表！');
@@ -211,10 +324,10 @@ function syncFinalTasksToSupabase() {
     if (uuid !== "") {
       payload.push({
         source_id: String(uuid),
-        source_table: String(data[i][colMap["資料來源"]] || 'moi_placename_raw'),
-        assigned_to: String(data[i][colMap["標注員"]] || '') || null,
+        source_table: 'third_phase_places',
+        assigned_to: null,
         priority: 0, // 預設優先級
-        status: String(data[i][colMap["任務狀態"]] || 'pending'),
+        status: 'pending',
         is_active: true // 在 L2 內皆視為啟用
       });
     }
@@ -222,25 +335,11 @@ function syncFinalTasksToSupabase() {
 
   if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有資料可同步。');
 
-  var supabase = getSupabaseConfig_();
-  var url = supabase.url + '/rest/v1/final_tasks?on_conflict=source_id,source_table';
-  var options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: getSupabaseHeaders_(supabase, {
-      'Prefer': 'resolution=merge-duplicates'
-    }),
-    payload: JSON.stringify(payload)
-  };
-
   try {
-    options.muteHttpExceptions = true;
-    var response = UrlFetchApp.fetch(url, options);
-    var statusCode = response.getResponseCode();
-    if (statusCode < 200 || statusCode >= 300) {
-      throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
-    }
-    SpreadsheetApp.getUi().alert('🚀 成功將 ' + payload.length + ' 筆任務與狀態同步至 Supabase！');
+    var supabase = getSupabaseConfig_();
+    var url = supabase.url + '/rest/v1/final_tasks?on_conflict=source_id,source_table';
+    postSupabaseBatches_(url, payload, 'resolution=merge-duplicates');
+    SpreadsheetApp.getUi().alert('🚀 成功將 ' + payload.length + ' 筆第三期任務索引同步至 Supabase！');
   } catch (e) {
     SpreadsheetApp.getUi().alert('❌ 同步失敗: ' + e.message);
   }

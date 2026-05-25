@@ -114,6 +114,50 @@ function renderAnnotationSummary(annotations = {}) {
     return '';
 }
 
+function normalizeAssignedUsers(value, fallback) {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === 'string' && value.trim()) {
+        return value.split(',').map(item => item.trim()).filter(Boolean);
+    }
+    return fallback ? [fallback] : [];
+}
+
+function normalizeTask(t) {
+    const assignedUsers = normalizeAssignedUsers(t.assigned_users, t.assigned_to);
+    return {
+        id: t.task_id,
+        sourceId: t.source_id,
+        placeName: t.place_name,
+        county: t.county,
+        town: t.town,
+        village: t.village,
+        type: t.type,
+        assignedTo: t.assigned_to,
+        assignedUsers: assignedUsers,
+        hakArea: t.hak_area,
+        recordingStatus: t.recording_status || '未錄音',
+        taiAudioCount: Number(t.tai_audio_count || 0),
+        hakAudioCount: Number(t.hak_audio_count || 0)
+    };
+}
+
+function getRecordingStatus(taiCount, hakCount) {
+    if (taiCount >= 2 && hakCount >= 2) return '全部完成';
+    if (taiCount >= 2) return '台語完成';
+    if (hakCount >= 2) return '客語完成';
+    return '未錄音';
+}
+
+function refreshPlaceRecordingStatus(place, language) {
+    if (!place) return;
+    if (language.includes('客')) {
+        place.hakAudioCount = Number(place.hakAudioCount || 0) + 1;
+    } else {
+        place.taiAudioCount = Number(place.taiAudioCount || 0) + 1;
+    }
+    place.recordingStatus = getRecordingStatus(place.taiAudioCount, place.hakAudioCount);
+}
+
 // ==========================================
 // 🌟 核心修改 1：登入與 Supabase 資料極速載入
 // ==========================================
@@ -240,6 +284,7 @@ async function loadDataFromSupabase(userName) {
 
         const tasksData = await tasksRes.json();
         const recordsData = await recordsRes.json();
+        const places = tasksData.map(normalizeTask);
 
         if (state.userRole === 'admin') {
             // 🛑 核心新增：管理員額外抓取全體調查員名單
@@ -248,11 +293,7 @@ async function loadDataFromSupabase(userName) {
             // 將抓回來的名字存入 state
             state.allUsers = usersData.map(u => u.user_name);
 
-            state.assignedPlaces = tasksData.map(t => ({ 
-                id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type,
-                assignedTo: t.assigned_to,
-                hakArea: t.hak_area
-            }));
+            state.assignedPlaces = places;
             state.allPlaces = []; 
             
             const tabAssigned = document.getElementById('tab-assigned');
@@ -260,13 +301,11 @@ async function loadDataFromSupabase(userName) {
             if(tabAssigned) tabAssigned.innerText = "全部地名清單";
             if(tabOther) tabOther.style.display = "none";
         } else {
-            state.assignedPlaces = tasksData
-                .filter(t => t.assigned_to === userName)
-                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type, hakArea: t.hak_area }));
+            state.assignedPlaces = places
+                .filter(place => place.assignedUsers.includes(userName));
                 
-            state.allPlaces = tasksData
-                .filter(t => t.assigned_to !== userName)
-                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type, hakArea: t.hak_area }));
+            state.allPlaces = places
+                .filter(place => !place.assignedUsers.includes(userName));
         }
 
         state.uploadedRecords = recordsData.map(r => ({
@@ -379,19 +418,14 @@ function applyFilters() {
         let matchAssignee = true;
         if (state.userRole === 'admin' && assigneeFilter !== "") {
             if (assigneeFilter === "UNASSIGNED") {
-                matchAssignee = !place.assignedTo; // 如果沒有 assignedTo 就是 true
+                matchAssignee = place.assignedUsers.length === 0;
             } else {
-                matchAssignee = place.assignedTo === assigneeFilter;
+                matchAssignee = place.assignedUsers.includes(assigneeFilter);
             }
         }
         
         // 錄音狀態篩選
-        let matchStatus = true;
-        if (status !== 'all') {
-            const hasRecord = state.uploadedRecords.some(r => String(r.placeId) === String(place.id));
-            if (status === 'recorded') matchStatus = hasRecord;
-            if (status === 'unrecorded') matchStatus = !hasRecord;
-        }
+        const matchStatus = status === 'all' || place.recordingStatus === status;
         
         return matchK && matchC && matchTw && matchTy && matchHakArea && matchStatus && matchAssignee;
     });
@@ -412,8 +446,7 @@ function renderPlaceList(places) {
         let typeName = place.type || place.Type || '無類別';
         if (typeName === "具有地標意義公共設施") typeName = "公共設施";
         
-        const count = state.uploadedRecords.filter(r => String(r.placeId) === String(place.id)).length;
-        const recordBadge = count > 0 ? `<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em;">已錄音: ${count}</span>` : '';
+        const recordBadge = `<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em;">${place.recordingStatus}｜台 ${place.taiAudioCount} / 客 ${place.hakAudioCount}</span>`;
 
         // 🛑 新增：Checkbox 與指派標籤
         let checkboxHTML = '';
@@ -423,8 +456,8 @@ function renderPlaceList(places) {
             // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
             checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" onclick="event.stopPropagation()" style="transform: scale(1.5); margin-right: 15px; cursor: pointer;">`;
             
-            if (place.assignedTo) {
-                adminAssignBadge = `<span style="background:#8e44ad; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">👤 ${place.assignedTo}</span>`;
+            if (place.assignedUsers.length > 0) {
+                adminAssignBadge = `<span style="background:#8e44ad; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">👤 ${place.assignedUsers.join('、')}</span>`;
             } else {
                 adminAssignBadge = `<span style="background:#e74c3c; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">⚠️ 未指派</span>`;
             }
@@ -636,6 +669,7 @@ function uploadAudio() {
                     url: driveFileIdOrUrl,
                     annotations: annotations
                 });
+                refreshPlaceRecordingStatus(state.selectedPlace, lang);
                 renderHistoryList(state.selectedPlace.id); 
                 applyFilters(); 
                 resetRecordingState();
@@ -688,18 +722,20 @@ async function batchAssignTasks() {
     document.querySelector('#admin-assign-bar button').innerText = "處理中...";
 
     try {
-        // 利用 Supabase 的 in 語法，一次更新多筆資料
-        const url = `${CONFIG.SUPABASE_URL}/rest/v1/final_tasks?id=in.(${taskIds.join(',')})`;
+        const url = `${CONFIG.SUPABASE_URL}/rest/v1/rpc/assign_tasks_to_user`;
         
         const response = await fetch(url, {
-            method: 'PATCH',
+            method: 'POST',
             headers: {
                 'apikey': CONFIG.SUPABASE_ANON_KEY,
                 'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ assigned_to: targetUser }) // 更新 assigned_to 欄位
+            body: JSON.stringify({
+                p_task_ids: taskIds.map(id => Number(id)),
+                p_user_name: targetUser,
+                p_assigned_by: state.userId
+            })
         });
 
         if (!response.ok) throw new Error('資料庫更新失敗');
