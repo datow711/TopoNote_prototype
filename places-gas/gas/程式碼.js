@@ -20,14 +20,10 @@ function getSupabaseConfig_() {
 function getSupabaseHeaders_(supabase, extraHeaders) {
   var headers = {
     'apikey': supabase.key,
+    'Authorization': 'Bearer ' + supabase.key,
     'User-Agent': 'TopoNote-Places-GAS/1.0',
     'X-Client-Info': 'toponote-places-gas'
   };
-
-  // Supabase sb_secret_* keys are API keys, not JWT bearer tokens.
-  if (supabase.key.indexOf('sb_secret_') !== 0) {
-    headers.Authorization = 'Bearer ' + supabase.key;
-  }
 
   if (extraHeaders) {
     for (var name in extraHeaders) {
