@@ -7,9 +7,11 @@
 body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: var(--bg); color: #333; max-width: 600px; margin: 0 auto; }
 h1 { text-align: center; color: var(--secondary); font-size: 24px; }
 .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+input[type="text"], input[type="email"], input[type="password"], select, textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font: inherit; }
+textarea { min-height: 92px; resize: vertical; overflow-y: auto; }
 button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; color: white; margin-bottom: 10px; transition: 0.2s; }
 .btn-primary { background-color: var(--primary); }
+.btn-secondary { background-color: #e8f0f5; color: #2c3e50; border: 1px solid #c9d7e3; }
 .btn-record { background-color: #e74c3c; }
 .btn-stop { background-color: #95a5a6; display: none; }
 .btn-upload { background-color: #2ecc71; display: none; }
@@ -28,6 +30,9 @@ button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radiu
 .type-chip.selected { background: var(--secondary); color: white; border-color: var(--secondary); }
 
 /* 🚀 新增：狀態篩選器 (較小、不同顏色) */
+.hak-area-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-top: 10px; border-top: 1px dashed #eee; }
+.hak-area-chip { padding: 4px 10px; border-radius: 15px; background: #f9f9f9; cursor: pointer; font-size: 12px; border: 1px solid #ddd; color: #666; transition: 0.2s;}
+.hak-area-chip.selected { background: #2f9d58; color: white; border-color: #2f9d58; font-weight: bold;}
 .status-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-top: 10px; border-top: 1px dashed #eee; }
 .status-chip { padding: 4px 10px; border-radius: 15px; background: #f9f9f9; cursor: pointer; font-size: 12px; border: 1px solid #ddd; color: #666; transition: 0.2s;}
 .status-chip.selected { background: var(--status-color); color: white; border-color: var(--status-color); font-weight: bold;}
@@ -57,8 +62,19 @@ button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radiu
 }
 
 #recording-section { display: none; margin-top: 20px; border: 2px solid var(--primary); }
-.lang-select { display: flex; gap: 15px; margin-bottom: 15px; }
-.lang-select label { display: flex; align-items: center; gap: 5px; font-weight: bold; cursor: pointer; }
+.language-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.language-tab { display: flex; align-items: center; justify-content: center; min-height: 42px; border: 1px solid #9ac8a7; border-radius: 8px; background: #edf8f0; color: #23613c; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.language-tab:nth-child(2) { background: #e7f6ec; border-color: #79b88d; color: #155735; }
+.language-tab.active { background: #2f9d58; border-color: #2f9d58; color: white; box-shadow: 0 2px 6px rgba(47, 157, 88, 0.25); }
+.language-tab:nth-child(2).active { background: #1f7f4a; border-color: #1f7f4a; }
+.language-tab input { position: absolute; opacity: 0; pointer-events: none; }
+.annotation-panel { margin: 14px 0; display: grid; gap: 14px; }
+.annotation-group { display: none; border: 1px solid #ddd; border-radius: 8px; padding: 12px; background: #fbfbfb; }
+.annotation-group.active { display: block; }
+.annotation-group h4 { margin: 0 0 10px; color: var(--secondary); }
+.annotation-group h4 span { color: #5f8f70; font-size: 13px; font-weight: 600; margin-left: 4px; }
+.annotation-summary { margin: 8px 0 10px; display: grid; gap: 4px; color: #555; }
+.annotation-summary div { line-height: 1.45; }
 
 .history-section { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #ccc; }
 .history-item { background: #f9f9f9; border-left: 4px solid #f39c12; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-size: 14px; }

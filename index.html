@@ -16,9 +16,13 @@
     <h1>地名語音調查系統</h1>
 
     <div id="login-section" class="card">
-        <input type="text" id="account" placeholder="調查員帳號">
-        <input type="password" id="password" placeholder="密碼">
-        <button class="btn-primary" onclick="login()" id="login-btn">登入系統</button>
+        <input type="email" id="email" placeholder="Email">
+        <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
+        <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
+        <div id="admin-login-fields" class="hidden">
+            <input type="password" id="password" placeholder="管理者密碼">
+            <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>
+        </div>
         <div id="login-status" style="text-align: center; margin-top: 10px; color: red;"></div>
     </div>
 
@@ -40,6 +44,12 @@
             </div>
             
             <div class="type-chips" id="type-container"></div>
+
+            <div class="hak-area-chips" id="hak-area-container">
+                <div class="hak-area-chip selected" onclick="selectHakArea('all', this)">全部分區</div>
+                <div class="hak-area-chip" onclick="selectHakArea('hak', this)">客語區</div>
+                <div class="hak-area-chip" onclick="selectHakArea('non-hak', this)">非客語區</div>
+            </div>
             
             <div class="status-chips" id="status-container">
                 <div class="status-chip selected" onclick="selectStatus('all', this)">全部狀態</div>
@@ -53,12 +63,32 @@
         <div class="card" id="recording-section">
             <h3 id="selected-place-title" style="margin-top:0; color:var(--secondary);">未選擇地名</h3>
             
-            <div class="lang-select">
-                <label><input type="radio" name="lang" value="台語" checked> 台語</label>
-                <label><input type="radio" name="lang" value="客語"> 客語</label>
+            <div class="language-tabs" role="radiogroup" aria-label="錄音語言">
+                <label class="language-tab active" data-lang="台語">
+                    <input type="radio" name="lang" value="台語" checked onchange="switchAnnotationLanguage('台語')">
+                    台語
+                </label>
+                <label class="language-tab" data-lang="客語">
+                    <input type="radio" name="lang" value="客語" onchange="switchAnnotationLanguage('客語')">
+                    客語
+                </label>
             </div>
             
-            <input type="text" id="phonetic-input" placeholder="✏️ 請輸入音讀 (選填)">
+            <div class="annotation-panel">
+                <section class="annotation-group active" data-annotation-lang="台語">
+                    <h4>台語填寫區 <span>選填</span></h4>
+                    <input type="text" id="taihan-input" placeholder="地名台語漢字">
+                    <input type="text" id="tl1-input" placeholder="台語羅馬字(當地主音讀)">
+                    <textarea id="tainote-input" rows="4" placeholder="若有希望補充的資訊、發音，或覺得有疑問，請寫在這裡。"></textarea>
+                </section>
+
+                <section class="annotation-group" data-annotation-lang="客語">
+                    <h4>客語填寫區</h4>
+                    <input type="text" id="honzii-input" placeholder="地名客語漢字">
+                    <input type="text" id="hp1-input" placeholder="客語羅馬字(當地主音讀)">
+                    <textarea id="haknote-input" rows="4" placeholder="若有希望補充的資訊、說明腔調、發音，或覺得有疑問，請寫在這裡。"></textarea>
+                </section>
+            </div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                 <button class="btn-record" id="start-btn" onclick="startRecording()" style="flex: 1; margin: 0;">🎤 現場錄音</button>

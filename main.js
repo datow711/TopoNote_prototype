@@ -12,7 +12,9 @@ let state = {
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
+    selectedHakArea: "all",
     selectedStatus: "all", 
+    userSpecialty: "",
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
 };
 
@@ -21,68 +23,186 @@ let audioChunks = [];
 let audioBlob = null;
 let uploadedFileName = ""; 
 
+const ANNOTATION_FIELDS = [
+    'taihan', 'tl1', 'tainote',
+    'honzii', 'hp1', 'haknote'
+];
+
+function parseRecordNote(note) {
+    if (!note) return {};
+    try {
+        const parsed = JSON.parse(note);
+        return parsed && parsed.annotations ? parsed.annotations : {};
+    } catch (err) {
+        return { legacyNote: note };
+    }
+}
+
+function getAnnotationInputId(field) {
+    return `${field}-input`;
+}
+
+function collectAnnotationInputs() {
+    return ANNOTATION_FIELDS.reduce((annotations, field) => {
+        const input = document.getElementById(getAnnotationInputId(field));
+        annotations[field] = input ? input.value.trim() : '';
+        return annotations;
+    }, {});
+}
+
+function resetAnnotationInputs() {
+    ANNOTATION_FIELDS.forEach(field => {
+        const input = document.getElementById(getAnnotationInputId(field));
+        if (input) input.value = '';
+    });
+}
+
+function switchAnnotationLanguage(language) {
+    document.querySelectorAll('input[name="lang"]').forEach(input => {
+        input.checked = input.value === language;
+    });
+
+    document.querySelectorAll('.language-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.lang === language);
+    });
+
+    document.querySelectorAll('.annotation-group').forEach(group => {
+        group.classList.toggle('active', group.dataset.annotationLang === language);
+    });
+}
+
+function getDefaultAnnotationLanguage() {
+    return state.userSpecialty && state.userSpecialty.includes('客') ? '客語' : '台語';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function renderAnnotationSummary(annotations = {}) {
+    const rows = [
+        ['台語', [
+            ['TaiHan', annotations.taihan || annotations.taihan1],
+            ['TL1', annotations.tl1],
+            ['TaiNote', annotations.tainote]
+        ]],
+        ['客語', [
+            ['Honzii', annotations.honzii],
+            ['HP1', annotations.hp1],
+            ['HakNote', annotations.haknote]
+        ]]
+    ];
+
+    const html = rows.map(([title, fields]) => {
+        const filled = fields.filter(([, value]) => value);
+        if (filled.length === 0) return '';
+        return `
+            <div>
+                <strong>${title}：</strong>
+                ${filled.map(([label, value]) => `${label}: ${escapeHtml(value)}`).join(' / ')}
+            </div>
+        `;
+    }).join('');
+
+    if (html) return `<div class="annotation-summary">${html}</div>`;
+    if (annotations.legacyNote) return `<div class="annotation-summary"><div>${escapeHtml(annotations.legacyNote)}</div></div>`;
+    return '';
+}
+
 // ==========================================
 // 🌟 核心修改 1：登入與 Supabase 資料極速載入
 // ==========================================
+function toggleAdminLogin() {
+    document.getElementById('admin-login-fields').classList.toggle('hidden');
+}
+
 async function login() {
-    const acc = document.getElementById('account').value;
-    const pwd = document.getElementById('password').value;
-    const loginBtn = document.getElementById('login-btn');
-    
-    if (!acc || !pwd) return alert("請輸入帳號與密碼！");
-    loginBtn.innerText = "驗證中..."; loginBtn.disabled = true;
+    await performLogin({
+        rpcName: 'login_investigator',
+        body: { p_email: getLoginEmail() },
+        button: document.getElementById('login-btn'),
+        loadingText: '載入任務中...',
+        resetText: '進入我的任務',
+        missingMessage: '請輸入 email',
+        failedMessage: '找不到可登入的一般調查員帳號'
+    });
+}
+
+async function loginAdmin() {
+    const password = document.getElementById('password').value;
+    if (!password) return alert('請輸入管理者密碼');
+
+    await performLogin({
+        rpcName: 'login_admin',
+        body: { p_email: getLoginEmail(), p_password: password },
+        button: document.getElementById('admin-login-btn'),
+        loadingText: '載入管理模式中...',
+        resetText: '進入管理模式',
+        missingMessage: '請輸入 email',
+        failedMessage: '管理者 email 或密碼錯誤'
+    });
+}
+
+function getLoginEmail() {
+    return document.getElementById('email').value.trim();
+}
+
+async function performLogin({ rpcName, body, button, loadingText, resetText, missingMessage, failedMessage }) {
+    const email = getLoginEmail();
+    if (!email) return alert(missingMessage);
+
+    const status = document.getElementById('login-status');
+    status.innerText = '';
+    button.innerText = loadingText;
+    button.disabled = true;
 
     try {
-        // 🌟 改用 Supabase RPC (預存程序) 進行安全且極速的登入驗證
-        const url = `${CONFIG.SUPABASE_URL}/rest/v1/rpc/verify_login`;
-        
-        const response = await fetch(url, {
-            method: 'POST', // RPC 必須用 POST
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+            method: 'POST',
             headers: {
                 'apikey': CONFIG.SUPABASE_ANON_KEY,
                 'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                p_account: acc, 
-                p_password: pwd 
-            })
+            body: JSON.stringify(body)
         });
 
+        if (!response.ok) throw new Error(await response.text());
         const users = await response.json();
 
-        // 如果回傳的陣列有資料，代表帳號密碼完全正確
         if (users && users.length > 0) {
-            const user = users[0];
-            state.userId = user.user_name; // 把人名存入 state
-            state.userRole = user.role;    // 把角色存入 state (未來開發管理員介面可用)
-
-            loginBtn.innerText = "載入任務中...";
-
-            // 呼叫極速載入函數 (抓取屬於這個使用者的任務)
-            await loadDataFromSupabase(state.userId);
-
-            // 把身分標籤畫出來
-            renderUserInfo();
-            
-            // 切換畫面
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('app-section').classList.remove('hidden');
-            initFilters(); 
-            switchTab('assigned');
+            await enterApp(users[0]);
         } else {
-            // 找不到資料，代表帳號或密碼錯誤
-            document.getElementById('login-status').innerText = "❌ 帳號或密碼錯誤";
-            loginBtn.innerText = "登入系統"; loginBtn.disabled = false;
+            status.innerText = `❌ ${failedMessage}`;
+            button.innerText = resetText;
+            button.disabled = false;
         }
     } catch (error) {
-        console.error("登入連線錯誤:", error);
-        document.getElementById('login-status').innerText = "❌ 網路連線錯誤";
-        loginBtn.innerText = "登入系統"; loginBtn.disabled = false;
+        console.error('登入發生錯誤:', error);
+        status.innerText = '❌ 連線發生錯誤';
+        button.innerText = resetText;
+        button.disabled = false;
     }
 }
 
-// 🌟 新增：渲染使用者身分標籤
+async function enterApp(user) {
+    state.userId = user.user_name;
+    state.userRole = user.role;
+    state.userSpecialty = user.specialty || '';
+
+    await loadDataFromSupabase(state.userId);
+    renderUserInfo();
+
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+    switchTab('assigned');
+}
 function renderUserInfo() {
     let userInfoDiv = document.getElementById('user-info-badge');
     
@@ -130,7 +250,8 @@ async function loadDataFromSupabase(userName) {
 
             state.assignedPlaces = tasksData.map(t => ({ 
                 id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type,
-                assignedTo: t.assigned_to 
+                assignedTo: t.assigned_to,
+                hakArea: t.hak_area
             }));
             state.allPlaces = []; 
             
@@ -141,16 +262,17 @@ async function loadDataFromSupabase(userName) {
         } else {
             state.assignedPlaces = tasksData
                 .filter(t => t.assigned_to === userName)
-                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type, hakArea: t.hak_area }));
                 
             state.allPlaces = tasksData
                 .filter(t => t.assigned_to !== userName)
-                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type }));
+                .map(t => ({ id: t.task_id, placeName: t.place_name, county: t.county, town: t.town, type: t.type, hakArea: t.hak_area }));
         }
 
         state.uploadedRecords = recordsData.map(r => ({
             recordId: r.id, placeId: r.task_id, language: r.language,
-            uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id 
+            uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id,
+            annotations: parseRecordNote(r.note)
         }));
 
     } catch (err) {
@@ -219,6 +341,11 @@ function selectType(type, element) {
     document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected'); applyFilters();
 }
+function selectHakArea(hakArea, element) {
+    state.selectedHakArea = hakArea;
+    document.querySelectorAll('.hak-area-chip').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected'); applyFilters();
+}
 function selectStatus(status, element) {
     state.selectedStatus = status;
     document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
@@ -231,6 +358,7 @@ function applyFilters() {
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
     const type = state.selectedType;
+    const hakArea = state.selectedHakArea;
     const status = state.selectedStatus; 
     
     // 獲取調查員篩選器的值 (如果有的話)
@@ -244,6 +372,8 @@ function applyFilters() {
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
         const matchTy = type ? (place.type || place.Type) === type : true;
+        const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';
+        const matchHakArea = hakArea === 'all' || (hakArea === 'hak' ? isHakArea : !isHakArea);
         
         // 🛑 新增：調查員篩選邏輯
         let matchAssignee = true;
@@ -263,7 +393,7 @@ function applyFilters() {
             if (status === 'unrecorded') matchStatus = !hasRecord;
         }
         
-        return matchK && matchC && matchTw && matchTy && matchStatus && matchAssignee;
+        return matchK && matchC && matchTw && matchTy && matchHakArea && matchStatus && matchAssignee;
     });
     renderPlaceList(filtered);
 }
@@ -342,7 +472,7 @@ function renderHistoryList(placeId) {
     historyList.innerHTML = records.map(r => `
         <div class="history-item">
             <div class="history-meta"><span>🏷️ ${r.language}</span><span>👤 ${r.uploaderId}</span></div>
-            <div style="margin-bottom: 5px;">✏️ 音標：${r.phonetic || '(未填寫)'}</div>
+            ${renderAnnotationSummary(r.annotations)}
             <div id="player-${r.recordId}" style="margin-top: 10px;">
                 <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
             </div>
@@ -373,7 +503,8 @@ async function fetchAndPlayAudio(driveUrl, recordId) {
 // 錄音介面狀態控制 (保持原樣)
 // ==========================================
 function resetRecordingState() {
-    document.getElementById('phonetic-input').value = "";
+    resetAnnotationInputs();
+    switchAnnotationLanguage(getDefaultAnnotationLanguage());
     document.getElementById('audio-playback').style.display = 'none';
     document.getElementById('upload-btn').style.display = 'none';
     document.getElementById('status').innerText = "";
@@ -425,7 +556,7 @@ async function startRecording() {
 function stopRecording() {
     mediaRecorder.stop();
     document.getElementById('stop-btn').style.display = 'none';
-    document.getElementById('status').innerText = "✅ 錄音完成，可填寫音標後上傳。";
+    document.getElementById('status').innerText = "✅ 錄音完成，可填寫補充欄位後上傳。";
     document.getElementById('status').style.color = "green";
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
 }
@@ -439,7 +570,8 @@ function uploadAudio() {
     const uploadBtn = document.getElementById('upload-btn');
     const statusDiv = document.getElementById('status');
     const lang = document.querySelector('input[name="lang"]:checked').value;
-    const phonetic = document.getElementById('phonetic-input').value;
+    const annotations = collectAnnotationInputs();
+    const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
 
     uploadBtn.innerText = "⏳ 轉碼與上傳 Drive 中..."; uploadBtn.disabled = true;
 
@@ -476,7 +608,8 @@ function uploadAudio() {
                     recorder_name: state.userId,
                     audio_file_id: driveFileIdOrUrl,
                     phonetic_reading: phonetic,
-                    language: lang
+                    language: lang,
+                    note: JSON.stringify({ annotations: annotations })
                 };
 
                 await fetch(supaUrl, {
@@ -500,7 +633,8 @@ function uploadAudio() {
                     language: lang,
                     uploaderId: state.userId,
                     phonetic: phonetic,
-                    url: driveFileIdOrUrl
+                    url: driveFileIdOrUrl,
+                    annotations: annotations
                 });
                 renderHistoryList(state.selectedPlace.id); 
                 applyFilters(); 
