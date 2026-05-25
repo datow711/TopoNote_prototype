@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-25] [FIX]
+`app_tasks_view` 已收斂為只輸出 `third_phase_places` 任務，前端 APP 任務池正式切換到第三期工作清單來源。舊 MVP 來源 `moi_placename_raw` 仍保留在資料庫中，但不再出現在 APP 任務 view。
+
 [2026-05-25] [MILESTONE]
 建立第三期正式資料流的 Supabase 基礎結構。新增 `third_phase_places` 作為 `第三期工作清單` 的唯讀來源快照，新增 `task_assignments` 支援一地名多調查員，新增 `task_language_reviews` 承接台語/客語審查與回寫狀態。`app_tasks_view` 改為可從新來源取地名欄位，並計算 `未錄音 / 台語完成 / 客語完成 / 全部完成`。Places GAS 新增完整清冊同步函式並已 `clasp push`。
 
