@@ -32,7 +32,7 @@
 body {
     max-width: 760px;
     margin: 0 auto;
-    padding: 24px 18px 120px;
+    padding: 16px 18px 120px;
     background: var(--bg);
     color: var(--ink);
     font-family: "Euclid Circular A", Inter, "Segoe UI", "Noto Sans TC", system-ui, -apple-system, sans-serif;
@@ -40,9 +40,9 @@ body {
 }
 
 h1 {
-    margin: 4px 0 20px;
+    margin: 2px 0 12px;
     color: var(--ink);
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 800;
     letter-spacing: 0;
     text-align: left;
@@ -74,9 +74,9 @@ input[type="password"],
 select,
 textarea {
     width: 100%;
-    min-height: 44px;
-    margin-bottom: 10px;
-    padding: 10px 12px;
+    min-height: 40px;
+    margin-bottom: 8px;
+    padding: 8px 11px;
     border: 1px solid var(--hairline-strong);
     border-radius: 8px;
     background: var(--canvas);
@@ -177,12 +177,14 @@ button:disabled {
 .tab-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: 6px;
+    margin-bottom: 8px;
 }
 
 .tab-btn {
+    min-height: 36px;
     margin: 0;
+    padding: 7px 12px;
     background: var(--canvas);
     color: var(--muted);
     border-color: var(--hairline);
@@ -195,8 +197,16 @@ button:disabled {
 }
 
 .filter-section {
-    padding: 16px;
-    margin-bottom: 16px;
+    padding: 10px 12px 8px;
+    margin-bottom: 10px;
+}
+
+.filter-section input[type="text"],
+.filter-section select {
+    min-height: 36px;
+    margin-bottom: 7px;
+    padding: 7px 10px;
+    font-size: 14px;
 }
 
 #assignee-filter {
@@ -206,33 +216,38 @@ button:disabled {
 .filter-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 
 .type-chips,
 .hak-area-chips,
 .status-chips {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 10px;
-    padding-top: 10px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 6px;
+    padding-top: 7px;
+    padding-bottom: 2px;
     border-top: 1px solid var(--hairline);
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
 .type-chip,
 .hak-area-chip,
 .status-chip {
-    padding: 6px 12px;
+    padding: 5px 10px;
     border: 1px solid var(--hairline);
     border-radius: 9999px;
     background: var(--canvas);
     color: var(--muted);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 650;
     transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .type-chip.selected {
@@ -249,7 +264,7 @@ button:disabled {
 }
 
 .place-list {
-    max-height: 420px;
+    max-height: clamp(420px, calc(100vh - 286px), 680px);
     overflow-y: auto;
 }
 
@@ -554,8 +569,8 @@ button:disabled {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 15px;
-    padding: 12px 16px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
     border: 1px solid var(--hairline);
     border-left: 5px solid var(--accent);
     border-radius: 12px;
@@ -567,7 +582,7 @@ button:disabled {
 
 .user-mode {
     color: var(--muted);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -583,12 +598,19 @@ button:disabled {
 
 @media (max-width: 640px) {
     body {
-        padding: 18px 12px 150px;
+        padding: 12px 10px 150px;
     }
 
-    .filter-row,
-    .tab-container {
+    .filter-row {
         grid-template-columns: 1fr;
+    }
+
+    .tab-container {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .place-list {
+        max-height: clamp(360px, calc(100vh - 278px), 640px);
     }
 
     .place-row {
