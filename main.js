@@ -15,6 +15,7 @@ let state = {
     selectedHakArea: "all",
     selectedStatus: "all", 
     userSpecialty: "",
+    lastSelectedPlaceIndex: null,
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
 };
 
@@ -317,6 +318,7 @@ function logout() {
     state.selectedType = '';
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
+    state.lastSelectedPlaceIndex = null;
 
     const userInfoDiv = document.getElementById('user-info-badge');
     if (userInfoDiv) userInfoDiv.remove();
@@ -501,7 +503,11 @@ function applyFilters() {
     let data = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
 
     const filtered = data.filter(place => {
-        const matchK = (place.placeName && place.placeName.toLowerCase().includes(keyword)) || (place.id && String(place.id).includes(keyword));
+        const uuidText = place.sourceId ? String(place.sourceId).toLowerCase() : '';
+        const taskIdText = place.id ? String(place.id) : '';
+        const matchK = (place.placeName && place.placeName.toLowerCase().includes(keyword))
+            || uuidText.includes(keyword)
+            || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
         const matchTy = type ? (place.type || place.Type) === type : true;
@@ -530,9 +536,10 @@ function applyFilters() {
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
+    state.lastSelectedPlaceIndex = null;
     if (places.length === 0) return container.innerHTML = "<div style='padding:20px; text-align:center; color:#999;'>沒有符合條件的地名</div>";
 
-    places.forEach(place => {
+    places.forEach((place, index) => {
         const item = document.createElement('div');
         item.className = 'place-item';
         if (state.selectedPlace && state.selectedPlace.id === place.id) item.classList.add('active');
@@ -540,7 +547,7 @@ function renderPlaceList(places) {
         let typeName = place.type || place.Type || '無類別';
         if (typeName === "具有地標意義公共設施") typeName = "公共設施";
         
-        const recordBadge = `<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em;">${place.recordingStatus}｜台 ${place.taiAudioCount} / 客 ${place.hakAudioCount}</span>`;
+        const recordBadge = `<span class="meta-badge record-badge">${place.recordingStatus}｜台 ${place.taiAudioCount} / 客 ${place.hakAudioCount}</span>`;
 
         // 🛑 新增：Checkbox 與指派標籤
         let checkboxHTML = '';
@@ -548,33 +555,65 @@ function renderPlaceList(places) {
         
         if (state.userRole === 'admin') {
             // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
-            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" onclick="event.stopPropagation()" style="transform: scale(1.5); margin-right: 15px; cursor: pointer;">`;
+            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆">`;
             
             if (place.assignedUsers.length > 0) {
-                adminAssignBadge = `<span style="background:#8e44ad; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">👤 ${place.assignedUsers.join('、')}</span>`;
+                adminAssignBadge = `<span class="meta-badge assign-badge">👤 ${place.assignedUsers.join('、')}</span>`;
             } else {
-                adminAssignBadge = `<span style="background:#e74c3c; color:white; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-left:5px;">⚠️ 未指派</span>`;
+                adminAssignBadge = `<span class="meta-badge unassigned-badge">⚠️ 未指派</span>`;
             }
         }
+        const displayUuid = place.sourceId || place.id;
 
         item.innerHTML = `
-            <div style="display: flex; align-items: center; width: 100%;">
+            <div class="place-row">
                 ${checkboxHTML}
-                <div class="place-info" style="flex-grow: 1;">
+                <div class="place-info">
                     <div class="place-title">${place.placeName}</div>
-                    <div class="place-meta" style="margin-top: 5px;">
-                        <span style="margin-right:8px; color:#666;">ID: ${place.id}</span>
-                        <span style="margin-right:8px; color:#666;">${place.county} ${place.town}</span>
-                        <span style="margin-right:8px; color:#666;">${typeName}</span>
-                        <div style="margin-top:5px;">${recordBadge} ${adminAssignBadge}</div>
+                    <div class="place-meta">
+                        <span class="meta-badge">UUID: ${displayUuid}</span>
+                        <span class="meta-badge">${place.county} ${place.town}</span>
+                        <span class="meta-badge">${typeName}</span>
+                        <div class="meta-badge-row">${recordBadge} ${adminAssignBadge}</div>
                     </div>
                 </div>
-                <div class="expand-icon" style="font-size: 1.5em; color: #bdc3c7;">▶</div>
+                <div class="expand-icon">▶</div>
             </div>
         `;
         item.onclick = () => openRecordingUI(place, item);
         container.appendChild(item);
     });
+    updateSelectedAssignCount();
+}
+
+function toggleAdminPlaceSelection(event, index) {
+    event.stopPropagation();
+    const checkbox = event.currentTarget;
+    const checkboxes = Array.from(document.querySelectorAll('.assign-checkbox'));
+
+    if (event.shiftKey && state.lastSelectedPlaceIndex !== null) {
+        const start = Math.min(state.lastSelectedPlaceIndex, index);
+        const end = Math.max(state.lastSelectedPlaceIndex, index);
+        checkboxes.forEach(box => {
+            const boxIndex = Number(box.dataset.listIndex);
+            if (boxIndex >= start && boxIndex <= end) {
+                box.checked = checkbox.checked;
+                box.closest('.place-item')?.classList.toggle('selected-for-assign', checkbox.checked);
+            }
+        });
+    } else {
+        checkbox.closest('.place-item')?.classList.toggle('selected-for-assign', checkbox.checked);
+    }
+
+    state.lastSelectedPlaceIndex = index;
+    updateSelectedAssignCount();
+}
+
+function updateSelectedAssignCount() {
+    const countEl = document.getElementById('assign-count');
+    if (!countEl) return;
+    const count = document.querySelectorAll('.assign-checkbox:checked').length;
+    countEl.innerText = `${count} 筆已選`;
 }
 
 function openRecordingUI(place, element) {
@@ -786,7 +825,6 @@ function renderAdminBatchAssignUI() {
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'admin-assign-bar';
-        bar.style = "position: fixed; bottom: 0; left: 0; width: 100%; background: #2c3e50; padding: 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 1000;";
         document.body.appendChild(bar);
         document.getElementById('app-section').style.paddingBottom = "80px"; 
     }
@@ -795,11 +833,13 @@ function renderAdminBatchAssignUI() {
     let options = state.allUsers.map(u => `<option value="${u}">`).join('');
 
     bar.innerHTML = `
-        <span style="color: white; font-weight: bold;">✅ 批次指派：</span>
-        <input list="investigators-list" id="assignee-input" placeholder="選擇或輸入調查員" style="padding: 8px; border-radius: 4px; border: none; width: 160px; font-size: 1em;">
+        <span class="assign-label">批次指派</span>
+        <span id="assign-count" class="assign-count">0 筆已選</span>
+        <input list="investigators-list" id="assignee-input" placeholder="選擇或輸入調查員">
         <datalist id="investigators-list">${options}</datalist>
-        <button onclick="batchAssignTasks()" style="padding: 8px 20px; background: #f1c40f; color: #2c3e50; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 1em;">確認送出</button>
+        <button class="assign-submit" onclick="batchAssignTasks()">確認送出</button>
     `;
+    updateSelectedAssignCount();
 }
 
 // 🌟 新增：執行批次指派 (寫入 Supabase)
