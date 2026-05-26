@@ -347,7 +347,6 @@ function renderUserInfo() {
     if (!userInfoDiv) {
         userInfoDiv = document.createElement('div');
         userInfoDiv.id = 'user-info-badge';
-        userInfoDiv.style = "padding: 10px 15px; background: #e8f4fd; border-left: 5px solid #3498db; margin-bottom: 15px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #2c3e50;";
         
         const appSection = document.getElementById('app-section');
         appSection.insertBefore(userInfoDiv, appSection.firstChild);
@@ -358,7 +357,7 @@ function renderUserInfo() {
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
-            <div style="font-size: 0.85em; color: #7f8c8d;">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
+            <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
         </div>
         <button class="btn-logout" onclick="logout()">登出</button>
     `;
@@ -537,7 +536,7 @@ function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
     state.lastSelectedPlaceIndex = null;
-    if (places.length === 0) return container.innerHTML = "<div style='padding:20px; text-align:center; color:#999;'>沒有符合條件的地名</div>";
+    if (places.length === 0) return container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
 
     places.forEach((place, index) => {
         const item = document.createElement('div');
@@ -838,6 +837,7 @@ function renderAdminBatchAssignUI() {
         <input list="investigators-list" id="assignee-input" placeholder="選擇或輸入調查員">
         <datalist id="investigators-list">${options}</datalist>
         <button class="assign-submit" onclick="batchAssignTasks()">確認送出</button>
+        <span class="assign-hint">Shift + 左鍵可連續選取</span>
     `;
     updateSelectedAssignCount();
 }

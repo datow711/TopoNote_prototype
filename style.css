@@ -1,20 +1,24 @@
 :root {
-    --ink: #0a0a0a;
-    --ink-soft: #1c1c1e;
-    --muted: #5f6368;
-    --subtle: #8a8f98;
+    --ink: #001e2b;
+    --ink-soft: #1c2d38;
+    --muted: #5c6c7a;
+    --subtle: #7c8c9a;
     --canvas: #ffffff;
-    --surface: #f7f7f7;
-    --surface-strong: #f1f4f3;
-    --hairline: #e5e7eb;
-    --accent: #00d4a4;
-    --accent-deep: #00b48a;
-    --accent-soft: #e8fbf6;
+    --canvas-dark: #001e2b;
+    --surface: #f9fbfa;
+    --surface-strong: #f4f7f6;
+    --surface-feature: #e3fcef;
+    --hairline: #e1e5e8;
+    --hairline-strong: #c1ccd6;
+    --accent: #00ed64;
+    --accent-deep: #00684a;
+    --accent-pressed: #008c34;
+    --accent-soft: #c3f0d2;
     --danger: #dc3d43;
     --danger-soft: #fff1f2;
-    --warning: #a56a00;
-    --warning-soft: #fff7e6;
-    --shadow: 0 10px 30px rgba(10, 10, 10, 0.06);
+    --warning: #946f3f;
+    --warning-soft: #fff8e0;
+    --shadow: 0 4px 12px rgba(0, 30, 43, 0.08);
     --primary: var(--ink);
     --secondary: var(--ink-soft);
     --bg: var(--surface);
@@ -31,7 +35,7 @@ body {
     padding: 24px 18px 120px;
     background: var(--bg);
     color: var(--ink);
-    font-family: Inter, "Segoe UI", "Noto Sans TC", system-ui, -apple-system, sans-serif;
+    font-family: "Euclid Circular A", Inter, "Segoe UI", "Noto Sans TC", system-ui, -apple-system, sans-serif;
     line-height: 1.5;
 }
 
@@ -70,10 +74,10 @@ input[type="password"],
 select,
 textarea {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
     margin-bottom: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--hairline-strong);
     border-radius: 8px;
     background: var(--canvas);
     color: var(--ink);
@@ -86,7 +90,7 @@ input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--accent-deep);
-    box-shadow: 0 0 0 3px rgba(0, 212, 164, 0.16);
+    box-shadow: 0 0 0 3px rgba(0, 237, 100, 0.2);
 }
 
 textarea {
@@ -98,7 +102,7 @@ textarea {
 
 button {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
     margin-bottom: 10px;
     padding: 10px 16px;
     border: 1px solid transparent;
@@ -122,7 +126,12 @@ button:disabled {
 }
 
 .btn-primary {
-    background: var(--ink);
+    background: var(--accent);
+    color: var(--ink);
+}
+
+.btn-primary:hover {
+    background: var(--accent-pressed);
 }
 
 .btn-secondary {
@@ -147,7 +156,7 @@ button:disabled {
 }
 
 .btn-record {
-    background: var(--ink);
+    background: var(--canvas-dark);
 }
 
 .btn-stop {
@@ -180,9 +189,9 @@ button:disabled {
 }
 
 .tab-btn.active {
-    background: var(--ink);
+    background: var(--canvas-dark);
     color: var(--canvas);
-    border-color: var(--ink);
+    border-color: var(--canvas-dark);
 }
 
 .filter-section {
@@ -223,16 +232,16 @@ button:disabled {
 }
 
 .type-chip.selected {
-    background: var(--ink);
+    background: var(--canvas-dark);
     color: var(--canvas);
-    border-color: var(--ink);
+    border-color: var(--canvas-dark);
 }
 
 .hak-area-chip.selected,
 .status-chip.selected {
-    background: var(--accent-deep);
-    color: var(--canvas);
-    border-color: var(--accent-deep);
+    background: var(--accent);
+    color: var(--ink);
+    border-color: var(--accent);
 }
 
 .place-list {
@@ -257,13 +266,13 @@ button:disabled {
 }
 
 .place-item.active {
-    background: var(--accent-soft);
+    background: var(--surface-feature);
     box-shadow: inset 4px 0 0 var(--accent-deep);
 }
 
 .place-item.selected-for-assign {
-    background: #f2fffb;
-    box-shadow: inset 0 0 0 2px var(--accent-deep);
+    background: var(--surface-feature);
+    box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .place-row {
@@ -278,7 +287,7 @@ button:disabled {
     width: 20px;
     height: 20px;
     margin: 0;
-    accent-color: var(--accent-deep);
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
@@ -325,8 +334,8 @@ button:disabled {
 
 .record-badge {
     background: var(--accent-soft);
-    color: #06785f;
-    border-color: #bff2e6;
+    color: var(--accent-deep);
+    border-color: var(--accent-soft);
 }
 
 .assign-badge {
@@ -374,10 +383,10 @@ button:disabled {
     min-height: 42px;
     align-items: center;
     justify-content: center;
-    border: 1px solid #bdeee3;
+    border: 1px solid var(--accent-soft);
     border-radius: 9999px;
     background: var(--accent-soft);
-    color: #06785f;
+    color: var(--accent-deep);
     cursor: pointer;
     font-weight: 800;
     transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
@@ -385,19 +394,20 @@ button:disabled {
 
 .language-tab:nth-child(2) {
     background: #eefaf2;
-    border-color: #b8ebcb;
-    color: #176b38;
+    border-color: var(--accent-soft);
+    color: var(--accent-deep);
 }
 
 .language-tab.active {
-    background: var(--accent-deep);
-    color: var(--canvas);
-    border-color: var(--accent-deep);
+    background: var(--accent);
+    color: var(--ink);
+    border-color: var(--accent);
 }
 
 .language-tab:nth-child(2).active {
-    background: #15935f;
-    border-color: #15935f;
+    background: var(--accent-deep);
+    color: var(--canvas);
+    border-color: var(--accent-deep);
 }
 
 .language-tab input {
@@ -498,8 +508,8 @@ button:disabled {
     justify-content: center;
     gap: 10px;
     padding: 14px 18px;
-    background: var(--ink);
-    box-shadow: 0 -16px 34px rgba(10, 10, 10, 0.22);
+    background: var(--canvas-dark);
+    box-shadow: 0 -16px 34px rgba(0, 30, 43, 0.22);
 }
 
 #admin-assign-bar input {
@@ -521,13 +531,46 @@ button:disabled {
 
 .assign-count {
     min-width: 72px;
-    color: #c7cad1;
+    color: #a8b3bc;
     font-size: 13px;
 }
 
 .assign-submit {
     background: var(--accent);
     color: var(--ink);
+}
+
+.assign-hint {
+    color: #a8b3bc;
+    font-size: 12px;
+}
+
+#user-info-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding: 12px 16px;
+    border: 1px solid var(--hairline);
+    border-left: 5px solid var(--accent);
+    border-radius: 12px;
+    background: var(--canvas);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+    font-weight: 700;
+}
+
+.user-mode {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.empty-state {
+    padding: 24px 20px;
+    color: var(--subtle);
+    text-align: center;
 }
 
 .hidden {
@@ -554,7 +597,8 @@ button:disabled {
     }
 
     #admin-assign-bar input,
-    #admin-assign-bar button {
+    #admin-assign-bar button,
+    .assign-hint {
         width: 100%;
     }
 }
