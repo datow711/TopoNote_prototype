@@ -27,3 +27,9 @@
 ## Verification
 
 - `node --check main.js` passed.
+- Local DOM simulation passed:
+  - login saves `toponote_session`
+  - app view appears after login
+  - reload/session restore brings the user back into the app
+  - logout clears `toponote_session`
+  - logout hides the app and returns to login view
