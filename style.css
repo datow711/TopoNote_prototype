@@ -318,8 +318,15 @@ button:disabled {
 .place-title {
     margin-bottom: 6px;
     color: var(--ink);
-    font-size: 16px;
-    font-weight: 800;
+    font-family: "Iansui", "Noto Sans TC", serif;
+    font-size: 19px;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+#selected-place-title {
+    font-family: "Iansui", "Noto Sans TC", serif;
+    font-weight: 400;
 }
 
 .place-meta {
