@@ -298,6 +298,7 @@ async function enterApp(user, options = {}) {
     await loadDataFromSupabase(state.userId);
     if (persist) saveSession(user);
     renderUserInfo();
+    configureRoleUI();
 
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('app-section').classList.remove('hidden');
@@ -327,6 +328,7 @@ function logout() {
     if (adminBar) adminBar.remove();
 
     document.getElementById('app-section').style.paddingBottom = '';
+    configureRoleUI();
     document.getElementById('app-section').classList.add('hidden');
     document.getElementById('login-section').classList.remove('hidden');
     document.getElementById('recording-section').style.display = 'none';
@@ -363,6 +365,32 @@ function renderUserInfo() {
     `;
 }
 
+function configureRoleUI() {
+    const tabAssigned = document.getElementById('tab-assigned');
+    const tabOther = document.getElementById('tab-other');
+    const assigneeFilter = document.getElementById('assignee-filter');
+    const adminBar = document.getElementById('admin-assign-bar');
+    const appSection = document.getElementById('app-section');
+
+    if (state.userRole === 'admin') {
+        if (tabAssigned) tabAssigned.innerText = '全部地名清單';
+        if (tabOther) {
+            tabOther.style.display = 'none';
+            tabOther.classList.remove('active');
+        }
+        return;
+    }
+
+    if (tabAssigned) tabAssigned.innerText = '📝 任務清單';
+    if (tabOther) {
+        tabOther.innerText = '🌍 其他地名';
+        tabOther.style.display = '';
+    }
+    if (assigneeFilter) assigneeFilter.remove();
+    if (adminBar) adminBar.remove();
+    if (appSection) appSection.style.paddingBottom = '';
+}
+
 
 // 🌟 更新版：載入資料庫，管理員額外抓取全體名單
 async function loadDataFromSupabase(userName) {
@@ -390,12 +418,8 @@ async function loadDataFromSupabase(userName) {
 
             state.assignedPlaces = places;
             state.allPlaces = []; 
-            
-            const tabAssigned = document.getElementById('tab-assigned');
-            const tabOther = document.getElementById('tab-other');
-            if(tabAssigned) tabAssigned.innerText = "全部地名清單";
-            if(tabOther) tabOther.style.display = "none";
         } else {
+            state.allUsers = [];
             state.assignedPlaces = places
                 .filter(place => place.assignedUsers.includes(userName));
                 
@@ -446,7 +470,6 @@ function initFilters() {
             assigneeSelect = document.createElement('select');
             assigneeSelect.id = 'assignee-filter';
             assigneeSelect.onchange = applyFilters; 
-            assigneeSelect.style = "margin-bottom: 15px; padding: 10px; width: 100%; border-radius: 4px; border: 1px solid #ddd; font-size: 1em;";
             
             const searchBox = document.getElementById('search-box');
             searchBox.parentNode.insertBefore(assigneeSelect, searchBox);

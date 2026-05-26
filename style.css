@@ -199,6 +199,10 @@ button:disabled {
     margin-bottom: 16px;
 }
 
+#assignee-filter {
+    margin-bottom: 15px;
+}
+
 .filter-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
