@@ -1,6 +1,9 @@
 # Project Timeline
 
 [2026-05-26] [DATA]
+Users 流程改為 Places `Users` 表單向同步至 Supabase。新增英文精簡欄位、調查員個資欄位、`sync_sheet_users()` RPC、admin active 切換 RPC，舊非管理者帳號已刪除只保留目前 admin；前端只使用使用者 id/account/role/active，admin 可切換一般調查員 active。
+
+[2026-05-26] [DATA]
 新增 Supabase 測試地名來源 `test_places`，建立 10 筆 `TEST0001` 至 `TEST0010` 虛構地名並 upsert 到 `final_tasks`；`app_tasks_view` / `app_review_queue_view` 改為同時包含第三期正式地名與測試來源。前端一般調查員只會在被指派時看到測試地名，未指派測試來源只供管理者測試指派與審查。
 
 [2026-05-26] [FEATURE]

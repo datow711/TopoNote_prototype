@@ -9,6 +9,7 @@ if ('serviceWorker' in navigator) {
 
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], reviewQueue: [],
+    userDbId: "",
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
@@ -17,6 +18,7 @@ let state = {
     userSpecialty: "",
     lastSelectedPlaceIndex: null,
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
+    allUserRecords: [],
 };
 
 let mediaRecorder;
@@ -174,9 +176,10 @@ function refreshPlaceRecordingStatus(place, language) {
 
 function saveSession(user) {
     localStorage.setItem(SESSION_KEY, JSON.stringify({
-        user_name: user.user_name,
+        user_id: user.user_id || user.id || '',
+        account: user.account || user.user_name,
+        user_name: user.user_name || user.account,
         role: user.role,
-        specialty: user.specialty || '',
         email: user.email || getLoginEmail(),
         savedAt: Date.now()
     }));
@@ -188,7 +191,7 @@ function getSavedSession() {
         if (!raw) return null;
 
         const session = JSON.parse(raw);
-        if (!session.user_name || !session.role || Date.now() - session.savedAt > SESSION_TTL_MS) {
+        if (!(session.account || session.user_name) || !session.role || Date.now() - session.savedAt > SESSION_TTL_MS) {
             localStorage.removeItem(SESSION_KEY);
             return null;
         }
@@ -209,13 +212,41 @@ async function restoreSession() {
     status.style.color = '#2c3e50';
 
     try {
-        await enterApp(session, { persist: false });
+        const account = session.account || session.user_name;
+        const freshSession = await fetchSessionUser(account, session.role);
+        await enterApp({ ...session, ...freshSession }, { persist: false });
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
         clearSession();
         status.innerText = '登入狀態已失效，請重新登入。';
         status.style.color = 'red';
     }
+}
+
+async function fetchSessionUser(account, role) {
+    const params = new URLSearchParams({
+        select: 'id,account,role,is_active',
+        account: `eq.${account}`,
+        role: `eq.${role}`,
+        is_active: 'eq.true',
+        limit: '1'
+    });
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?${params}`, {
+        headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+        }
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+    const users = await response.json();
+    if (!users || users.length === 0) throw new Error('session user is inactive or missing');
+
+    return {
+        user_id: users[0].id,
+        account: users[0].account,
+        role: users[0].role
+    };
 }
 
 function clearSession() {
@@ -301,9 +332,10 @@ async function performLogin({ rpcName, body, button, loadingText, resetText, mis
 async function enterApp(user, options = {}) {
     const persist = options.persist !== false;
 
-    state.userId = user.user_name;
+    state.userDbId = user.user_id || user.id || '';
+    state.userId = user.account || user.user_name;
     state.userRole = user.role;
-    state.userSpecialty = user.specialty || '';
+    state.userSpecialty = '';
 
     await loadDataFromSupabase(state.userId);
     if (persist) saveSession(user);
@@ -319,6 +351,7 @@ async function enterApp(user, options = {}) {
 function logout() {
     clearSession();
     state.userId = '';
+    state.userDbId = '';
     state.userRole = '';
     state.userSpecialty = '';
     state.assignedPlaces = [];
@@ -331,12 +364,16 @@ function logout() {
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
+    state.allUsers = [];
+    state.allUserRecords = [];
 
     const userInfoDiv = document.getElementById('user-info-badge');
     if (userInfoDiv) userInfoDiv.remove();
 
     const adminBar = document.getElementById('admin-assign-bar');
     if (adminBar) adminBar.remove();
+    const userManager = document.getElementById('admin-user-manager');
+    if (userManager) userManager.remove();
 
     document.getElementById('app-section').style.paddingBottom = '';
     configureRoleUI();
@@ -382,6 +419,7 @@ function configureRoleUI() {
     const tabReview = document.getElementById('tab-review');
     const assigneeFilter = document.getElementById('assignee-filter');
     const adminBar = document.getElementById('admin-assign-bar');
+    const userManager = document.getElementById('admin-user-manager');
     const appSection = document.getElementById('app-section');
 
     if (state.userRole === 'admin') {
@@ -394,6 +432,7 @@ function configureRoleUI() {
             tabReview.classList.remove('hidden');
             tabReview.style.display = '';
         }
+        renderAdminUserManager();
         return;
     }
 
@@ -408,7 +447,75 @@ function configureRoleUI() {
     }
     if (assigneeFilter) assigneeFilter.remove();
     if (adminBar) adminBar.remove();
+    if (userManager) userManager.remove();
     if (appSection) appSection.style.paddingBottom = '';
+}
+
+function renderAdminUserManager() {
+    if (state.userRole !== 'admin') return;
+
+    let panel = document.getElementById('admin-user-manager');
+    if (!panel) {
+        panel = document.createElement('section');
+        panel.id = 'admin-user-manager';
+        panel.className = 'card';
+        const appSection = document.getElementById('app-section');
+        const tabContainer = document.querySelector('.tab-container');
+        appSection.insertBefore(panel, tabContainer);
+    }
+
+    const investigators = state.allUserRecords.filter(user => user.role !== 'admin');
+    const body = investigators.length === 0
+        ? '<div class="empty-state compact">目前沒有調查員帳號。請從 Places 的 Users 表同步。</div>'
+        : investigators.map(user => `
+            <label class="user-status-row">
+                <span class="user-account">${escapeHtml(user.account)}</span>
+                <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
+                <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
+            </label>
+        `).join('');
+
+    panel.innerHTML = `
+        <div class="admin-user-manager-header">
+            <h3>調查員帳號狀態</h3>
+            <button class="btn-secondary refresh-users-btn" onclick="refreshAdminUsers()">重新整理</button>
+        </div>
+        <div class="user-status-list">${body}</div>
+    `;
+}
+
+async function refreshAdminUsers() {
+    await loadDataFromSupabase(state.userId);
+    initFilters();
+    renderAdminUserManager();
+    applyFilters();
+}
+
+async function toggleInvestigatorActive(userId, isActive, checkbox) {
+    checkbox.disabled = true;
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/set_investigator_active`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                p_user_id: userId,
+                p_is_active: isActive,
+                p_actor_account: state.userId
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+        await refreshAdminUsers();
+    } catch (err) {
+        console.error('更新調查員 active 狀態失敗:', err);
+        checkbox.checked = !isActive;
+        checkbox.disabled = false;
+        alert(`更新 active 狀態失敗：${err.message}`);
+    }
 }
 
 function syncAdminToolsForTab() {
@@ -446,10 +553,13 @@ async function loadDataFromSupabase(userName) {
 
         if (state.userRole === 'admin') {
             // 🛑 核心新增：管理員額外抓取全體調查員名單
-            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=user_name`, { headers });
+            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active&order=account.asc`, { headers });
             const usersData = await usersRes.json();
             // 將抓回來的名字存入 state
-            state.allUsers = usersData.map(u => u.user_name);
+            state.allUserRecords = usersData;
+            state.allUsers = usersData
+                .filter(u => u.role !== 'admin' && u.is_active)
+                .map(u => u.account);
             const reviewsRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_review_queue_view?select=*`, { headers });
             const reviewsData = await reviewsRes.json();
             state.reviewQueue = reviewsData.map(normalizeReviewTask);
@@ -458,6 +568,7 @@ async function loadDataFromSupabase(userName) {
             state.allPlaces = []; 
         } else {
             state.allUsers = [];
+            state.allUserRecords = [];
             state.reviewQueue = [];
             state.assignedPlaces = places
                 .filter(place => place.assignedUsers.includes(userName));

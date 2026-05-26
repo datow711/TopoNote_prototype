@@ -52,6 +52,10 @@ function onOpen() {
     .addSeparator()
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
+    .addSeparator()
+    .addSubMenu(ui.createMenu('👥 Users')
+      .addItem('建立/修正 Users 表頭', 'setupUsersSheetHeaders')
+      .addItem('同步 Users 至 Supabase', 'syncUsersToSupabase'))
     .addToUi();
 }
 
@@ -236,6 +240,113 @@ function postSupabaseBatches_(url, payload, preferValue) {
     if (statusCode < 200 || statusCode >= 300) {
       throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
     }
+  }
+}
+
+var USER_SHEET_HEADERS = [
+  'email',
+  'name',
+  'phone',
+  'languages',
+  'hakka_dialect',
+  'life_area_1',
+  'survey_area_1',
+  'life_area_2',
+  'survey_area_2',
+  'life_area_3',
+  'survey_area_3',
+  'active'
+];
+
+function setupUsersSheetHeaders() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Users') || ss.insertSheet('Users');
+  sheet.getRange(1, 1, 1, USER_SHEET_HEADERS.length).setValues([USER_SHEET_HEADERS]);
+  sheet.getRange(1, 1, 1, USER_SHEET_HEADERS.length).setFontWeight('bold');
+  sheet.getRange(2, USER_SHEET_HEADERS.length, Math.max(sheet.getMaxRows() - 1, 1), 1).insertCheckboxes();
+  sheet.autoResizeColumns(1, USER_SHEET_HEADERS.length);
+  SpreadsheetApp.getUi().alert('✅ Users 表頭已設定完成。email 與 name 為必填，active 欄可勾選。');
+}
+
+function normalizeUserActive_(value) {
+  if (value === true || value === false) return value;
+  var text = String(value || '').trim().toLowerCase();
+  if (text === '') return true;
+  if (['true', '1', 'yes', 'y', 'on', '是', '啟用'].indexOf(text) !== -1) return true;
+  if (['false', '0', 'no', 'n', 'off', '否', '停用'].indexOf(text) !== -1) return false;
+  return true;
+}
+
+function syncUsersToSupabase() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到 Users 工作表。');
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return SpreadsheetApp.getUi().alert('沒有 Users 資料可同步。');
+
+  var headers = data[0].map(function(header) {
+    return String(header).trim();
+  });
+  var colMap = {};
+  headers.forEach(function(header, index) {
+    colMap[header] = index;
+  });
+
+  var missingHeaders = USER_SHEET_HEADERS.filter(function(header) {
+    return colMap[header] === undefined;
+  });
+  if (missingHeaders.length > 0) {
+    return SpreadsheetApp.getUi().alert('❌ Users 缺少欄位：' + missingHeaders.join(', '));
+  }
+
+  var payload = [];
+  var skipped = 0;
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    var email = String(row[colMap.email] || '').trim().toLowerCase();
+    var name = String(row[colMap.name] || '').trim();
+    if (!email || !name) {
+      skipped++;
+      continue;
+    }
+
+    payload.push({
+      email: email,
+      name: name,
+      phone: String(row[colMap.phone] || '').trim(),
+      languages: String(row[colMap.languages] || '').trim(),
+      hakka_dialect: String(row[colMap.hakka_dialect] || '').trim(),
+      life_area_1: String(row[colMap.life_area_1] || '').trim(),
+      survey_area_1: String(row[colMap.survey_area_1] || '').trim(),
+      life_area_2: String(row[colMap.life_area_2] || '').trim(),
+      survey_area_2: String(row[colMap.survey_area_2] || '').trim(),
+      life_area_3: String(row[colMap.life_area_3] || '').trim(),
+      survey_area_3: String(row[colMap.survey_area_3] || '').trim(),
+      active: normalizeUserActive_(row[colMap.active])
+    });
+  }
+
+  if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有可同步的有效 Users 資料。');
+
+  try {
+    var supabase = getSupabaseConfig_();
+    var url = supabase.url + '/rest/v1/rpc/sync_sheet_users';
+    var options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: getSupabaseHeaders_(supabase),
+      payload: JSON.stringify({ p_users: payload }),
+      muteHttpExceptions: true
+    };
+    var response = UrlFetchApp.fetch(url, options);
+    var statusCode = response.getResponseCode();
+    if (statusCode < 200 || statusCode >= 300) {
+      throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+    }
+
+    SpreadsheetApp.getUi().alert('✅ 已同步 ' + payload.length + ' 位 Users 至 Supabase。略過 ' + skipped + ' 列缺少 email/name 的資料。');
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('❌ Users 同步失敗: ' + e.message);
   }
 }
 

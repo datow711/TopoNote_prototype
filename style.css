@@ -715,6 +715,69 @@ button:disabled {
     font-weight: 500;
 }
 
+#admin-user-manager {
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.admin-user-manager-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.admin-user-manager-header h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.refresh-users-btn {
+    width: auto;
+    min-height: 32px;
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.user-status-list {
+    display: grid;
+    gap: 6px;
+}
+
+.user-status-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.user-account {
+    min-width: 0;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.user-active-text {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.user-status-row input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
 .empty-state {
     padding: 24px 20px;
     color: var(--subtle);
@@ -768,6 +831,20 @@ button:disabled {
     }
 
     .review-approve-btn {
+        width: 100%;
+    }
+
+    .admin-user-manager-header,
+    .user-status-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .admin-user-manager-header {
+        flex-direction: column;
+    }
+
+    .refresh-users-btn {
         width: 100%;
     }
 }

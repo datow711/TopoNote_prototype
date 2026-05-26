@@ -9,6 +9,7 @@
 - 每筆地名有來源 `UUID`，前端地名卡片顯示這個 UUID；內部寫入與指派仍用 `task_id`。
 
 ## 主要資料表與定位
+- `investigators`：使用者與調查員資料表，現在保存 DB `id`、登入帳號 `account/email`、姓名與 Sheet 同步來的個人資訊；一般帳號由 Places `Users` 單向 upsert，刪除只從 DB 後台做。
 - `test_places`：測試用地名來源表，UUID 以 `TEST` 開頭，供管理者測試指派與審查流程。
 - `third_phase_places`：Google Sheet「第三期工作清單」的來源快照，APP 不直接更動它。
 - `final_tasks`：APP 任務表，對應可被指派/錄音的地名。
@@ -43,6 +44,12 @@
 - 已新增 `configureRoleUI()` 修正：一般調查員登入會恢復「任務清單 / 其他地名」，並移除管理者篩選器與批次指派列。
 
 ## 現在這個 chat 最後一段改動
+- Places `Users` 表欄位改為英文精簡：`email`, `name`, `phone`, `languages`, `hakka_dialect`, `life_area_1`, `survey_area_1`, `life_area_2`, `survey_area_2`, `life_area_3`, `survey_area_3`, `active`。
+- `email` 與 `name` 為必填；`active` 可用 checkbox，Sheet 同步會單向 upsert 到資料庫但不刪 DB 帳號。
+- 舊非 admin 調查員帳號已刪除，只保留目前 admin；舊指派給已刪除帳號的 assignment 已標成 inactive。
+- 新增 `sync_sheet_users(p_users jsonb)`、`set_investigator_active(...)`，前端 admin 可切換一般調查員 active。
+- `app_users_view` 現在只給前端 `id`, `account`, `role`, `is_active`；登入 RPC 回傳 `user_id`, `account`, `role`。
+- Places GAS 的 Users 同步程式已在本機 `places-gas/` 更新，但 `clasp push` 尚未完成；需要使用者明確同意上傳 Apps Script 後再推送。
 - 新增 Supabase `test_places` 測試來源表，寫入 10 筆虛構地名：石崁頭、牛寮坑、刺竹坪、後茄苳、七甲寮、水流崙、大潭底、楓樹崎、瓦厝埕、砂崙尾。
 - 測試地名 UUID 為 `TEST0001` 至 `TEST0010`，類別/縣市/鄉鎮/村里皆設為 `測試`。
 - `app_tasks_view` 與 `app_review_queue_view` 已改為同時包含 `third_phase_places` 與 `test_places` 來源。
