@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-26] [DATA]
+新增 Supabase 測試地名來源 `test_places`，建立 10 筆 `TEST0001` 至 `TEST0010` 虛構地名並 upsert 到 `final_tasks`；`app_tasks_view` / `app_review_queue_view` 改為同時包含第三期正式地名與測試來源。前端一般調查員只會在被指派時看到測試地名，未指派測試來源只供管理者測試指派與審查。
+
 [2026-05-26] [FEATURE]
 管理者審查 MVP 起步：新增管理者「審查清單」頁簽，讀取 `app_review_queue_view` 並結合 `audio_records` 顯示可審查錄音、台語/客語標注摘要與雲端音檔播放入口；單一語言可按「審查通過」呼叫 `approve_task_language()`。審查頁會收起底部批次指派工具列，避免管理操作混在一起。
 

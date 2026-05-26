@@ -131,6 +131,7 @@ function normalizeTask(t) {
     return {
         id: t.task_id,
         sourceId: t.source_id,
+        sourceTable: t.source_table,
         placeName: t.place_name,
         county: t.county,
         town: t.town,
@@ -462,7 +463,7 @@ async function loadDataFromSupabase(userName) {
                 .filter(place => place.assignedUsers.includes(userName));
                 
             state.allPlaces = places
-                .filter(place => !place.assignedUsers.includes(userName));
+                .filter(place => !place.assignedUsers.includes(userName) && place.sourceTable !== 'test_places');
         }
 
         state.uploadedRecords = recordsData.map(r => ({

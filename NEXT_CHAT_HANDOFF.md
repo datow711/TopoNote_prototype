@@ -9,6 +9,7 @@
 - 每筆地名有來源 `UUID`，前端地名卡片顯示這個 UUID；內部寫入與指派仍用 `task_id`。
 
 ## 主要資料表與定位
+- `test_places`：測試用地名來源表，UUID 以 `TEST` 開頭，供管理者測試指派與審查流程。
 - `third_phase_places`：Google Sheet「第三期工作清單」的來源快照，APP 不直接更動它。
 - `final_tasks`：APP 任務表，對應可被指派/錄音的地名。
 - `task_assignments`：任務和調查員多對多指派。
@@ -42,6 +43,10 @@
 - 已新增 `configureRoleUI()` 修正：一般調查員登入會恢復「任務清單 / 其他地名」，並移除管理者篩選器與批次指派列。
 
 ## 現在這個 chat 最後一段改動
+- 新增 Supabase `test_places` 測試來源表，寫入 10 筆虛構地名：石崁頭、牛寮坑、刺竹坪、後茄苳、七甲寮、水流崙、大潭底、楓樹崎、瓦厝埕、砂崙尾。
+- 測試地名 UUID 為 `TEST0001` 至 `TEST0010`，類別/縣市/鄉鎮/村里皆設為 `測試`。
+- `app_tasks_view` 與 `app_review_queue_view` 已改為同時包含 `third_phase_places` 與 `test_places` 來源。
+- 前端 `normalizeTask()` 保留 `source_table`，一般調查員的「其他地名」會排除未指派的 `test_places`；被指派後才會在「任務清單」看到。管理者仍可看到全部測試地名。
 - 新增管理者「審查清單」頁簽，讀取 `app_review_queue_view` 並和 `audio_records` 結合顯示可審查錄音。
 - 審查清單依地名分組，顯示 UUID、縣市鄉鎮、台語/客語審查狀態、標注摘要與音檔播放入口。
 - 單一語言可按「審查通過」呼叫 `approve_task_language()`，目前送出 `p_task_id`、`p_language`、`p_reviewed_by`。
