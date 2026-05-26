@@ -8,7 +8,7 @@ if ('serviceWorker' in navigator) {
 }
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], 
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], reviewQueue: [],
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
@@ -142,6 +142,15 @@ function normalizeTask(t) {
         recordingStatus: t.recording_status || '未錄音',
         taiAudioCount: Number(t.tai_audio_count || 0),
         hakAudioCount: Number(t.hak_audio_count || 0)
+    };
+}
+
+function normalizeReviewTask(t) {
+    return {
+        ...normalizeTask(t),
+        tReviewState: t.t_review_state || t.t_state || '尚未標注',
+        hReviewState: t.h_review_state || t.h_state || '尚未標注',
+        recordCount: Number(t.record_count || 0)
     };
 }
 
@@ -314,6 +323,7 @@ function logout() {
     state.assignedPlaces = [];
     state.allPlaces = [];
     state.uploadedRecords = [];
+    state.reviewQueue = [];
     state.selectedPlace = null;
     state.currentTab = 'assigned';
     state.selectedType = '';
@@ -368,6 +378,7 @@ function renderUserInfo() {
 function configureRoleUI() {
     const tabAssigned = document.getElementById('tab-assigned');
     const tabOther = document.getElementById('tab-other');
+    const tabReview = document.getElementById('tab-review');
     const assigneeFilter = document.getElementById('assignee-filter');
     const adminBar = document.getElementById('admin-assign-bar');
     const appSection = document.getElementById('app-section');
@@ -378,6 +389,10 @@ function configureRoleUI() {
             tabOther.style.display = 'none';
             tabOther.classList.remove('active');
         }
+        if (tabReview) {
+            tabReview.classList.remove('hidden');
+            tabReview.style.display = '';
+        }
         return;
     }
 
@@ -386,9 +401,28 @@ function configureRoleUI() {
         tabOther.innerText = '🌍 其他地名';
         tabOther.style.display = '';
     }
+    if (tabReview) {
+        tabReview.classList.add('hidden');
+        tabReview.classList.remove('active');
+    }
     if (assigneeFilter) assigneeFilter.remove();
     if (adminBar) adminBar.remove();
     if (appSection) appSection.style.paddingBottom = '';
+}
+
+function syncAdminToolsForTab() {
+    if (state.userRole !== 'admin') return;
+
+    const adminBar = document.getElementById('admin-assign-bar');
+    const appSection = document.getElementById('app-section');
+
+    if (state.currentTab === 'review') {
+        if (adminBar) adminBar.style.display = 'none';
+        if (appSection) appSection.style.paddingBottom = '';
+        return;
+    }
+
+    renderAdminBatchAssignUI();
 }
 
 
@@ -415,11 +449,15 @@ async function loadDataFromSupabase(userName) {
             const usersData = await usersRes.json();
             // 將抓回來的名字存入 state
             state.allUsers = usersData.map(u => u.user_name);
+            const reviewsRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_review_queue_view?select=*`, { headers });
+            const reviewsData = await reviewsRes.json();
+            state.reviewQueue = reviewsData.map(normalizeReviewTask);
 
             state.assignedPlaces = places;
             state.allPlaces = []; 
         } else {
             state.allUsers = [];
+            state.reviewQueue = [];
             state.assignedPlaces = places
                 .filter(place => place.assignedUsers.includes(userName));
                 
@@ -446,6 +484,8 @@ function switchTab(tab) {
     state.currentTab = tab;
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
+    document.getElementById('tab-review')?.classList.toggle('active', tab === 'review');
+    syncAdminToolsForTab();
     document.getElementById('search-box').value = ""; applyFilters();
 }
 // 🌟 更新版：初始化篩選器
@@ -522,7 +562,9 @@ function applyFilters() {
     const assigneeInput = document.getElementById('assignee-filter');
     const assigneeFilter = assigneeInput ? assigneeInput.value : "";
     
-    let data = state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces;
+    let data = state.currentTab === 'review'
+        ? state.reviewQueue
+        : (state.currentTab === 'assigned' ? state.assignedPlaces : state.allPlaces);
 
     const filtered = data.filter(place => {
         const uuidText = place.sourceId ? String(place.sourceId).toLowerCase() : '';
@@ -551,7 +593,128 @@ function applyFilters() {
         
         return matchK && matchC && matchTw && matchTy && matchHakArea && matchStatus && matchAssignee;
     });
+    if (state.currentTab === 'review') {
+        return renderReviewQueue(filtered);
+    }
     renderPlaceList(filtered);
+}
+
+function getTaskRecords(taskId, language = '') {
+    return state.uploadedRecords.filter(record => {
+        const sameTask = String(record.placeId) === String(taskId);
+        return sameTask && (!language || record.language === language);
+    });
+}
+
+function getLanguageReviewState(place, language) {
+    return language === '客語' ? place.hReviewState : place.tReviewState;
+}
+
+function renderReviewQueue(places) {
+    const container = document.getElementById('place-list-container');
+    container.innerHTML = "";
+    state.lastSelectedPlaceIndex = null;
+
+    const reviewablePlaces = places.filter(place => {
+        return getTaskRecords(place.id, '台語').length > 0 || getTaskRecords(place.id, '客語').length > 0;
+    });
+
+    if (reviewablePlaces.length === 0) {
+        container.innerHTML = '<div class="empty-state">目前沒有可審查的錄音</div>';
+        return;
+    }
+
+    reviewablePlaces.forEach(place => {
+        const item = document.createElement('div');
+        item.className = 'review-item';
+        const taiRecords = getTaskRecords(place.id, '台語');
+        const hakRecords = getTaskRecords(place.id, '客語');
+        const displayUuid = place.sourceId || place.id;
+
+        item.innerHTML = `
+            <div class="review-heading">
+                <div>
+                    <div class="place-title">${escapeHtml(place.placeName)}</div>
+                    <div class="place-meta">
+                        <span class="meta-badge">UUID: ${escapeHtml(displayUuid)}</span>
+                        <span class="meta-badge">${escapeHtml(place.county)} ${escapeHtml(place.town)}</span>
+                    </div>
+                </div>
+                <div class="review-status-group">
+                    ${renderReviewStatusBadge('台語', getLanguageReviewState(place, '台語'), taiRecords.length)}
+                    ${renderReviewStatusBadge('客語', getLanguageReviewState(place, '客語'), hakRecords.length)}
+                </div>
+            </div>
+            ${renderReviewLanguageBlock(place, '台語', taiRecords)}
+            ${renderReviewLanguageBlock(place, '客語', hakRecords)}
+        `;
+        container.appendChild(item);
+    });
+}
+
+function renderReviewStatusBadge(language, reviewState, count) {
+    const stateClass = reviewState === '已完成標注' ? 'review-done' : 'review-pending';
+    return `<span class="review-state ${stateClass}">${language} ${count} 筆｜${escapeHtml(reviewState)}</span>`;
+}
+
+function renderReviewLanguageBlock(place, language, records) {
+    if (records.length === 0) return '';
+    const reviewState = getLanguageReviewState(place, language);
+    const isDone = reviewState === '已完成標注';
+    return `
+        <section class="review-language">
+            <div class="review-language-header">
+                <h4>${language}錄音</h4>
+                <button class="review-approve-btn" ${isDone ? 'disabled' : ''} onclick="approveReviewLanguage(${place.id}, '${language}', this)">
+                    ${isDone ? '已通過' : '審查通過'}
+                </button>
+            </div>
+            ${records.map(record => `
+                <div class="history-item review-record">
+                    <div class="history-meta"><span>👤 ${escapeHtml(record.uploaderId)}</span><span>${escapeHtml(record.phonetic || '')}</span></div>
+                    ${renderAnnotationSummary(record.annotations)}
+                    <div id="player-${record.recordId}" style="margin-top: 10px;">
+                        <button class="play-btn" onclick="fetchAndPlayAudio('${record.url}', '${record.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
+                    </div>
+                </div>
+            `).join('')}
+        </section>
+    `;
+}
+
+async function approveReviewLanguage(taskId, language, button) {
+    if (!confirm(`確定通過這筆地名的${language}標注嗎？`)) return;
+
+    const originalText = button.innerText;
+    button.innerText = '寫入中...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/approve_task_language`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                p_task_id: Number(taskId),
+                p_language: language,
+                p_reviewed_by: state.userId
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        alert(`${language}標注已通過。`);
+        await loadDataFromSupabase(state.userId);
+        applyFilters();
+    } catch (err) {
+        console.error('審查寫入失敗:', err);
+        alert(`審查寫入失敗：${err.message}`);
+        button.innerText = originalText;
+        button.disabled = false;
+    }
 }
 
 // 🌟 升級：渲染清單 (插入 Checkbox)
@@ -848,8 +1011,9 @@ function renderAdminBatchAssignUI() {
         bar = document.createElement('div');
         bar.id = 'admin-assign-bar';
         document.body.appendChild(bar);
-        document.getElementById('app-section').style.paddingBottom = "80px"; 
     }
+    bar.style.display = 'flex';
+    document.getElementById('app-section').style.paddingBottom = "80px";
 
     // 🛑 核心修改：改用 state.allUsers 來產生建議選單
     let options = state.allUsers.map(u => `<option value="${u}">`).join('');

@@ -1,5 +1,11 @@
 # Project Timeline
 
+[2026-05-26] [FEATURE]
+管理者審查 MVP 起步：新增管理者「審查清單」頁簽，讀取 `app_review_queue_view` 並結合 `audio_records` 顯示可審查錄音、台語/客語標注摘要與雲端音檔播放入口；單一語言可按「審查通過」呼叫 `approve_task_language()`。審查頁會收起底部批次指派工具列，避免管理操作混在一起。
+
+[2026-05-26] [UI]
+收尾字型與交接：全站 UI 字體改用 `Noto Sans TC`，地名與台語/客語標注填寫框使用 `Iansui`；在 MongoDB design token 下加入更活潑的 hover、標題線、標注區內側線與彩色 badge。新增 `NEXT_CHAT_HANDOFF.md` 供下一個 chat 接續。
+
 [2026-05-26] [UI]
 地名字卡載入並套用 Google Fonts `Iansui`，優先用於地名卡片主標題與錄音區選取地名標題；其他操作介面維持原本工具型字體，兼顧本土語言文字可讀性與操作資訊密度。
 
