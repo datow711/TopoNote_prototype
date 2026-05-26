@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-26] [FIX]
+新增前端 session 與登出流程。登入成功後會以 `localStorage` 保存使用者資訊 24 小時，頁面重整後自動恢復登入並重新載入任務；使用者資訊列新增「登出」按鈕，登出時清除 session、移除 admin 指派列並回到登入畫面。
+
 [2026-05-25] [FIX]
 `app_tasks_view` 已收斂為只輸出 `third_phase_places` 任務，前端 APP 任務池正式切換到第三期工作清單來源。舊 MVP 來源 `moi_placename_raw` 仍保留在資料庫中，但不再出現在 APP 任務 view。
 

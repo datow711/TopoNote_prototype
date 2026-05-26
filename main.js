@@ -23,6 +23,9 @@ let audioChunks = [];
 let audioBlob = null;
 let uploadedFileName = ""; 
 
+const SESSION_KEY = 'toponote_session';
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 const ANNOTATION_FIELDS = [
     'taihan', 'tl1', 'tainote',
     'honzii', 'hp1', 'haknote'
@@ -158,6 +161,56 @@ function refreshPlaceRecordingStatus(place, language) {
     place.recordingStatus = getRecordingStatus(place.taiAudioCount, place.hakAudioCount);
 }
 
+function saveSession(user) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+        user_name: user.user_name,
+        role: user.role,
+        specialty: user.specialty || '',
+        email: user.email || getLoginEmail(),
+        savedAt: Date.now()
+    }));
+}
+
+function getSavedSession() {
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+
+        const session = JSON.parse(raw);
+        if (!session.user_name || !session.role || Date.now() - session.savedAt > SESSION_TTL_MS) {
+            localStorage.removeItem(SESSION_KEY);
+            return null;
+        }
+
+        return session;
+    } catch (err) {
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+    }
+}
+
+async function restoreSession() {
+    const session = getSavedSession();
+    if (!session) return;
+
+    const status = document.getElementById('login-status');
+    status.innerText = '正在恢復登入狀態...';
+    status.style.color = '#2c3e50';
+
+    try {
+        await enterApp(session, { persist: false });
+    } catch (err) {
+        console.error('恢復登入狀態失敗:', err);
+        clearSession();
+        status.innerText = '登入狀態已失效，請重新登入。';
+        status.style.color = 'red';
+    }
+}
+
+function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+}
+
 // ==========================================
 // 🌟 核心修改 1：登入與 Supabase 資料極速載入
 // ==========================================
@@ -220,7 +273,7 @@ async function performLogin({ rpcName, body, button, loadingText, resetText, mis
         const users = await response.json();
 
         if (users && users.length > 0) {
-            await enterApp(users[0]);
+            await enterApp({ ...users[0], email });
         } else {
             status.innerText = `❌ ${failedMessage}`;
             button.innerText = resetText;
@@ -234,12 +287,15 @@ async function performLogin({ rpcName, body, button, loadingText, resetText, mis
     }
 }
 
-async function enterApp(user) {
+async function enterApp(user, options = {}) {
+    const persist = options.persist !== false;
+
     state.userId = user.user_name;
     state.userRole = user.role;
     state.userSpecialty = user.specialty || '';
 
     await loadDataFromSupabase(state.userId);
+    if (persist) saveSession(user);
     renderUserInfo();
 
     document.getElementById('login-section').classList.add('hidden');
@@ -247,6 +303,41 @@ async function enterApp(user) {
     initFilters();
     switchTab('assigned');
 }
+
+function logout() {
+    clearSession();
+    state.userId = '';
+    state.userRole = '';
+    state.userSpecialty = '';
+    state.assignedPlaces = [];
+    state.allPlaces = [];
+    state.uploadedRecords = [];
+    state.selectedPlace = null;
+    state.currentTab = 'assigned';
+    state.selectedType = '';
+    state.selectedHakArea = 'all';
+    state.selectedStatus = 'all';
+
+    const userInfoDiv = document.getElementById('user-info-badge');
+    if (userInfoDiv) userInfoDiv.remove();
+
+    const adminBar = document.getElementById('admin-assign-bar');
+    if (adminBar) adminBar.remove();
+
+    document.getElementById('app-section').style.paddingBottom = '';
+    document.getElementById('app-section').classList.add('hidden');
+    document.getElementById('login-section').classList.remove('hidden');
+    document.getElementById('recording-section').style.display = 'none';
+    document.getElementById('place-list-container').innerHTML = '';
+    document.getElementById('login-status').innerText = '';
+    document.getElementById('login-status').style.color = 'red';
+    document.getElementById('login-btn').innerText = '進入我的任務';
+    document.getElementById('login-btn').disabled = false;
+    document.getElementById('admin-login-btn').innerText = '進入管理模式';
+    document.getElementById('admin-login-btn').disabled = false;
+    document.getElementById('password').value = '';
+}
+
 function renderUserInfo() {
     let userInfoDiv = document.getElementById('user-info-badge');
     
@@ -263,8 +354,11 @@ function renderUserInfo() {
     // 判斷角色並顯示對應的文字
     const roleText = state.userRole === 'admin' ? '👑 管理員' : '👤 調查員';
     userInfoDiv.innerHTML = `
-        <span>${roleText}：${state.userId}</span>
-        <span style="font-size: 0.85em; color: #7f8c8d;">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</span>
+        <div>
+            <div>${roleText}：${state.userId}</div>
+            <div style="font-size: 0.85em; color: #7f8c8d;">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
+        </div>
+        <button class="btn-logout" onclick="logout()">登出</button>
     `;
 }
 
@@ -754,3 +848,5 @@ async function batchAssignTasks() {
         renderAdminBatchAssignUI(); // 恢復按鈕文字
     }
 }
+
+window.addEventListener('DOMContentLoaded', restoreSession);

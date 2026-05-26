@@ -12,6 +12,8 @@ textarea { min-height: 92px; resize: vertical; overflow-y: auto; }
 button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; color: white; margin-bottom: 10px; transition: 0.2s; }
 .btn-primary { background-color: var(--primary); }
 .btn-secondary { background-color: #e8f0f5; color: #2c3e50; border: 1px solid #c9d7e3; }
+.btn-logout { width: auto; margin: 0; padding: 7px 12px; background: #ffffff; color: #2c3e50; border: 1px solid #bdd2e2; border-radius: 4px; font-size: 13px; }
+.btn-logout:hover { background: #f1f7fb; }
 .btn-record { background-color: #e74c3c; }
 .btn-stop { background-color: #95a5a6; display: none; }
 .btn-upload { background-color: #2ecc71; display: none; }
