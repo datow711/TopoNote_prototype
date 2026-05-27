@@ -49,7 +49,7 @@
 - 舊非 admin 調查員帳號已刪除，只保留目前 admin；舊指派給已刪除帳號的 assignment 已標成 inactive。
 - 新增 `sync_sheet_users(p_users jsonb)`、`set_investigator_active(...)`，前端 admin 可切換一般調查員 active。
 - `app_users_view` 現在只給前端 `id`, `account`, `role`, `is_active`；登入 RPC 回傳 `user_id`, `account`, `role`。
-- Places GAS 的 Users 同步程式已在本機 `places-gas/` 更新，但 `clasp push` 尚未完成；需要使用者明確同意上傳 Apps Script 後再推送。
+- Places GAS 的 Users 同步程式已在使用者明確同意後完成 `clasp push`，Sheet 端應可看到 Users 同步選單。
 - 新增 Supabase `test_places` 測試來源表，寫入 10 筆虛構地名：石崁頭、牛寮坑、刺竹坪、後茄苳、七甲寮、水流崙、大潭底、楓樹崎、瓦厝埕、砂崙尾。
 - 測試地名 UUID 為 `TEST0001` 至 `TEST0010`，類別/縣市/鄉鎮/村里皆設為 `測試`。
 - `app_tasks_view` 與 `app_review_queue_view` 已改為同時包含 `third_phase_places` 與 `test_places` 來源。

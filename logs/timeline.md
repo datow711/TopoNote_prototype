@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [DEPLOY]
+已在使用者明確同意後執行 `npx clasp push`，將 `places-gas/` 的 Users 同步選單與函式上傳到 Google Apps Script。推送時間：上午 10:38:19。
+
 [2026-05-26] [DATA]
 Users 流程改為 Places `Users` 表單向同步至 Supabase。新增英文精簡欄位、調查員個資欄位、`sync_sheet_users()` RPC、admin active 切換 RPC，舊非管理者帳號已刪除只保留目前 admin；前端只使用使用者 id/account/role/active，admin 可切換一般調查員 active。
 

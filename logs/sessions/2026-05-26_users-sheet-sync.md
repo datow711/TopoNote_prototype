@@ -35,4 +35,4 @@
 - Sheet is one-way update into DB. Removing a row from Sheet will not delete the DB account.
 - DB deletion remains backend-only.
 - Normal investigators are assignable only when active.
-- The Apps Script changes are local in `places-gas/`; `clasp push` was not completed because uploading local code to Google Apps Script requires explicit approval in this environment.
+- 2026-05-27 update: after explicit user approval, `npx clasp push` succeeded and uploaded 6 files to Google Apps Script at 上午 10:38:19.
