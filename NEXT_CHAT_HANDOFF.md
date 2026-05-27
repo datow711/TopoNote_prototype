@@ -1,82 +1,167 @@
-# TopoNote App 下一個 Chat 交接筆記
+# TopoNote App 下一個 Chat 交接
 
-更新日期：2026-05-26
+更新時間：2026-05-27
+目前分支：`main`
+目前狀態：工作樹乾淨，`main` 比 `origin/main` 超前 1 個 commit。使用者通常希望每次改動都 commit；push 預設由使用者自己做，除非明確要求。
 
-## 專案目前方向
-- 這是一個地名錄音與標注工具，前端從 Supabase 的 `app_tasks_view` 讀取第三期地名任務。
-- 正式地名來源是 Google Sheet「Places」中的「第三期工作清單」，透過 Places GAS 同步到 Supabase `third_phase_places`，再建立/更新 `final_tasks`。
-- `app_tasks_view` 目前應只顯示 `third_phase_places` 來源的任務。
-- 每筆地名有來源 `UUID`，前端地名卡片顯示這個 UUID；內部寫入與指派仍用 `task_id`。
+## 最近完成的 commit
 
-## 主要資料表與定位
-- `investigators`：使用者與調查員資料表，現在保存 DB `id`、登入帳號 `account/email`、姓名與 Sheet 同步來的個人資訊；一般帳號由 Places `Users` 單向 upsert，刪除只從 DB 後台做。
-- `test_places`：測試用地名來源表，UUID 以 `TEST` 開頭，供管理者測試指派與審查流程。
-- `third_phase_places`：Google Sheet「第三期工作清單」的來源快照，APP 不直接更動它。
-- `final_tasks`：APP 任務表，對應可被指派/錄音的地名。
-- `task_assignments`：任務和調查員多對多指派。
-- `audio_records`：錄音檔紀錄，包含語言、上傳者、音檔 ID、標注 JSON。
-- `task_language_reviews`：未來審查流程用，按語言記錄審查狀態。
-- `app_tasks_view`：前端任務清單主要讀取來源。
-- `app_users_view`：登入與管理者指派時讀取使用者資料。
+- `e8f53eb Display users by name`
+- `6c496f5 Widen desktop review layout`
+- `b931413 Use comparison table for review records`
+- `b0c4b02 Add final review fields`
+- `69a0edf Guard user roles from sheet sync`
+- `1ed78ba Add review sheet sync`
 
-## 已完成的重要功能
-- 一般調查員 email 免密碼登入；管理者 email + password 登入。
-- `localStorage` session restore 與登出。
-- 調查員應看到「任務清單 / 其他地名」頁簽；管理者看到「全部地名清單」，並可批次指派。
-- 管理者批次指派支援 checkbox 與 Shift + 左鍵連續選取。
-- 錄音區語言以 tab/radio 二選一，預設台語，台語/客語欄位切換顯示。
-- 台語欄位：`TaiHan`、`TL1`、`TaiNote`。
-- 客語欄位：`Honzii`、`HP1`、`HakNote`。
-- `TaiNote`、`HakNote` 是 4 行左右的 textarea，可捲動。
-- HakArea 篩選器已加入，預設全部分區。
+## 目前最新功能狀態
 
-## UI 設計現況
-- 設計依據改用 `mongodb/DESIGN.md`。
-- 主 UI 字體：`Noto Sans TC`。
-- 地名字卡與錄音區選取地名：`Iansui`。
-- 台語/客語填寫區的 input/textarea 與 placeholder：`Iansui`，支援本土語言與拼音書寫。
-- 上方使用者資訊、頁簽、篩選器已 compact 化，讓地名清單有更多垂直瀏覽空間。
-- chips 改成單列橫向捲動。
-- UI 保持 MongoDB 風格：深 teal、亮綠 CTA、白色文件型 surface；最新微調加入較活潑的 hover、綠色標題線、標注區內側綠線與彩色 badge。
+- 調查員資料已從 Places Google Sheet 的 `Users` 工作表單向同步進 Supabase。
+- `Users` 欄位目前至少包含：
+  - `email`
+  - `name`
+  - `phone`
+  - `languages`
+  - `hakka_dialect`
+  - `life_area_1`
+  - `survey_area_1`
+  - `life_area_2`
+  - `survey_area_2`
+  - `life_area_3`
+  - `survey_area_3`
+  - `active`
+  - `role`
+- Sheet 端 `email` 和 `name` 不可空；`active` 可用 checkbox 從 Sheet 單向更新進 DB。
+- Sheet 同步不可刪 DB 資料。DB 刪除只允許從後台或資料庫端操作。
+- `role` 欄位已保留並用來區分 `admin` / `user`，避免新調查員登入後變成管理員模式。
+- 舊調查員已清掉，只保留管理者與目前新加的調查員。
 
-## 最近修正過的 regression
-- 管理者登入後會隱藏「其他地名」並改 tab 名稱；之前一般調查員登入可能繼承管理者 UI 狀態。
-- 已新增 `configureRoleUI()` 修正：一般調查員登入會恢復「任務清單 / 其他地名」，並移除管理者篩選器與批次指派列。
+## 使用者顯示規則
 
-## 現在這個 chat 最後一段改動
-- Places `Users` 表欄位改為英文精簡：`email`, `name`, `phone`, `languages`, `hakka_dialect`, `life_area_1`, `survey_area_1`, `life_area_2`, `survey_area_2`, `life_area_3`, `survey_area_3`, `active`。
-- `email` 與 `name` 為必填；`active` 可用 checkbox，Sheet 同步會單向 upsert 到資料庫但不刪 DB 帳號。
-- 舊非 admin 調查員帳號已刪除，只保留目前 admin；舊指派給已刪除帳號的 assignment 已標成 inactive。
-- 新增 `sync_sheet_users(p_users jsonb)`、`set_investigator_active(...)`，前端 admin 可切換一般調查員 active。
-- `app_users_view` 現在只給前端 `id`, `account`, `role`, `is_active`；登入 RPC 回傳 `user_id`, `account`, `role`。
-- Places GAS 的 Users 同步程式已在使用者明確同意後完成 `clasp push`，Sheet 端應可看到 Users 同步選單。
-- Places 試算表的 `Users` 工作表已改成新欄位格式，保留 admin 參考列並清掉舊測試調查員列；`active` 欄已設 checkbox。
-- 新增 Supabase `test_places` 測試來源表，寫入 10 筆虛構地名：石崁頭、牛寮坑、刺竹坪、後茄苳、七甲寮、水流崙、大潭底、楓樹崎、瓦厝埕、砂崙尾。
-- 測試地名 UUID 為 `TEST0001` 至 `TEST0010`，類別/縣市/鄉鎮/村里皆設為 `測試`。
-- `app_tasks_view` 與 `app_review_queue_view` 已改為同時包含 `third_phase_places` 與 `test_places` 來源。
-- 前端 `normalizeTask()` 保留 `source_table`，一般調查員的「其他地名」會排除未指派的 `test_places`；被指派後才會在「任務清單」看到。管理者仍可看到全部測試地名。
-- 新增管理者「審查清單」頁簽，讀取 `app_review_queue_view` 並和 `audio_records` 結合顯示可審查錄音。
-- 審查清單依地名分組，顯示 UUID、縣市鄉鎮、台語/客語審查狀態、標注摘要與音檔播放入口。
-- 單一語言可按「審查通過」呼叫 `approve_task_language()`，目前送出 `p_task_id`、`p_language`、`p_reviewed_by`。
-- 管理者切到審查頁時會收起底部批次指派工具列。
-- `index.html` 的 Google Fonts 連結改為同時載入 `Iansui` 與 `Noto Sans TC`。
-- `style.css`：
-  - `body` 字體改成 `Noto Sans TC`。
-  - `.place-title`、`#selected-place-title` 維持 `Iansui`。
-  - `.annotation-group input`、`.annotation-group textarea`、其 placeholder 改成 `Iansui`。
-  - 依 `mongodb/DESIGN.md` 增加較活潑但克制的 UI 細節。
+- 前端 UI 顯示使用者時，改用 `name`。
+- 實際登入、指派、篩選、資料寫入仍使用 `account/email` 值，不要改成姓名。
+- 一般使用者 hover 自己或錄音紀錄使用者時可看到 email。
+- 管理員的使用者管理區會並排顯示姓名、email、手機，並保留 active checkbox。
+- `app_users_view` 和 login RPC 已回傳 `name/email/phone`。
+- 相關檔案：
+  - `main.js`
+  - `style.css`
+  - `db/2026-05-27_user_display_names.sql`
 
-## 已知狀態與注意事項
-- 只讀查詢確認 `app_review_queue_view` 存在，欄位包含 `t_state`、`h_state`、`t_review_state`、`h_review_state`、`record_count`、`tai_audio_count`、`hak_audio_count`。
-- 這次查詢 `app_review_queue_view?record_count=gt.0` 尚無第三期錄音資料，所以審查頁目前可能顯示空狀態，等第三期錄音進來後才會有可審項目。
-- `approve_task_language()` RPC 的存在已由 OPTIONS 確認；尚未在真實資料上做通過寫入測試，避免對後端資料造成副作用。
-- Google Drive 同步資料夾內的 Git 偶爾會出現 `.git/packed-refs.lock` stale lock 訊息；通常 commit 已成功，push 也可正常繼續。
-- 這個環境曾因 usage limit 阻擋需要升權的 Git 操作；若無法由 Codex commit/push，可由使用者手動 commit/push。
-- `mongodb/DESIGN.md` 是設計依據；若它仍是 untracked，先不要自動納入 commit，除非使用者明確要求。
-- Browser skill 曾因 Windows sandbox setup error 無法啟動；若下一個 session 能用，建議補一次實際視覺 QA。
+## 測試地名與審查流程
 
-## 建議下一步
-1. 使用瀏覽器實測登入後的一般調查員畫面，確認「任務清單 / 其他地名」正常顯示。
-2. 使用瀏覽器實測管理者「全部地名清單 / 審查清單」切換，確認審查頁空狀態與批次指派工具列收合正常。
-3. 等有第三期錄音資料後，實測「審查通過」是否正確更新 `task_language_reviews`；若 RPC 參數簽名不同，依錯誤訊息調整 `approveReviewLanguage()` payload。
-4. 再設計 GAS 定時同步審查狀態回 Google Sheet 的流程。
+- 已新增測試用來源表 `test_places`，10 筆 UUID 為 `TEST0001` 到 `TEST0010`。
+- 測試地名類別、縣市、鄉鎮皆為「測試」。
+- `app_tasks_view` / `app_review_queue_view` 已包含 `third_phase_places` 與 `test_places`。
+- 一般調查員只能看到被指派的測試資料；未指派測試資料不出現在一般調查員的「其他」列表。
+- 審查完成後：
+  - 一般第三期資料回寫第三期工作表。
+  - 測試資料回寫 `TestEntries`，避免污染正式第三期工作表。
+- Places GAS 已 push 過一次到 Google Apps Script，包含 Users 同步與審查回寫相關調整。
+
+## 審查介面目前狀態
+
+- 審查頁可顯示地名基本資訊。
+- 每個地名下面有錄音資料比較表，類似 Excel 並排：
+  - 錄音序號
+  - 填寫欄位
+  - 播放按鈕
+- 台語比較欄位：
+  - `TaiHan1`
+  - `TL1`
+  - `TaiNote`
+- 客語比較欄位：
+  - `Honzii`
+  - `HP1`
+  - `HakNote`
+- 比較表中每個有值的欄位有小按鈕，可複製到最終審定欄位。
+- 最終審定欄位：
+  - 台語：`TaiHan1`, `TL1`, `TL2`, `TL3`, `TaiNote`
+  - 客語：`Honzii`, `HP1`, `HP2`, `HP3`, `HDialect`, `HakNote`
+- 桌機版審查頁已加寬，`body` 最大寬度目前為 1120px，以減少錄音比較表橫向捲動。
+
+## 重要資料表與 RPC
+
+- `investigators`
+- `test_places`
+- `third_phase_places`
+- `final_tasks`
+- `task_assignments`
+- `audio_records`
+- `task_language_reviews`
+- `app_tasks_view`
+- `app_review_queue_view`
+- `app_users_view`
+- `sync_sheet_users(p_users jsonb)`
+- `set_investigator_active(...)`
+- `assign_tasks_to_user(...)`
+- `approve_task_language(...)`
+- `mark_reviews_sheet_synced(...)`
+
+## Google Sheet / GAS
+
+- Spreadsheet：`Places`
+- Spreadsheet id：`19zL0Ph0cocqfg5teJu6WKUI8dh_T5y3kSp7MdBQPAcI`
+- GAS 專案目錄：`places-gas/`
+- GAS 檔案：`places-gas/gas/程式碼.js`
+- `.clasp.json` 已存在於 `places-gas/`
+- 若改 GAS，完成後通常需要在 `places-gas/` 執行 `npx clasp push`。
+- 使用者已同意過上傳 `places-gas` 到 Google Apps Script，但新 session 還是要看當下是否需要再次 push。
+
+## Supabase
+
+- Project id/ref：`sikconjhtomqdkicbjal`
+- 最近已 live check：
+  - `app_users_view` 可查到 `id/account/role/is_active/name/email/phone`
+- 如果改 schema 或 RPC，建議：
+  - 用 Supabase connector live verify。
+  - 同步補 `db/YYYY-MM-DD_*.sql` migration。
+
+## UI / 設計偏好
+
+- 這個 app 是工作型、列表密集工具，優先 compact、清楚、不要像 landing page。
+- 主要 UI font：`Noto Sans TC`。
+- 地名與標注輸入區保留 `Iansui`。
+- 目前桌機審查流程是主要使用情境，寬一點可以。
+- 避免無關裝飾，保持掃描效率。
+
+## 驗證習慣
+
+常用檢查：
+
+```powershell
+node --check main.js
+git diff --check
+git status --short --branch
+```
+
+如果改 GAS：
+
+```powershell
+Set-Location places-gas
+npx clasp push
+```
+
+如果改 DB：
+- 用 Supabase connector `_execute_sql` 做 live read 或 smoke test。
+- 需要 DDL 時先確認是否要 live apply，然後補 migration。
+
+## 環境注意
+
+- 工作目錄：
+  - `H:\我的雲端硬碟\kunui711工作資料夾\地名登錄工具_prototype\TopoNote_App`
+- Windows / PowerShell。
+- 這個 Google Drive 路徑偶爾會讓 sandbox 出現：
+  - `windows sandbox: setup refresh failed with status exit code: 1`
+- 遇到這個問題時，常見作法是同一個讀取或 git 命令用 escalated permission 重跑。
+- Git commit 有時會出現 `.git/packed-refs.lock` stale lock 訊息；如果 commit hash 已產生，請用 `git status` 和 `git log -1` 確認，不要急著重做。
+
+## 下一步候選
+
+- 實際在瀏覽器或使用者端測試新姓名顯示：
+  - 登入 badge 顯示姓名、hover email。
+  - 管理員使用者列表姓名/email/手機並排。
+  - 指派 dropdown 顯示姓名但 value 仍寫 account/email。
+  - 已指派 badge 顯示姓名、hover email。
+  - 審查錄音比較表與錄音歷史顯示姓名。
+- 若使用者繼續測試審查流程，優先確認 `TestEntries` 回寫是否完整、欄位是否符合最終審定需求。
+- 若使用者要求整理 Sheet，優先檢查 `Places` 中仍被 APP / GAS 最新流程使用的工作表。
