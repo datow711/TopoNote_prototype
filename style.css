@@ -622,68 +622,6 @@ button:disabled {
     background: var(--canvas);
 }
 
-.review-record-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 8px;
-}
-
-.review-record-card {
-    padding: 10px;
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-    background: var(--canvas);
-}
-
-.review-record-topline {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-}
-
-.review-record-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.review-record-field {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 4px 6px;
-    min-height: 42px;
-    padding: 6px;
-    border: 1px solid var(--hairline);
-    border-radius: 7px;
-    background: var(--surface);
-}
-
-.review-record-field span {
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.review-record-field strong {
-    grid-column: 1 / -1;
-    min-width: 0;
-    color: var(--muted);
-    font-family: "Iansui", "Noto Sans TC", cursive;
-    font-size: 14px;
-    font-weight: 600;
-    overflow-wrap: anywhere;
-}
-
-.review-record-field.has-value strong {
-    color: var(--ink);
-}
-
 .copy-field-btn {
     width: auto;
     min-height: 24px;
@@ -695,6 +633,84 @@ button:disabled {
     color: var(--accent-deep);
     font-size: 11px;
     font-weight: 800;
+}
+
+.review-place-summary {
+    min-width: 0;
+}
+
+.review-record-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.review-record-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.review-record-table th,
+.review-record-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--hairline);
+    border-right: 1px solid var(--hairline);
+    text-align: left;
+    vertical-align: top;
+}
+
+.review-record-table th {
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.review-record-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.review-record-table th:last-child,
+.review-record-table td:last-child {
+    border-right: 0;
+}
+
+.review-record-label {
+    width: 110px;
+}
+
+.review-record-label strong,
+.review-record-label span {
+    display: block;
+}
+
+.review-record-label span {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.review-compare-cell .compare-value {
+    min-height: 24px;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-family: "Iansui", "Noto Sans TC", cursive;
+    font-size: 15px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.review-compare-cell.has-value .compare-value {
+    color: var(--ink);
+}
+
+.review-play-cell {
+    width: 150px;
 }
 
 .play-btn.compact {

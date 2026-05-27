@@ -36,6 +36,7 @@ const ANNOTATION_FIELDS = [
 const REVIEW_FIELD_CONFIG = {
     tai: {
         language: '台語',
+        compareFields: ['TaiHan1', 'TL1', 'TaiNote'],
         fields: [
             { key: 'TaiHan1', label: 'TaiHan1', placeholder: '台語漢字', annotationKeys: ['taihan', 'taihan1'] },
             { key: 'TL1', label: 'TL1', placeholder: '主音讀羅馬字', annotationKeys: ['tl1'], fallbackRecordKey: 'phonetic' },
@@ -46,6 +47,7 @@ const REVIEW_FIELD_CONFIG = {
     },
     hak: {
         language: '客語',
+        compareFields: ['Honzii', 'HP1', 'HakNote'],
         fields: [
             { key: 'Honzii', label: 'Honzii', placeholder: '客語漢字', annotationKeys: ['honzii'] },
             { key: 'HP1', label: 'HP1', placeholder: '主音讀羅馬字', annotationKeys: ['hp1'], fallbackRecordKey: 'phonetic' },
@@ -779,37 +781,51 @@ function getRecordFieldValue(record, field) {
     return field.fallbackRecordKey ? (record[field.fallbackRecordKey] || '') : '';
 }
 
-function renderRecordFieldCell(taskId, languageKey, record, field) {
+function renderRecordCompareCell(taskId, languageKey, record, field) {
     const value = getRecordFieldValue(record, field);
     const copyButton = value
         ? `<button class="copy-field-btn" data-value="${escapeHtml(value)}" onclick="copyReviewFieldToFinal(${taskId}, '${languageKey}', '${field.key}', this.dataset.value)">填入</button>`
         : '';
 
     return `
-        <div class="review-record-field ${value ? 'has-value' : ''}">
-            <span>${field.label}</span>
-            <strong>${value ? escapeHtml(value) : '未填'}</strong>
+        <td class="review-compare-cell ${value ? 'has-value' : ''}">
+            <div class="compare-value">${value ? escapeHtml(value) : '未填'}</div>
             ${copyButton}
-        </div>
+        </td>
     `;
 }
 
-function renderReviewRecordGrid(taskId, languageKey, records, fields) {
+function renderReviewRecordTable(taskId, languageKey, records, fields) {
+    const config = REVIEW_FIELD_CONFIG[languageKey];
+    const compareFields = config.compareFields
+        .map(fieldKey => fields.find(field => field.key === fieldKey))
+        .filter(Boolean);
     return `
-        <div class="review-record-grid">
+        <div class="review-record-table-wrap">
+            <table class="review-record-table">
+                <thead>
+                    <tr>
+                        <th>錄音</th>
+                        ${compareFields.map(field => `<th>${field.label}</th>`).join('')}
+                        <th>播放</th>
+                    </tr>
+                </thead>
+                <tbody>
             ${records.map((record, index) => `
-                <article class="review-record-card">
-                    <div class="review-record-topline">
-                        <span>#${index + 1}</span>
+                <tr>
+                    <td class="review-record-label">
+                        <strong>錄音${index + 1}</strong>
                         <span>${escapeHtml(record.uploaderId)}</span>
+                    </td>
+                    ${compareFields.map(field => renderRecordCompareCell(taskId, languageKey, record, field)).join('')}
+                    <td class="review-play-cell">
                         <button class="play-btn compact" onclick="fetchAndPlayAudio('${record.url}', '${record.recordId}')">播放</button>
-                    </div>
-                    <div class="review-record-fields">
-                        ${fields.map(field => renderRecordFieldCell(taskId, languageKey, record, field)).join('')}
-                    </div>
-                    <div id="player-${record.recordId}" class="review-player"></div>
-                </article>
+                        <div id="player-${record.recordId}" class="review-player"></div>
+                    </td>
+                </tr>
             `).join('')}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -851,6 +867,22 @@ function copyReviewFieldToFinal(taskId, languageKey, fieldKey, value) {
     input.focus();
 }
 
+function renderReviewPlaceSummary(place) {
+    const typeName = place.type || '無類別';
+    const displayUuid = place.sourceId || place.id;
+    return `
+        <div class="review-place-summary">
+            <div class="place-title">${escapeHtml(place.placeName)}</div>
+            <div class="place-meta">
+                <span class="meta-badge">UUID: ${escapeHtml(displayUuid)}</span>
+                <span class="meta-badge">${escapeHtml(typeName)}</span>
+                <span class="meta-badge">${escapeHtml(place.county)} ${escapeHtml(place.town)} ${escapeHtml(place.village || '')}</span>
+                <span class="meta-badge record-badge">${escapeHtml(place.recordingStatus)}</span>
+            </div>
+        </div>
+    `;
+}
+
 function renderReviewQueue(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
@@ -870,17 +902,10 @@ function renderReviewQueue(places) {
         item.className = 'review-item';
         const taiRecords = getTaskRecords(place.id, '台語');
         const hakRecords = getTaskRecords(place.id, '客語');
-        const displayUuid = place.sourceId || place.id;
 
         item.innerHTML = `
             <div class="review-heading">
-                <div>
-                    <div class="place-title">${escapeHtml(place.placeName)}</div>
-                    <div class="place-meta">
-                        <span class="meta-badge">UUID: ${escapeHtml(displayUuid)}</span>
-                        <span class="meta-badge">${escapeHtml(place.county)} ${escapeHtml(place.town)}</span>
-                    </div>
-                </div>
+                ${renderReviewPlaceSummary(place)}
                 <div class="review-status-group">
                     ${renderReviewStatusBadge('台語', getLanguageReviewState(place, '台語'), taiRecords.length)}
                     ${renderReviewStatusBadge('客語', getLanguageReviewState(place, '客語'), hakRecords.length)}
@@ -912,7 +937,7 @@ function renderReviewLanguageBlock(place, language, records) {
                     ${isDone ? '已通過' : '審查通過'}
                 </button>
             </div>
-            ${renderReviewRecordGrid(place.id, languageKey, records, fields)}
+            ${renderReviewRecordTable(place.id, languageKey, records, fields)}
             ${renderFinalReviewFields(place.id, languageKey, fields, isDone)}
         </section>
     `;

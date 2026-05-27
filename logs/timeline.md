@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [UI]
+審查頁錄音候選資料改成類 Excel 的橫向比較表：每個地名先顯示基本資訊，再依語言列出「錄音 / 三個候選標注欄位 / 播放」表格。台語候選欄位為 `TaiHan1/TL1/TaiNote`，客語為 `Honzii/HP1/HakNote`；每格保留填入最終審定欄位的小按鈕，最終審定區維持原樣。
+
 [2026-05-27] [FEATURE]
 審查介面改為真正的「最終審定」流程：每個語言區用緊湊 grid 顯示所有錄音紀錄的標注欄位與播放按鈕，單欄位可一鍵填入最終審定文字框。台語審定欄位為 `TaiHan1/TL1/TL2/TL3/TaiNote`，客語為 `Honzii/HP1/HP2/HP3/HDialect/HakNote`；送出審查後寫入 `task_language_reviews.final_fields`，Places GAS 回寫 Sheet 時優先使用審定欄位。
 
