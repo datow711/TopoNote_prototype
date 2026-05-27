@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [DATA]
+已將 Places 試算表 `Users` 工作表改成 Sheet→DB 同步所需的新格式：`email/name/phone/languages/hakka_dialect/life_area_1/survey_area_1/life_area_2/survey_area_2/life_area_3/survey_area_3/active`。保留目前 admin 參考列，清掉舊測試調查員列，`active` 欄已設定 checkbox。
+
 [2026-05-27] [DEPLOY]
 已在使用者明確同意後執行 `npx clasp push`，將 `places-gas/` 的 Users 同步選單與函式上傳到 Google Apps Script。推送時間：上午 10:38:19。
 
