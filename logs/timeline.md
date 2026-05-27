@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [FEATURE]
+補齊 APP 審查結果回寫 Sheet 的最後一哩路。Supabase 新增 `app_sheet_sync_queue` 與 `mark_reviews_sheet_synced()`；Places GAS 新增「回寫 APP 審查結果至工作表」，正式 `third_phase_places` 回 `第三期工作清單`，測試 `test_places` 回新工作表 `TestEntries`。`TestEntries` 已建立並放入 `TEST0001` 至 `TEST0010` 測試列，Places GAS 已 `clasp push`。
+
 [2026-05-27] [DATA]
 已將 Places 試算表 `Users` 工作表改成 Sheet→DB 同步所需的新格式：`email/name/phone/languages/hakka_dialect/life_area_1/survey_area_1/life_area_2/survey_area_2/life_area_3/survey_area_3/active`。保留目前 admin 參考列，清掉舊測試調查員列，`active` 欄已設定 checkbox。
 

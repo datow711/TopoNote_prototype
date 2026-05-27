@@ -4,6 +4,16 @@
 var SUPABASE_URL_PROPERTY = 'SUPABASE_URL';
 var SUPABASE_SERVICE_ROLE_KEY_PROPERTY = 'SUPABASE_SERVICE_ROLE_KEY';
 var DEFAULT_SUPABASE_URL = 'https://sikconjhtomqdkicbjal.supabase.co';
+var THIRD_PHASE_SHEET_NAME = '第三期工作清單';
+var TEST_ENTRIES_SHEET_NAME = 'TestEntries';
+var REVIEW_DONE_STATE = '已完成標注';
+var TEST_ENTRY_HEADERS = [
+  'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
+  'PlaceName', 'Info',
+  'TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote', 'TaiClass', 'T_State', 'T_Annotator', 'T_CreatedAt', 'T_UpdatedAt',
+  'Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote', 'HakClass', 'H_State', 'H_Annotator', 'H_CreatedAt', 'H_UpdatedAt',
+  '同步警告'
+];
 
 function getSupabaseConfig_() {
   var props = PropertiesService.getScriptProperties();
@@ -52,6 +62,10 @@ function onOpen() {
     .addSeparator()
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
+    .addItem('5. 回寫 APP 審查結果至工作表', 'syncApprovedReviewsToSheets')
+    .addSeparator()
+    .addSubMenu(ui.createMenu('🧪 TestEntries')
+      .addItem('建立/修正 TestEntries 表頭', 'setupTestEntriesSheet'))
     .addSeparator()
     .addSubMenu(ui.createMenu('👥 Users')
       .addItem('建立/修正 Users 表頭', 'setupUsersSheetHeaders')
@@ -453,6 +467,218 @@ function syncFinalTasksToSupabase() {
     SpreadsheetApp.getUi().alert('🚀 成功將 ' + payload.length + ' 筆第三期任務索引同步至 Supabase！');
   } catch (e) {
     SpreadsheetApp.getUi().alert('❌ 同步失敗: ' + e.message);
+  }
+}
+
+function setupTestEntriesSheet() {
+  var sheet = getOrCreateTestEntriesSheet_();
+  SpreadsheetApp.getUi().alert('✅ TestEntries 表頭已建立/修正完成。APP 測試資料審查回寫會寫入這張表。');
+}
+
+function getOrCreateTestEntriesSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(TEST_ENTRIES_SHEET_NAME) || ss.insertSheet(TEST_ENTRIES_SHEET_NAME);
+  sheet.getRange(1, 1, 1, TEST_ENTRY_HEADERS.length).setValues([TEST_ENTRY_HEADERS]);
+  sheet.getRange(1, 1, 1, TEST_ENTRY_HEADERS.length).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, TEST_ENTRY_HEADERS.length);
+  return sheet;
+}
+
+function getSheetHeaderMap_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var map = {};
+  headers.forEach(function(header, index) {
+    var key = String(header || '').trim();
+    if (key) map[key] = index + 1;
+  });
+  return map;
+}
+
+function findRowByUuid_(sheet, headerMap, uuid) {
+  var uuidCol = headerMap.UUID;
+  if (!uuidCol) throw new Error(sheet.getName() + ' 缺少 UUID 欄位。');
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  var values = sheet.getRange(2, uuidCol, lastRow - 1, 1).getValues();
+  var needle = String(uuid || '').trim();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0] || '').trim() === needle) return i + 2;
+  }
+  return null;
+}
+
+function appendBaseReviewRow_(sheet, headerMap, review) {
+  var row = new Array(sheet.getLastColumn()).fill('');
+  var valuesByHeader = {
+    UUID: review.source_id,
+    Source: review.source_table,
+    Type: review.type || '測試',
+    BatchID: 'APP_TEST',
+    County: review.county || '測試',
+    Town: review.town || '測試',
+    Village: review.village || '測試',
+    PlaceName: review.place_name || '',
+    Info: review.info || '',
+    TaiClass: review.tai_class || '測試',
+    T_State: review.t_state || '待指派',
+    HakClass: review.hak_class || '測試',
+    H_State: review.h_state || '待指派'
+  };
+
+  Object.keys(valuesByHeader).forEach(function(header) {
+    if (headerMap[header]) row[headerMap[header] - 1] = valuesByHeader[header];
+  });
+
+  sheet.appendRow(row);
+}
+
+function parseAudioAnnotations_(note) {
+  if (!note) return {};
+  try {
+    var parsed = JSON.parse(note);
+    return parsed && parsed.annotations ? parsed.annotations : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function firstNonEmpty_() {
+  for (var i = 0; i < arguments.length; i++) {
+    var value = arguments[i];
+    if (value !== null && value !== undefined && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function getReviewUpdatedStamp_(review) {
+  var reviewedAt = review.reviewed_at ? String(review.reviewed_at) : new Date().toISOString();
+  var reviewer = review.reviewed_by ? String(review.reviewed_by) : 'APP';
+  return 'APP審查通過|' + reviewer + '|' + reviewedAt;
+}
+
+function buildReviewSheetUpdate_(review) {
+  var annotations = parseAudioAnnotations_(review.audio_note);
+  var updateData = {};
+  var stamp = getReviewUpdatedStamp_(review);
+
+  if (review.language === '台語') {
+    updateData.TaiHan1 = firstNonEmpty_(annotations.taihan, review.taihan);
+    updateData.TL1 = firstNonEmpty_(annotations.tl1, review.phonetic_reading, review.tl1);
+    updateData.TaiNote = firstNonEmpty_(annotations.tainote, review.tai_note);
+    updateData.T_State = REVIEW_DONE_STATE;
+    updateData.T_Annotator = firstNonEmpty_(review.recorder_name, review.t_annotator, review.reviewed_by);
+    updateData.T_UpdatedAt = stamp;
+  } else if (review.language === '客語') {
+    updateData.Honzii = firstNonEmpty_(annotations.honzii, review.honzii);
+    updateData.HP1 = firstNonEmpty_(annotations.hp1, review.phonetic_reading, review.hp1);
+    updateData.HakNote = firstNonEmpty_(annotations.haknote, review.hak_note);
+    updateData.H_State = REVIEW_DONE_STATE;
+    updateData.H_Annotator = firstNonEmpty_(review.recorder_name, review.h_annotator, review.reviewed_by);
+    updateData.H_UpdatedAt = stamp;
+  }
+
+  return updateData;
+}
+
+function applyReviewUpdateToSheet_(sheet, headerMap, rowNumber, updateData) {
+  Object.keys(updateData).forEach(function(header) {
+    if (!headerMap[header]) return;
+    sheet.getRange(rowNumber, headerMap[header]).setValue(updateData[header]);
+  });
+}
+
+function fetchPendingReviewSheetSyncs_() {
+  var supabase = getSupabaseConfig_();
+  var url = supabase.url + '/rest/v1/app_sheet_sync_queue?select=*&order=source_table.asc,source_id.asc,language.asc';
+  var options = {
+    method: 'get',
+    headers: getSupabaseHeaders_(supabase),
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(url, options);
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  return JSON.parse(response.getContentText());
+}
+
+function markReviewsSheetSynced_(reviewIds) {
+  if (reviewIds.length === 0) return 0;
+
+  var supabase = getSupabaseConfig_();
+  var url = supabase.url + '/rest/v1/rpc/mark_reviews_sheet_synced';
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: getSupabaseHeaders_(supabase),
+    payload: JSON.stringify({ p_review_ids: reviewIds }),
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(url, options);
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  return Number(response.getContentText() || 0);
+}
+
+function syncApprovedReviewsToSheets() {
+  try {
+    var rows = fetchPendingReviewSheetSyncs_();
+    if (!rows || rows.length === 0) {
+      return SpreadsheetApp.getUi().alert('沒有待回寫的 APP 審查結果。');
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetCache = {};
+    var headerCache = {};
+    var syncedReviewIds = [];
+    var skipped = [];
+
+    rows.forEach(function(review) {
+      var sheetName = review.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+      var sheet = sheetCache[sheetName];
+
+      if (!sheet) {
+        sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+          ? getOrCreateTestEntriesSheet_()
+          : ss.getSheetByName(sheetName);
+        if (!sheet) {
+          skipped.push(review.source_id + '：找不到工作表 ' + sheetName);
+          return;
+        }
+        sheetCache[sheetName] = sheet;
+        headerCache[sheetName] = getSheetHeaderMap_(sheet);
+      }
+
+      var headerMap = headerCache[sheetName];
+      var rowNumber = findRowByUuid_(sheet, headerMap, review.source_id);
+
+      if (!rowNumber && review.source_table === 'test_places') {
+        appendBaseReviewRow_(sheet, headerMap, review);
+        rowNumber = sheet.getLastRow();
+      }
+
+      if (!rowNumber) {
+        skipped.push(review.source_id + '：' + sheetName + ' 找不到 UUID');
+        return;
+      }
+
+      applyReviewUpdateToSheet_(sheet, headerMap, rowNumber, buildReviewSheetUpdate_(review));
+      syncedReviewIds.push(review.review_id);
+    });
+
+    var marked = markReviewsSheetSynced_(syncedReviewIds);
+    var message = '✅ APP 審查結果回寫完成：' + syncedReviewIds.length + ' 筆；已清除待同步標記：' + marked + ' 筆。';
+    if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
+    SpreadsheetApp.getUi().alert(message);
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('❌ APP 審查結果回寫失敗: ' + e.message);
   }
 }
 
