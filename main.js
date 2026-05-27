@@ -10,6 +10,9 @@ if ('serviceWorker' in navigator) {
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], reviewQueue: [],
     userDbId: "",
+    userName: "",
+    userEmail: "",
+    userPhone: "",
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
@@ -115,6 +118,48 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function normalizeUserRecord(user = {}) {
+    const account = user.account || user.user_name || user.email || '';
+    return {
+        ...user,
+        account,
+        name: user.name || account,
+        email: user.email || account,
+        phone: user.phone || ''
+    };
+}
+
+function getUserRecordByAccount(account) {
+    return state.allUserRecords.find(user => user.account === account || user.email === account) || null;
+}
+
+function getUserDisplayName(account) {
+    const user = getUserRecordByAccount(account);
+    return (user && user.name) || account || '';
+}
+
+function getUserEmail(account) {
+    const user = getUserRecordByAccount(account);
+    return (user && user.email) || account || '';
+}
+
+function getUserPhone(account) {
+    const user = getUserRecordByAccount(account);
+    return (user && user.phone) || '';
+}
+
+function getUserHoverTitle(userOrAccount) {
+    const user = typeof userOrAccount === 'object'
+        ? normalizeUserRecord(userOrAccount)
+        : normalizeUserRecord(getUserRecordByAccount(userOrAccount) || { account: userOrAccount });
+    const rows = [
+        `姓名: ${user.name || ''}`,
+        `Email: ${user.email || user.account || ''}`,
+        `手機: ${user.phone || '未填'}`
+    ];
+    return rows.join('\n');
+}
+
 function renderAnnotationSummary(annotations = {}) {
     const rows = [
         ['台語', [
@@ -206,6 +251,8 @@ function saveSession(user) {
         user_name: user.user_name || user.account,
         role: user.role,
         email: user.email || getLoginEmail(),
+        name: user.name || user.account || user.user_name || '',
+        phone: user.phone || '',
         savedAt: Date.now()
     }));
 }
@@ -250,7 +297,7 @@ async function restoreSession() {
 
 async function fetchSessionUser(account, role) {
     const params = new URLSearchParams({
-        select: 'id,account,role,is_active',
+        select: 'id,account,role,is_active,name,email,phone',
         account: `eq.${account}`,
         role: `eq.${role}`,
         is_active: 'eq.true',
@@ -270,7 +317,10 @@ async function fetchSessionUser(account, role) {
     return {
         user_id: users[0].id,
         account: users[0].account,
-        role: users[0].role
+        role: users[0].role,
+        name: users[0].name,
+        email: users[0].email,
+        phone: users[0].phone
     };
 }
 
@@ -362,12 +412,19 @@ async function performLogin({ rpcName, body, expectedRole, button, loadingText, 
 }
 
 function normalizeAuthenticatedUser(user, email) {
+    const normalized = normalizeUserRecord({
+        ...user,
+        account: user.account || user.user_name || email,
+        email: user.email || email
+    });
     return {
         user_id: user.user_id || user.id || '',
-        account: user.account || user.user_name || email,
-        user_name: user.user_name || user.account || email,
+        account: normalized.account,
+        user_name: user.user_name || normalized.account,
         role: user.role === 'admin' ? 'admin' : 'user',
-        email: user.email || email
+        email: normalized.email,
+        name: normalized.name,
+        phone: normalized.phone
     };
 }
 
@@ -377,6 +434,9 @@ async function enterApp(user, options = {}) {
 
     state.userDbId = normalizedUser.user_id;
     state.userId = normalizedUser.account;
+    state.userName = normalizedUser.name || normalizedUser.account;
+    state.userEmail = normalizedUser.email || normalizedUser.account;
+    state.userPhone = normalizedUser.phone || '';
     state.userRole = normalizedUser.role;
     state.userSpecialty = '';
 
@@ -395,6 +455,9 @@ function logout() {
     clearSession();
     state.userId = '';
     state.userDbId = '';
+    state.userName = '';
+    state.userEmail = '';
+    state.userPhone = '';
     state.userRole = '';
     state.userSpecialty = '';
     state.assignedPlaces = [];
@@ -447,6 +510,8 @@ function renderUserInfo() {
 
     // 判斷角色並顯示對應的文字
     const roleText = state.userRole === 'admin' ? '👑 管理員' : '👤 調查員';
+    const displayName = state.userName || state.userId;
+    const hoverTitle = state.userEmail || state.userId;
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
@@ -454,6 +519,11 @@ function renderUserInfo() {
         </div>
         <button class="btn-logout" onclick="logout()">登出</button>
     `;
+    const identityLine = userInfoDiv.querySelector('div > div');
+    if (identityLine) {
+        identityLine.textContent = `${roleText}: ${displayName}`;
+        identityLine.title = hoverTitle;
+    }
 }
 
 function configureRoleUI() {
@@ -510,13 +580,20 @@ function renderAdminUserManager() {
     const investigators = state.allUserRecords.filter(user => user.role !== 'admin');
     const body = investigators.length === 0
         ? '<div class="empty-state compact">目前沒有調查員帳號。請從 Places 的 Users 表同步。</div>'
-        : investigators.map(user => `
+        : investigators.map(user => {
+            const hoverTitle = getUserHoverTitle(user);
+            return `
             <label class="user-status-row">
-                <span class="user-account">${escapeHtml(user.account)}</span>
+                <span class="user-identity" title="${escapeHtml(hoverTitle)}">
+                    <span class="user-name">${escapeHtml(user.name || user.account)}</span>
+                    <span class="user-email">${escapeHtml(user.email || user.account)}</span>
+                    <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
+                </span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
             </label>
-        `).join('');
+        `;
+        }).join('');
 
     panel.innerHTML = `
         <div class="admin-user-manager-header">
@@ -596,13 +673,13 @@ async function loadDataFromSupabase(userName) {
 
         if (state.userRole === 'admin') {
             // 🛑 核心新增：管理員額外抓取全體調查員名單
-            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active&order=account.asc`, { headers });
+            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active,name,email,phone&order=name.asc`, { headers });
             const usersData = await usersRes.json();
             // 將抓回來的名字存入 state
-            state.allUserRecords = usersData;
-            state.allUsers = usersData
+            state.allUserRecords = usersData.map(normalizeUserRecord);
+            state.allUsers = state.allUserRecords
                 .filter(u => u.role !== 'admin' && u.is_active)
-                .map(u => u.account);
+                .map(u => normalizeUserRecord(u));
             const reviewsRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_review_queue_view?select=*`, { headers });
             const reviewsData = await reviewsRes.json();
             state.reviewQueue = reviewsData.map(normalizeReviewTask);
@@ -673,7 +750,7 @@ function initFilters() {
         // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
-                                   state.allUsers.map(u => `<option value="${u}">👤 ${u}</option>`).join('');
+                                   state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
                                    
         renderAdminBatchAssignUI(); 
     }
@@ -815,7 +892,7 @@ function renderReviewRecordTable(taskId, languageKey, records, fields) {
                 <tr>
                     <td class="review-record-label">
                         <strong>錄音${index + 1}</strong>
-                        <span>${escapeHtml(record.uploaderId)}</span>
+                        <span title="${escapeHtml(getUserEmail(record.uploaderId))}">${escapeHtml(getUserDisplayName(record.uploaderId))}</span>
                     </td>
                     ${compareFields.map(field => renderRecordCompareCell(taskId, languageKey, record, field)).join('')}
                     <td class="review-play-cell">
@@ -1007,7 +1084,8 @@ function renderPlaceList(places) {
             checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆">`;
             
             if (place.assignedUsers.length > 0) {
-                adminAssignBadge = `<span class="meta-badge assign-badge">👤 ${place.assignedUsers.join('、')}</span>`;
+                const assignedLabels = place.assignedUsers.map(account => `<span class="assigned-user-chip" title="${escapeHtml(getUserEmail(account))}">${escapeHtml(getUserDisplayName(account))}</span>`).join('');
+                adminAssignBadge = `<span class="meta-badge assign-badge">👤 <span class="assigned-user-list">${assignedLabels}</span></span>`;
             } else {
                 adminAssignBadge = `<span class="meta-badge unassigned-badge">⚠️ 未指派</span>`;
             }
@@ -1086,7 +1164,7 @@ function renderHistoryList(placeId) {
     
     historyList.innerHTML = records.map(r => `
         <div class="history-item">
-            <div class="history-meta"><span>🏷️ ${r.language}</span><span>👤 ${r.uploaderId}</span></div>
+            <div class="history-meta"><span>🏷️ ${r.language}</span><span title="${escapeHtml(getUserEmail(r.uploaderId))}">👤 ${escapeHtml(getUserDisplayName(r.uploaderId))}</span></div>
             ${renderAnnotationSummary(r.annotations)}
             <div id="player-${r.recordId}" style="margin-top: 10px;">
                 <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
@@ -1280,13 +1358,15 @@ function renderAdminBatchAssignUI() {
     document.getElementById('app-section').style.paddingBottom = "80px";
 
     // 🛑 核心修改：改用 state.allUsers 來產生建議選單
-    let options = state.allUsers.map(u => `<option value="${u}">`).join('');
+    let options = state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">${escapeHtml(u.name || u.account)}</option>`).join('');
 
     bar.innerHTML = `
         <span class="assign-label">批次指派</span>
         <span id="assign-count" class="assign-count">0 筆已選</span>
-        <input list="investigators-list" id="assignee-input" placeholder="選擇或輸入調查員">
-        <datalist id="investigators-list">${options}</datalist>
+        <select id="assignee-input">
+            <option value="">選擇調查員</option>
+            ${options}
+        </select>
         <button class="assign-submit" onclick="batchAssignTasks()">確認送出</button>
         <span class="assign-hint">Shift + 左鍵可連續選取</span>
     `;
@@ -1299,10 +1379,11 @@ async function batchAssignTasks() {
     const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
     const taskIds = Array.from(checkboxes).map(cb => cb.value);
     const targetUser = document.getElementById('assignee-input').value.trim();
+    const targetUserName = getUserDisplayName(targetUser);
 
     if (taskIds.length === 0) return alert("請先在清單中勾選要指派的地名！");
     if (!targetUser) return alert("請輸入或選擇要指派的調查員名稱！");
-    if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，指派給「${targetUser}」嗎？`)) return;
+    if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，指派給「${targetUserName}」嗎？`)) return;
 
     document.querySelector('#admin-assign-bar button').innerText = "處理中...";
 

@@ -396,6 +396,22 @@ button:disabled {
     border-color: #ded0ff;
 }
 
+.assigned-user-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+.assigned-user-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .unassigned-badge {
     background: var(--danger-soft);
     color: var(--danger);
@@ -796,7 +812,8 @@ button:disabled {
     box-shadow: 0 -16px 34px rgba(0, 30, 43, 0.22);
 }
 
-#admin-assign-bar input {
+#admin-assign-bar input,
+#admin-assign-bar select {
     width: min(260px, 42vw);
     margin: 0;
     border-color: transparent;
@@ -893,12 +910,34 @@ button:disabled {
     background: var(--surface);
 }
 
-.user-account {
+.user-identity {
+    display: grid;
+    grid-template-columns: minmax(110px, 1fr) minmax(180px, 1.4fr) minmax(110px, 0.8fr);
+    align-items: center;
+    gap: 12px;
     min-width: 0;
+}
+
+.user-name,
+.user-email,
+.user-phone {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-name {
     color: var(--ink);
     font-size: 13px;
     font-weight: 800;
-    overflow-wrap: anywhere;
+}
+
+.user-email,
+.user-phone {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .user-active-text {
@@ -955,6 +994,7 @@ button:disabled {
     }
 
     #admin-assign-bar input,
+    #admin-assign-bar select,
     #admin-assign-bar button,
     .assign-hint {
         width: 100%;
@@ -986,5 +1026,16 @@ button:disabled {
 
     .refresh-users-btn {
         width: 100%;
+    }
+
+    .user-identity {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .user-name,
+    .user-email,
+    .user-phone {
+        font-size: 11px;
     }
 }

@@ -1,6 +1,9 @@
 # Project Timeline
 
 [2026-05-27] [UI]
+User display switched to name-first labels while keeping account/email values for login, filtering, and assignment writes. User hovers now expose email, and the admin user manager shows name, email, and phone in one compact row with active controls.
+
+[2026-05-27] [UI]
 放寬桌機版審查介面寬度：`body` 最大寬度從 760px 提高到 1120px，錄音比較表在桌機不再硬設 720px 最小寬度，減少橫向 scrollbar；手機版仍保留 720px 最小寬度與橫向捲動。
 
 [2026-05-27] [UI]
