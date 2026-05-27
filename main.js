@@ -33,6 +33,29 @@ const ANNOTATION_FIELDS = [
     'taihan', 'tl1', 'tainote',
     'honzii', 'hp1', 'haknote'
 ];
+const REVIEW_FIELD_CONFIG = {
+    tai: {
+        language: '台語',
+        fields: [
+            { key: 'TaiHan1', label: 'TaiHan1', placeholder: '台語漢字', annotationKeys: ['taihan', 'taihan1'] },
+            { key: 'TL1', label: 'TL1', placeholder: '主音讀羅馬字', annotationKeys: ['tl1'], fallbackRecordKey: 'phonetic' },
+            { key: 'TL2', label: 'TL2', placeholder: '優勢腔副音讀', annotationKeys: ['tl2'] },
+            { key: 'TL3', label: 'TL3', placeholder: '又念作', annotationKeys: ['tl3'] },
+            { key: 'TaiNote', label: 'TaiNote', placeholder: '備註', annotationKeys: ['tainote', 'tai_note'], multiline: true }
+        ]
+    },
+    hak: {
+        language: '客語',
+        fields: [
+            { key: 'Honzii', label: 'Honzii', placeholder: '客語漢字', annotationKeys: ['honzii'] },
+            { key: 'HP1', label: 'HP1', placeholder: '主音讀羅馬字', annotationKeys: ['hp1'], fallbackRecordKey: 'phonetic' },
+            { key: 'HP2', label: 'HP2', placeholder: '優勢腔副音讀', annotationKeys: ['hp2'] },
+            { key: 'HP3', label: 'HP3', placeholder: '又念作', annotationKeys: ['hp3'] },
+            { key: 'HDialect', label: 'HDialect', placeholder: '主音讀腔調別', annotationKeys: ['h_dialect', 'hdialect'] },
+            { key: 'HakNote', label: 'HakNote', placeholder: '備註', annotationKeys: ['haknote', 'hak_note'], multiline: true }
+        ]
+    }
+};
 
 function parseRecordNote(note) {
     if (!note) return {};
@@ -740,6 +763,94 @@ function getLanguageReviewState(place, language) {
     return language === '客語' ? place.hReviewState : place.tReviewState;
 }
 
+function getReviewLanguageKey(language) {
+    return language === '客語' ? 'hak' : 'tai';
+}
+
+function getReviewInputId(taskId, languageKey, fieldKey) {
+    return `review-final-${taskId}-${languageKey}-${fieldKey}`;
+}
+
+function getRecordFieldValue(record, field) {
+    const annotations = record.annotations || {};
+    for (const key of field.annotationKeys || []) {
+        if (annotations[key]) return annotations[key];
+    }
+    return field.fallbackRecordKey ? (record[field.fallbackRecordKey] || '') : '';
+}
+
+function renderRecordFieldCell(taskId, languageKey, record, field) {
+    const value = getRecordFieldValue(record, field);
+    const copyButton = value
+        ? `<button class="copy-field-btn" data-value="${escapeHtml(value)}" onclick="copyReviewFieldToFinal(${taskId}, '${languageKey}', '${field.key}', this.dataset.value)">填入</button>`
+        : '';
+
+    return `
+        <div class="review-record-field ${value ? 'has-value' : ''}">
+            <span>${field.label}</span>
+            <strong>${value ? escapeHtml(value) : '未填'}</strong>
+            ${copyButton}
+        </div>
+    `;
+}
+
+function renderReviewRecordGrid(taskId, languageKey, records, fields) {
+    return `
+        <div class="review-record-grid">
+            ${records.map((record, index) => `
+                <article class="review-record-card">
+                    <div class="review-record-topline">
+                        <span>#${index + 1}</span>
+                        <span>${escapeHtml(record.uploaderId)}</span>
+                        <button class="play-btn compact" onclick="fetchAndPlayAudio('${record.url}', '${record.recordId}')">播放</button>
+                    </div>
+                    <div class="review-record-fields">
+                        ${fields.map(field => renderRecordFieldCell(taskId, languageKey, record, field)).join('')}
+                    </div>
+                    <div id="player-${record.recordId}" class="review-player"></div>
+                </article>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderFinalReviewFields(taskId, languageKey, fields, isDone) {
+    return `
+        <div class="review-final-panel">
+            <div class="review-final-grid">
+                ${fields.map(field => {
+                    const id = getReviewInputId(taskId, languageKey, field.key);
+                    const input = field.multiline
+                        ? `<textarea id="${id}" rows="2" placeholder="${field.placeholder}" ${isDone ? 'disabled' : ''}></textarea>`
+                        : `<input id="${id}" type="text" placeholder="${field.placeholder}" ${isDone ? 'disabled' : ''}>`;
+                    return `
+                        <label class="review-final-field">
+                            <span>${field.label}</span>
+                            ${input}
+                        </label>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function collectFinalReviewFields(taskId, languageKey) {
+    const config = REVIEW_FIELD_CONFIG[languageKey];
+    return config.fields.reduce((values, field) => {
+        const input = document.getElementById(getReviewInputId(taskId, languageKey, field.key));
+        values[field.key] = input ? input.value.trim() : '';
+        return values;
+    }, {});
+}
+
+function copyReviewFieldToFinal(taskId, languageKey, fieldKey, value) {
+    const input = document.getElementById(getReviewInputId(taskId, languageKey, fieldKey));
+    if (!input) return;
+    input.value = value || '';
+    input.focus();
+}
+
 function renderReviewQueue(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
@@ -789,6 +900,8 @@ function renderReviewStatusBadge(language, reviewState, count) {
 
 function renderReviewLanguageBlock(place, language, records) {
     if (records.length === 0) return '';
+    const languageKey = getReviewLanguageKey(language);
+    const fields = REVIEW_FIELD_CONFIG[languageKey].fields;
     const reviewState = getLanguageReviewState(place, language);
     const isDone = reviewState === '已完成標注';
     return `
@@ -799,20 +912,15 @@ function renderReviewLanguageBlock(place, language, records) {
                     ${isDone ? '已通過' : '審查通過'}
                 </button>
             </div>
-            ${records.map(record => `
-                <div class="history-item review-record">
-                    <div class="history-meta"><span>👤 ${escapeHtml(record.uploaderId)}</span><span>${escapeHtml(record.phonetic || '')}</span></div>
-                    ${renderAnnotationSummary(record.annotations)}
-                    <div id="player-${record.recordId}" style="margin-top: 10px;">
-                        <button class="play-btn" onclick="fetchAndPlayAudio('${record.url}', '${record.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
-                    </div>
-                </div>
-            `).join('')}
+            ${renderReviewRecordGrid(place.id, languageKey, records, fields)}
+            ${renderFinalReviewFields(place.id, languageKey, fields, isDone)}
         </section>
     `;
 }
 
 async function approveReviewLanguage(taskId, language, button) {
+    const languageKey = getReviewLanguageKey(language);
+    const finalFields = collectFinalReviewFields(taskId, languageKey);
     if (!confirm(`確定通過這筆地名的${language}標注嗎？`)) return;
 
     const originalText = button.innerText;
@@ -830,7 +938,8 @@ async function approveReviewLanguage(taskId, language, button) {
             body: JSON.stringify({
                 p_task_id: Number(taskId),
                 p_language: language,
-                p_reviewed_by: state.userId
+                p_reviewed_by: state.userId,
+                p_fields: finalFields
             })
         });
 

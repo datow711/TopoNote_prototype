@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [FEATURE]
+審查介面改為真正的「最終審定」流程：每個語言區用緊湊 grid 顯示所有錄音紀錄的標注欄位與播放按鈕，單欄位可一鍵填入最終審定文字框。台語審定欄位為 `TaiHan1/TL1/TL2/TL3/TaiNote`，客語為 `Honzii/HP1/HP2/HP3/HDialect/HakNote`；送出審查後寫入 `task_language_reviews.final_fields`，Places GAS 回寫 Sheet 時優先使用審定欄位。
+
 [2026-05-27] [FIX]
 修正 Users 權限欄位與登入模式混淆：`Users` 工作表新增可讀的 `role` 欄，`active` 維持最後欄；Sheet/GAS/DB 同步只允許 `user` 角色從 Sheet 建立，避免 Sheet 產生 admin。前端登入新增角色防呆，一般登入只接受 `user`、管理者登入只接受 `admin`，並在新登入前清除舊 session，避免殘留管理員模式。
 

@@ -556,12 +556,27 @@ function parseAudioAnnotations_(note) {
   }
 }
 
+function parseFinalReviewFields_(fields) {
+  if (!fields) return {};
+  if (typeof fields === 'object') return fields;
+  try {
+    return JSON.parse(fields);
+  } catch (e) {
+    return {};
+  }
+}
+
 function firstNonEmpty_() {
   for (var i = 0; i < arguments.length; i++) {
     var value = arguments[i];
     if (value !== null && value !== undefined && String(value).trim() !== '') return value;
   }
   return '';
+}
+
+function finalFieldValue_(finalFields, key, fallback) {
+  if (Object.prototype.hasOwnProperty.call(finalFields, key)) return finalFields[key] || '';
+  return fallback || '';
 }
 
 function getReviewUpdatedStamp_(review) {
@@ -572,20 +587,26 @@ function getReviewUpdatedStamp_(review) {
 
 function buildReviewSheetUpdate_(review) {
   var annotations = parseAudioAnnotations_(review.audio_note);
+  var finalFields = parseFinalReviewFields_(review.final_fields);
   var updateData = {};
   var stamp = getReviewUpdatedStamp_(review);
 
   if (review.language === '台語') {
-    updateData.TaiHan1 = firstNonEmpty_(annotations.taihan, review.taihan);
-    updateData.TL1 = firstNonEmpty_(annotations.tl1, review.phonetic_reading, review.tl1);
-    updateData.TaiNote = firstNonEmpty_(annotations.tainote, review.tai_note);
+    updateData.TaiHan1 = finalFieldValue_(finalFields, 'TaiHan1', firstNonEmpty_(annotations.taihan, review.taihan));
+    updateData.TL1 = finalFieldValue_(finalFields, 'TL1', firstNonEmpty_(annotations.tl1, review.phonetic_reading, review.tl1));
+    updateData.TL2 = finalFieldValue_(finalFields, 'TL2', firstNonEmpty_(annotations.tl2, review.tl2));
+    updateData.TL3 = finalFieldValue_(finalFields, 'TL3', firstNonEmpty_(annotations.tl3, review.tl3));
+    updateData.TaiNote = finalFieldValue_(finalFields, 'TaiNote', firstNonEmpty_(annotations.tainote, review.tai_note));
     updateData.T_State = REVIEW_DONE_STATE;
     updateData.T_Annotator = firstNonEmpty_(review.recorder_name, review.t_annotator, review.reviewed_by);
     updateData.T_UpdatedAt = stamp;
   } else if (review.language === '客語') {
-    updateData.Honzii = firstNonEmpty_(annotations.honzii, review.honzii);
-    updateData.HP1 = firstNonEmpty_(annotations.hp1, review.phonetic_reading, review.hp1);
-    updateData.HakNote = firstNonEmpty_(annotations.haknote, review.hak_note);
+    updateData.Honzii = finalFieldValue_(finalFields, 'Honzii', firstNonEmpty_(annotations.honzii, review.honzii));
+    updateData.HP1 = finalFieldValue_(finalFields, 'HP1', firstNonEmpty_(annotations.hp1, review.phonetic_reading, review.hp1));
+    updateData.HP2 = finalFieldValue_(finalFields, 'HP2', firstNonEmpty_(annotations.hp2, review.hp2));
+    updateData.HP3 = finalFieldValue_(finalFields, 'HP3', firstNonEmpty_(annotations.hp3, review.hp3));
+    updateData.HDialect = finalFieldValue_(finalFields, 'HDialect', firstNonEmpty_(annotations.hdialect, review.h_dialect));
+    updateData.HakNote = finalFieldValue_(finalFields, 'HakNote', firstNonEmpty_(annotations.haknote, review.hak_note));
     updateData.H_State = REVIEW_DONE_STATE;
     updateData.H_Annotator = firstNonEmpty_(review.recorder_name, review.h_annotator, review.reviewed_by);
     updateData.H_UpdatedAt = stamp;

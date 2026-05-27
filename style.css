@@ -622,6 +622,126 @@ button:disabled {
     background: var(--canvas);
 }
 
+.review-record-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px;
+}
+
+.review-record-card {
+    padding: 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.review-record-topline {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.review-record-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.review-record-field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 4px 6px;
+    min-height: 42px;
+    padding: 6px;
+    border: 1px solid var(--hairline);
+    border-radius: 7px;
+    background: var(--surface);
+}
+
+.review-record-field span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.review-record-field strong {
+    grid-column: 1 / -1;
+    min-width: 0;
+    color: var(--muted);
+    font-family: "Iansui", "Noto Sans TC", cursive;
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.review-record-field.has-value strong {
+    color: var(--ink);
+}
+
+.copy-field-btn {
+    width: auto;
+    min-height: 24px;
+    margin: 0;
+    padding: 2px 7px;
+    border: 1px solid var(--accent-deep);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.play-btn.compact {
+    min-height: 28px;
+    margin: 0;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.review-player {
+    margin-top: 8px;
+}
+
+.review-final-panel {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--hairline);
+}
+
+.review-final-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.review-final-field {
+    display: grid;
+    gap: 4px;
+}
+
+.review-final-field span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.review-final-field input,
+.review-final-field textarea {
+    width: 100%;
+    min-height: 38px;
+    margin: 0;
+    padding: 8px 10px;
+    font-family: "Iansui", "Noto Sans TC", cursive;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
 .history-meta {
     display: flex;
     justify-content: space-between;
