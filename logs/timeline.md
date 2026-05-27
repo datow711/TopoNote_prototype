@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-27] [FIX]
+修正 Users 權限欄位與登入模式混淆：`Users` 工作表新增可讀的 `role` 欄，`active` 維持最後欄；Sheet/GAS/DB 同步只允許 `user` 角色從 Sheet 建立，避免 Sheet 產生 admin。前端登入新增角色防呆，一般登入只接受 `user`、管理者登入只接受 `admin`，並在新登入前清除舊 session，避免殘留管理員模式。
+
 [2026-05-27] [FEATURE]
 補齊 APP 審查結果回寫 Sheet 的最後一哩路。Supabase 新增 `app_sheet_sync_queue` 與 `mark_reviews_sheet_synced()`；Places GAS 新增「回寫 APP 審查結果至工作表」，正式 `third_phase_places` 回 `第三期工作清單`，測試 `test_places` 回新工作表 `TestEntries`。`TestEntries` 已建立並放入 `TEST0001` 至 `TEST0010` 測試列，Places GAS 已 `clasp push`。
 

@@ -269,8 +269,12 @@ var USER_SHEET_HEADERS = [
   'survey_area_2',
   'life_area_3',
   'survey_area_3',
+  'role',
   'active'
 ];
+var USER_SHEET_REQUIRED_HEADERS = USER_SHEET_HEADERS.filter(function(header) {
+  return header !== 'role';
+});
 
 function setupUsersSheetHeaders() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -306,7 +310,7 @@ function syncUsersToSupabase() {
     colMap[header] = index;
   });
 
-  var missingHeaders = USER_SHEET_HEADERS.filter(function(header) {
+  var missingHeaders = USER_SHEET_REQUIRED_HEADERS.filter(function(header) {
     return colMap[header] === undefined;
   });
   if (missingHeaders.length > 0) {
@@ -319,7 +323,12 @@ function syncUsersToSupabase() {
     var row = data[r];
     var email = String(row[colMap.email] || '').trim().toLowerCase();
     var name = String(row[colMap.name] || '').trim();
+    var role = colMap.role === undefined ? 'user' : String(row[colMap.role] || 'user').trim().toLowerCase();
     if (!email || !name) {
+      skipped++;
+      continue;
+    }
+    if (role && role !== 'user') {
       skipped++;
       continue;
     }
@@ -327,6 +336,7 @@ function syncUsersToSupabase() {
     payload.push({
       email: email,
       name: name,
+      role: 'user',
       phone: String(row[colMap.phone] || '').trim(),
       languages: String(row[colMap.languages] || '').trim(),
       hakka_dialect: String(row[colMap.hakka_dialect] || '').trim(),

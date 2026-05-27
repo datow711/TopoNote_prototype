@@ -264,6 +264,7 @@ async function login() {
     await performLogin({
         rpcName: 'login_investigator',
         body: { p_email: getLoginEmail() },
+        expectedRole: 'user',
         button: document.getElementById('login-btn'),
         loadingText: '載入任務中...',
         resetText: '進入我的任務',
@@ -279,6 +280,7 @@ async function loginAdmin() {
     await performLogin({
         rpcName: 'login_admin',
         body: { p_email: getLoginEmail(), p_password: password },
+        expectedRole: 'admin',
         button: document.getElementById('admin-login-btn'),
         loadingText: '載入管理模式中...',
         resetText: '進入管理模式',
@@ -291,12 +293,13 @@ function getLoginEmail() {
     return document.getElementById('email').value.trim();
 }
 
-async function performLogin({ rpcName, body, button, loadingText, resetText, missingMessage, failedMessage }) {
+async function performLogin({ rpcName, body, expectedRole, button, loadingText, resetText, missingMessage, failedMessage }) {
     const email = getLoginEmail();
     if (!email) return alert(missingMessage);
 
     const status = document.getElementById('login-status');
     status.innerText = '';
+    clearSession();
     button.innerText = loadingText;
     button.disabled = true;
 
@@ -315,7 +318,11 @@ async function performLogin({ rpcName, body, button, loadingText, resetText, mis
         const users = await response.json();
 
         if (users && users.length > 0) {
-            await enterApp({ ...users[0], email });
+            const user = normalizeAuthenticatedUser(users[0], email);
+            if (expectedRole && user.role !== expectedRole) {
+                throw new Error(`role mismatch: expected ${expectedRole}, got ${user.role || 'empty'}`);
+            }
+            await enterApp(user);
         } else {
             status.innerText = `❌ ${failedMessage}`;
             button.innerText = resetText;
@@ -329,16 +336,27 @@ async function performLogin({ rpcName, body, button, loadingText, resetText, mis
     }
 }
 
+function normalizeAuthenticatedUser(user, email) {
+    return {
+        user_id: user.user_id || user.id || '',
+        account: user.account || user.user_name || email,
+        user_name: user.user_name || user.account || email,
+        role: user.role === 'admin' ? 'admin' : 'user',
+        email: user.email || email
+    };
+}
+
 async function enterApp(user, options = {}) {
     const persist = options.persist !== false;
+    const normalizedUser = normalizeAuthenticatedUser(user, user.email || getLoginEmail());
 
-    state.userDbId = user.user_id || user.id || '';
-    state.userId = user.account || user.user_name;
-    state.userRole = user.role;
+    state.userDbId = normalizedUser.user_id;
+    state.userId = normalizedUser.account;
+    state.userRole = normalizedUser.role;
     state.userSpecialty = '';
 
     await loadDataFromSupabase(state.userId);
-    if (persist) saveSession(user);
+    if (persist) saveSession(normalizedUser);
     renderUserInfo();
     configureRoleUI();
 
