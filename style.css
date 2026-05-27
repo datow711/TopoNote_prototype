@@ -33,9 +33,9 @@
 }
 
 body {
-    max-width: 760px;
+    max-width: 1120px;
     margin: 0 auto;
-    padding: 16px 18px 120px;
+    padding: 18px 24px 120px;
     background: var(--bg);
     color: var(--ink);
     font-family: "Noto Sans TC", Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -648,7 +648,7 @@ button:disabled {
 
 .review-record-table {
     width: 100%;
-    min-width: 720px;
+    min-width: 0;
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -679,7 +679,7 @@ button:disabled {
 }
 
 .review-record-label {
-    width: 110px;
+    width: 120px;
 }
 
 .review-record-label strong,
@@ -710,7 +710,7 @@ button:disabled {
 }
 
 .review-play-cell {
-    width: 150px;
+    width: 170px;
 }
 
 .play-btn.compact {
@@ -927,6 +927,10 @@ button:disabled {
 @media (max-width: 640px) {
     body {
         padding: 12px 10px 150px;
+    }
+
+    .review-record-table {
+        min-width: 720px;
     }
 
     .filter-row {
