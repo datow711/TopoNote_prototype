@@ -1303,6 +1303,11 @@ async function fetchAndPlayAudio(driveUrl, recordId) {
 function resetRecordingState() {
     resetAnnotationInputs();
     switchAnnotationLanguage(getDefaultAnnotationLanguage());
+    const confirmPanel = document.getElementById('audio-confirm-panel');
+    const summary = document.getElementById('audio-file-summary');
+    document.querySelector('.audio-source-panel')?.classList.remove('hidden');
+    if (confirmPanel) confirmPanel.classList.add('hidden');
+    if (summary) summary.innerHTML = '';
     document.getElementById('audio-playback').style.display = 'none';
     document.getElementById('upload-btn').style.display = 'none';
     document.getElementById('status').innerText = "";
@@ -1313,19 +1318,77 @@ function resetRecordingState() {
     uploadedFileName = "";
 }
 
+function toggleLineHelp() {
+    document.getElementById('line-help-box')?.classList.toggle('hidden');
+}
+
+function formatFileSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getCurrentLanguageLabel() {
+    return document.querySelector('input[name="lang"]:checked')?.value || '';
+}
+
+function showAudioConfirmation(sourceLabel, file) {
+    const confirmPanel = document.getElementById('audio-confirm-panel');
+    const summary = document.getElementById('audio-file-summary');
+    const playback = document.getElementById('audio-playback');
+    const uploadBtn = document.getElementById('upload-btn');
+    const placeName = state.selectedPlace ? state.selectedPlace.placeName : '未選擇地名';
+    const lang = getCurrentLanguageLabel();
+    const fileName = file ? file.name : '現場錄音';
+    const fileSize = file ? formatFileSize(file.size) : '';
+
+    if (summary) {
+        summary.innerHTML = `
+            <div><span>目前地名</span><strong>${escapeHtml(placeName)}</strong></div>
+            <div><span>錄音語言</span><strong>${escapeHtml(lang)}</strong></div>
+            <div><span>音檔來源</span><strong>${escapeHtml(sourceLabel)}</strong></div>
+            <div><span>音檔名稱</span><strong>${escapeHtml(fileName)}${fileSize ? ` (${escapeHtml(fileSize)})` : ''}</strong></div>
+        `;
+    }
+
+    if (confirmPanel) confirmPanel.classList.remove('hidden');
+    document.querySelector('.audio-source-panel')?.classList.add('hidden');
+    if (playback) playback.style.display = 'block';
+    if (uploadBtn) {
+        uploadBtn.style.display = 'block';
+        uploadBtn.disabled = false;
+        uploadBtn.innerText = '⬆️ 確認上傳這筆音檔';
+    }
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('file-btn').style.display = 'none';
+}
+
+function chooseAudioAgain() {
+    audioBlob = null;
+    uploadedFileName = "";
+    document.getElementById('audio-confirm-panel')?.classList.add('hidden');
+    document.getElementById('audio-playback').style.display = 'none';
+    document.querySelector('.audio-source-panel')?.classList.remove('hidden');
+    document.getElementById('audio-file-input').value = "";
+    document.getElementById('audio-file-input').click();
+}
+
+function discardAudioAndRecordAgain() {
+    resetRecordingState();
+    startRecording();
+}
+
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|m4a|wav|aac|ogg|mp4)$/i)) {
-        return alert("請上傳正確的音訊檔案！");
+    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|m4a|wav|aac|ogg|mp4|3gp|3gpp|amr|opus|caf)$/i)) {
+        event.target.value = "";
+        return alert("這個檔案不像音檔。請從 LINE 重新分享或儲存語音檔，再回來選擇。");
     }
     audioBlob = file; uploadedFileName = file.name; 
     document.getElementById('audio-playback').src = URL.createObjectURL(file);
-    document.getElementById('audio-playback').style.display = 'block';
-    document.getElementById('start-btn').style.display = 'none';
-    document.getElementById('file-btn').style.display = 'none';
-    document.getElementById('upload-btn').style.display = 'block';
-    document.getElementById('status').innerText = `✅ 已選取檔案：${file.name}`;
+    showAudioConfirmation('LINE/手機音檔', file);
+    document.getElementById('status').innerText = `已選擇音檔：${file.name}，請先播放確認再上傳。`;
     document.getElementById('status').style.color = "green";
 }
 
@@ -1339,10 +1402,10 @@ async function startRecording() {
             audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             uploadedFileName = ""; 
             document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
-            document.getElementById('audio-playback').style.display = 'block';
-            document.getElementById('upload-btn').style.display = 'block';
+            showAudioConfirmation('現場錄音', null);
         };
         mediaRecorder.start();
+        document.querySelector('.audio-source-panel')?.classList.add('hidden');
         document.getElementById('start-btn').style.display = 'none';
         document.getElementById('file-btn').style.display = 'none';
         document.getElementById('stop-btn').style.display = 'block';
@@ -1354,7 +1417,7 @@ async function startRecording() {
 function stopRecording() {
     mediaRecorder.stop();
     document.getElementById('stop-btn').style.display = 'none';
-    document.getElementById('status').innerText = "✅ 錄音完成，可填寫補充欄位後上傳。";
+    document.getElementById('status').innerText = "錄音完成，請先播放確認。可以重錄，也可以直接上傳。";
     document.getElementById('status').style.color = "green";
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
 }
@@ -1370,6 +1433,11 @@ function uploadAudio() {
     const lang = document.querySelector('input[name="lang"]:checked').value;
     const annotations = collectAnnotationInputs();
     const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
+    const hasAnnotation = Object.values(annotations).some(value => value);
+    const confirmText = hasAnnotation
+        ? `你正在上傳「${state.selectedPlace.placeName}」的${lang}音檔，確定送出嗎？`
+        : `這筆「${state.selectedPlace.placeName}」的${lang}音檔還沒有填文字註記，要直接送出錄音嗎？`;
+    if (!confirm(confirmText)) return;
 
     uploadBtn.innerText = "⏳ 轉碼與上傳 Drive 中..."; uploadBtn.disabled = true;
 

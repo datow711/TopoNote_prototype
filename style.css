@@ -191,6 +191,145 @@ button:disabled {
     background: var(--ink-soft);
 }
 
+.audio-source-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 14px 0 10px;
+}
+
+.audio-source-card {
+    display: grid;
+    gap: 10px;
+    align-content: space-between;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: var(--canvas);
+}
+
+.audio-source-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.audio-source-copy strong {
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.35;
+}
+
+.audio-source-copy span {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.audio-source-card button {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+}
+
+.line-help-toggle {
+    border-color: var(--hairline);
+    background: var(--surface);
+    color: var(--accent-deep);
+    font-size: 13px;
+}
+
+.line-help-box {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 10px;
+    background: var(--surface-feature);
+    color: var(--ink);
+}
+
+.line-help-box p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.line-help-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.line-help-grid div {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.line-help-grid span {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.audio-confirm-panel {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.audio-confirm-title {
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.audio-file-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.audio-file-summary div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.audio-file-summary span {
+    color: var(--subtle);
+    font-size: 12px;
+}
+
+.audio-file-summary strong {
+    overflow-wrap: anywhere;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.audio-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.4fr;
+    gap: 8px;
+}
+
+.audio-confirm-actions button {
+    min-height: 42px;
+    margin: 0;
+}
+
 .tab-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -988,6 +1127,23 @@ button:disabled {
 
     .tab-container {
         grid-template-columns: 1fr;
+    }
+
+    .audio-source-panel,
+    .line-help-grid,
+    .audio-file-summary,
+    .audio-confirm-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .audio-source-copy strong,
+    .audio-confirm-title {
+        font-size: 17px;
+    }
+
+    .audio-source-card button,
+    .audio-confirm-actions button {
+        min-height: 48px;
     }
 
     .place-list {

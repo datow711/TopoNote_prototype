@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-28] [UI]
+Improved investigator audio upload UX for phone and desktop workflows where recordings may come from LINE. The recording area now has separate large entry points for on-site recording and LINE/mobile audio upload, Android/iPhone LINE save/share guidance, broader accepted audio formats, and a confirmation panel showing place, language, source, file name, and size before upload. Mobile viewport checks confirmed the new upload cards and LINE help stack to one column without horizontal overflow.
+
 [2026-05-28] [FIX]
 Browser workflow QA now runs through localhost after launching Codex as administrator. Investigator flow was checked with `tanliangkun@mail.naer.edu.tw`: login succeeded, assigned `TEST0001`-`TEST0010` stayed visible only in assigned tasks, other-place browsing excluded test rows, and console errors were clean. Fixed a name-label gap where non-admin uploaded-record history could fall back to recorder account values such as `kunui711`; non-admin sessions now load only the needed user label records while assignment/filter/RPC values remain account-based.
 

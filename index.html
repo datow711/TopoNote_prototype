@@ -96,15 +96,51 @@
                 </section>
             </div>
             
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <button class="btn-record" id="start-btn" onclick="startRecording()" style="flex: 1; margin: 0;">🎤 現場錄音</button>
-                <input type="file" id="audio-file-input" accept="audio/*" style="display:none;" onchange="handleFileUpload(event)">
-                <button class="btn-file" id="file-btn" onclick="document.getElementById('audio-file-input').click()" style="flex: 1; margin: 0;">📂 選擇本機音檔</button>
+            <div class="audio-source-panel">
+                <div class="audio-source-card">
+                    <div class="audio-source-copy">
+                        <strong>現場錄音</strong>
+                        <span>人在旁邊時，直接用手機或電腦錄。</span>
+                    </div>
+                    <button class="btn-record" id="start-btn" onclick="startRecording()">🎤 開始現場錄音</button>
+                </div>
+                <div class="audio-source-card">
+                    <div class="audio-source-copy">
+                        <strong>LINE 或手機音檔</strong>
+                        <span>聲音已經在 LINE、手機檔案或雲端硬碟時用這個。</span>
+                    </div>
+                    <input type="file" id="audio-file-input" accept="audio/*,.m4a,.mp3,.aac,.wav,.mp4,.3gp,.3gpp,.amr,.ogg,.opus,.caf" style="display:none;" onchange="handleFileUpload(event)">
+                    <button class="btn-file" id="file-btn" onclick="document.getElementById('audio-file-input').click()">📂 上傳 LINE 語音或手機音檔</button>
+                    <button class="line-help-toggle" type="button" onclick="toggleLineHelp()">LINE 語音怎麼找？</button>
+                </div>
+            </div>
+
+            <div class="line-help-box hidden" id="line-help-box">
+                <strong>如果音檔在 LINE 裡</strong>
+                <p>不要找 LINE 的內部資料夾。請先在 LINE 把語音分享或儲存成檔案，再回到本頁上傳。</p>
+                <div class="line-help-grid">
+                    <div>
+                        <b>Android</b>
+                        <span>LINE 長按語音 → 分享或儲存 → 存到「下載」、「Files」或 Google Drive → 回本頁選音檔。</span>
+                    </div>
+                    <div>
+                        <b>iPhone</b>
+                        <span>LINE 長按語音 → 分享 → 儲存到檔案 → 選「我的 iPhone」或 iCloud Drive → 回本頁從「最近項目」選取。</span>
+                    </div>
+                </div>
             </div>
 
             <button class="btn-stop" id="stop-btn" onclick="stopRecording()">⏹️ 停止錄音</button>
-            <audio id="audio-playback" controls style="width:100%; margin-bottom:10px; display:none;"></audio>
-            <button class="btn-upload" id="upload-btn" onclick="uploadAudio()">⬆️ 上傳並準備下一筆</button>
+            <div class="audio-confirm-panel hidden" id="audio-confirm-panel">
+                <div class="audio-confirm-title">請先確認這筆音檔</div>
+                <div class="audio-file-summary" id="audio-file-summary"></div>
+                <audio id="audio-playback" controls style="width:100%; margin-bottom:10px; display:none;"></audio>
+                <div class="audio-confirm-actions">
+                    <button class="btn-file" id="choose-again-btn" onclick="chooseAudioAgain()">重新選擇</button>
+                    <button class="btn-record" id="record-again-btn" onclick="discardAudioAndRecordAgain()">重錄</button>
+                    <button class="btn-upload" id="upload-btn" onclick="uploadAudio()">⬆️ 確認上傳這筆音檔</button>
+                </div>
+            </div>
             
             <div id="status" style="text-align:center; font-weight:bold;"></div>
 
