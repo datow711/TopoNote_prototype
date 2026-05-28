@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-28] [FEATURE]
+管理員篩選新增總表語言分級：`app_tasks_view` / `app_review_queue_view` 追加 `tai_class`、`hak_class`，前端管理員模式新增台語分級與客語分級下拉篩選，並在管理員任務列與審查摘要顯示台/客分級 badge，方便以 `直接標注`、電話調查、現場調查、原住民族等分類找地名。
+
 [2026-05-28] [DOCS]
 新增 APP 審查回寫 smoke-test 手順與只讀 SQL 檢查：`docs/review-sheet-sync-smoke-test.md` 說明以 `TEST0001` 驗證 `test_places` -> `app_sheet_sync_queue` -> GAS -> `TestEntries` 的 pass/fail 條件；`db/smoke_review_sheet_sync.sql` 可檢查任務來源、審查狀態、pending queue、`final_fields` 與 TEST 資料是否誤走正式來源。
 

@@ -230,6 +230,10 @@ button:disabled {
     margin-bottom: 15px;
 }
 
+.admin-class-filter-row {
+    margin-bottom: 0;
+}
+
 .filter-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -388,6 +392,12 @@ button:disabled {
     background: var(--accent-soft);
     color: var(--accent-deep);
     border-color: var(--accent-soft);
+}
+
+.class-badge {
+    background: rgba(234, 246, 242, 0.9);
+    color: var(--secondary);
+    border-color: rgba(45, 115, 108, 0.22);
 }
 
 .assign-badge {

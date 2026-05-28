@@ -16,6 +16,8 @@ let state = {
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedType: "",
+    selectedTaiClass: "",
+    selectedHakClass: "",
     selectedHakArea: "all",
     selectedStatus: "all", 
     userSpecialty: "",
@@ -209,6 +211,8 @@ function normalizeTask(t) {
         town: t.town,
         village: t.village,
         type: t.type,
+        taiClass: t.tai_class || '',
+        hakClass: t.hak_class || '',
         assignedTo: t.assigned_to,
         assignedUsers: assignedUsers,
         hakArea: t.hak_area,
@@ -467,6 +471,8 @@ function logout() {
     state.selectedPlace = null;
     state.currentTab = 'assigned';
     state.selectedType = '';
+    state.selectedTaiClass = '';
+    state.selectedHakClass = '';
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
@@ -480,6 +486,8 @@ function logout() {
     if (adminBar) adminBar.remove();
     const userManager = document.getElementById('admin-user-manager');
     if (userManager) userManager.remove();
+    const classFilterRow = document.getElementById('class-filter-row');
+    if (classFilterRow) classFilterRow.remove();
 
     document.getElementById('app-section').style.paddingBottom = '';
     configureRoleUI();
@@ -531,6 +539,7 @@ function configureRoleUI() {
     const tabOther = document.getElementById('tab-other');
     const tabReview = document.getElementById('tab-review');
     const assigneeFilter = document.getElementById('assignee-filter');
+    const classFilterRow = document.getElementById('class-filter-row');
     const adminBar = document.getElementById('admin-assign-bar');
     const userManager = document.getElementById('admin-user-manager');
     const appSection = document.getElementById('app-section');
@@ -559,6 +568,7 @@ function configureRoleUI() {
         tabReview.classList.remove('active');
     }
     if (assigneeFilter) assigneeFilter.remove();
+    if (classFilterRow) classFilterRow.remove();
     if (adminBar) adminBar.remove();
     if (userManager) userManager.remove();
     if (appSection) appSection.style.paddingBottom = '';
@@ -751,9 +761,44 @@ function initFilters() {
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
                                    state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
+
+        initClassFilters();
                                    
         renderAdminBatchAssignUI(); 
     }
+}
+
+function initClassFilters() {
+    const searchBox = document.getElementById('search-box');
+    const data = state.allPlaces.concat(state.assignedPlaces, state.reviewQueue);
+    const taiClasses = [...new Set(data.map(place => place.taiClass).filter(Boolean))].sort();
+    const hakClasses = [...new Set(data.map(place => place.hakClass).filter(Boolean))].sort();
+    let classRow = document.getElementById('class-filter-row');
+
+    if (state.selectedTaiClass && !taiClasses.includes(state.selectedTaiClass)) state.selectedTaiClass = '';
+    if (state.selectedHakClass && !hakClasses.includes(state.selectedHakClass)) state.selectedHakClass = '';
+
+    if (!classRow) {
+        classRow = document.createElement('div');
+        classRow.id = 'class-filter-row';
+        classRow.className = 'filter-row admin-class-filter-row';
+        classRow.innerHTML = `
+            <select id="tai-class-filter" onchange="selectClassFilter('tai', this.value)">
+                <option value="">所有台語分級</option>
+            </select>
+            <select id="hak-class-filter" onchange="selectClassFilter('hak', this.value)">
+                <option value="">所有客語分級</option>
+            </select>
+        `;
+        searchBox.parentNode.insertBefore(classRow, searchBox.nextSibling);
+    }
+
+    const taiSelect = document.getElementById('tai-class-filter');
+    const hakSelect = document.getElementById('hak-class-filter');
+    taiSelect.innerHTML = '<option value="">所有台語分級</option>' + taiClasses.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+    hakSelect.innerHTML = '<option value="">所有客語分級</option>' + hakClasses.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+    taiSelect.value = state.selectedTaiClass;
+    hakSelect.value = state.selectedHakClass;
 }
 
 function updateTowns() {
@@ -780,6 +825,14 @@ function selectStatus(status, element) {
     document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected'); applyFilters();
 }
+function selectClassFilter(language, value) {
+    if (language === 'hak') {
+        state.selectedHakClass = value;
+    } else {
+        state.selectedTaiClass = value;
+    }
+    applyFilters();
+}
 
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
@@ -787,6 +840,8 @@ function applyFilters() {
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
     const type = state.selectedType;
+    const taiClass = state.selectedTaiClass;
+    const hakClass = state.selectedHakClass;
     const hakArea = state.selectedHakArea;
     const status = state.selectedStatus; 
     
@@ -807,6 +862,8 @@ function applyFilters() {
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
         const matchTy = type ? (place.type || place.Type) === type : true;
+        const matchTaiClass = taiClass ? place.taiClass === taiClass : true;
+        const matchHakClass = hakClass ? place.hakClass === hakClass : true;
         const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';
         const matchHakArea = hakArea === 'all' || (hakArea === 'hak' ? isHakArea : !isHakArea);
         
@@ -823,7 +880,7 @@ function applyFilters() {
         // 錄音狀態篩選
         const matchStatus = status === 'all' || place.recordingStatus === status;
         
-        return matchK && matchC && matchTw && matchTy && matchHakArea && matchStatus && matchAssignee;
+        return matchK && matchC && matchTw && matchTy && matchTaiClass && matchHakClass && matchHakArea && matchStatus && matchAssignee;
     });
     if (state.currentTab === 'review') {
         return renderReviewQueue(filtered);
@@ -844,6 +901,13 @@ function getLanguageReviewState(place, language) {
 
 function getReviewLanguageKey(language) {
     return language === '客語' ? 'hak' : 'tai';
+}
+
+function renderClassBadges(place) {
+    const badges = [];
+    if (place.taiClass) badges.push(`<span class="meta-badge class-badge">台 ${escapeHtml(place.taiClass)}</span>`);
+    if (place.hakClass) badges.push(`<span class="meta-badge class-badge">客 ${escapeHtml(place.hakClass)}</span>`);
+    return badges.join('');
 }
 
 function getReviewInputId(taskId, languageKey, fieldKey) {
@@ -947,6 +1011,7 @@ function copyReviewFieldToFinal(taskId, languageKey, fieldKey, value) {
 function renderReviewPlaceSummary(place) {
     const typeName = place.type || '無類別';
     const displayUuid = place.sourceId || place.id;
+    const classBadges = renderClassBadges(place);
     return `
         <div class="review-place-summary">
             <div class="place-title">${escapeHtml(place.placeName)}</div>
@@ -955,6 +1020,7 @@ function renderReviewPlaceSummary(place) {
                 <span class="meta-badge">${escapeHtml(typeName)}</span>
                 <span class="meta-badge">${escapeHtml(place.county)} ${escapeHtml(place.town)} ${escapeHtml(place.village || '')}</span>
                 <span class="meta-badge record-badge">${escapeHtml(place.recordingStatus)}</span>
+                ${classBadges}
             </div>
         </div>
     `;
@@ -1074,6 +1140,7 @@ function renderPlaceList(places) {
         if (typeName === "具有地標意義公共設施") typeName = "公共設施";
         
         const recordBadge = `<span class="meta-badge record-badge">${place.recordingStatus}｜台 ${place.taiAudioCount} / 客 ${place.hakAudioCount}</span>`;
+        const classBadges = state.userRole === 'admin' ? renderClassBadges(place) : '';
 
         // 🛑 新增：Checkbox 與指派標籤
         let checkboxHTML = '';
@@ -1101,6 +1168,7 @@ function renderPlaceList(places) {
                         <span class="meta-badge">UUID: ${displayUuid}</span>
                         <span class="meta-badge">${place.county} ${place.town}</span>
                         <span class="meta-badge">${typeName}</span>
+                        ${classBadges}
                         <div class="meta-badge-row">${recordBadge} ${adminAssignBadge}</div>
                     </div>
                 </div>
