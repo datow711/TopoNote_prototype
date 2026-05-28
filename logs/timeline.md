@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-28] [DOCS]
+新增 APP 審查回寫 smoke-test 手順與只讀 SQL 檢查：`docs/review-sheet-sync-smoke-test.md` 說明以 `TEST0001` 驗證 `test_places` -> `app_sheet_sync_queue` -> GAS -> `TestEntries` 的 pass/fail 條件；`db/smoke_review_sheet_sync.sql` 可檢查任務來源、審查狀態、pending queue、`final_fields` 與 TEST 資料是否誤走正式來源。
+
 [2026-05-27] [UI]
 User display switched to name-first labels while keeping account/email values for login, filtering, and assignment writes. User hovers now expose email, and the admin user manager shows name, email, and phone in one compact row with active controls.
 
