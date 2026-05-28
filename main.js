@@ -162,6 +162,26 @@ function getUserHoverTitle(userOrAccount) {
     return rows.join('\n');
 }
 
+function buildPostgrestInFilter(values) {
+    const quotedValues = [...new Set(values.filter(Boolean))]
+        .map(value => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+    return `in.(${quotedValues.join(',')})`;
+}
+
+function mergeUserRecords(records) {
+    const merged = [];
+    records.map(normalizeUserRecord).forEach(user => {
+        if (!user.account) return;
+        const existingIndex = merged.findIndex(item => item.account === user.account || item.email === user.account);
+        if (existingIndex >= 0) {
+            merged[existingIndex] = { ...merged[existingIndex], ...user };
+        } else {
+            merged.push(user);
+        }
+    });
+    return merged;
+}
+
 function renderAnnotationSummary(annotations = {}) {
     const rows = [
         ['台語', [
@@ -697,8 +717,25 @@ async function loadDataFromSupabase(userName) {
             state.assignedPlaces = places;
             state.allPlaces = []; 
         } else {
+            const labelAccounts = [
+                state.userId,
+                ...recordsData.map(record => record.recorder_name)
+            ].filter(Boolean);
+            let labelUserRecords = [];
+            if (labelAccounts.length > 0) {
+                const userFilter = encodeURIComponent(buildPostgrestInFilter(labelAccounts));
+                const labelUsersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active,name,email,phone&account=${userFilter}`, { headers });
+                if (labelUsersRes.ok) {
+                    labelUserRecords = await labelUsersRes.json();
+                } else {
+                    console.warn('使用者顯示名稱讀取失敗，將以帳號顯示');
+                }
+            }
             state.allUsers = [];
-            state.allUserRecords = [];
+            state.allUserRecords = mergeUserRecords([
+                { account: state.userId, role: state.userRole, is_active: true, name: state.userName, email: state.userEmail },
+                ...labelUserRecords
+            ]);
             state.reviewQueue = [];
             state.assignedPlaces = places
                 .filter(place => place.assignedUsers.includes(userName));

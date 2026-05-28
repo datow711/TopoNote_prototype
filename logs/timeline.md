@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-28] [FIX]
+Browser workflow QA now runs through localhost after launching Codex as administrator. Investigator flow was checked with `tanliangkun@mail.naer.edu.tw`: login succeeded, assigned `TEST0001`-`TEST0010` stayed visible only in assigned tasks, other-place browsing excluded test rows, and console errors were clean. Fixed a name-label gap where non-admin uploaded-record history could fall back to recorder account values such as `kunui711`; non-admin sessions now load only the needed user label records while assignment/filter/RPC values remain account-based.
+
 [2026-05-28] [FEATURE]
 管理員篩選新增總表語言分級：`app_tasks_view` / `app_review_queue_view` 追加 `tai_class`、`hak_class`，前端管理員模式新增台語分級與客語分級下拉篩選，並在管理員任務列與審查摘要顯示台/客分級 badge，方便以 `直接標注`、電話調查、現場調查、原住民族等分類找地名。
 
