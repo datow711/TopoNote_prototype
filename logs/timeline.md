@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-05-29] [UI]
+管理員頁簽排版改為三等分同列顯示：「全部地名清單」、「審查清單」、「使用者管理」在管理員模式下各佔 1/3；調查員模式維持原任務/其他地名雙頁簽。篩選條件或功能頁切換時會關閉已展開的地名錄音卡片，避免切換清單後仍殘留上一筆地名的錄音操作區。
+
 [2026-05-28] [UI]
 Improved investigator audio upload UX for phone and desktop workflows where recordings may come from LINE. The recording area now has separate large entry points for on-site recording and LINE/mobile audio upload, Android/iPhone LINE save/share guidance, broader accepted audio formats, and a confirmation panel showing place, language, source, file name, and size before upload. Mobile viewport checks confirmed the new upload cards and LINE help stack to one column without horizontal overflow.
 

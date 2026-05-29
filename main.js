@@ -559,6 +559,7 @@ function configureRoleUI() {
     const tabOther = document.getElementById('tab-other');
     const tabReview = document.getElementById('tab-review');
     const tabUsers = document.getElementById('tab-users');
+    const tabContainer = document.querySelector('.tab-container');
     const assigneeFilter = document.getElementById('assignee-filter');
     const classFilterRow = document.getElementById('class-filter-row');
     const adminBar = document.getElementById('admin-assign-bar');
@@ -566,6 +567,7 @@ function configureRoleUI() {
     const filterSection = document.querySelector('.filter-section');
 
     if (state.userRole === 'admin') {
+        if (tabContainer) tabContainer.classList.add('admin-tabs');
         if (tabAssigned) tabAssigned.innerText = '全部地名清單';
         if (tabOther) {
             tabOther.style.display = 'none';
@@ -582,6 +584,7 @@ function configureRoleUI() {
         return;
     }
 
+    if (tabContainer) tabContainer.classList.remove('admin-tabs');
     if (tabAssigned) tabAssigned.innerText = '📝 任務清單';
     if (tabOther) {
         tabOther.innerText = '🌍 其他地名';
@@ -806,6 +809,7 @@ async function loadDataFromSupabase(userName) {
 // 以下為 UI 切換與篩選器邏輯 (完全保持原樣，因為資料格式已對接)
 // ==========================================
 function switchTab(tab) {
+    if (state.currentTab !== tab) closeRecordingUI();
     state.currentTab = tab;
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
@@ -814,7 +818,6 @@ function switchTab(tab) {
     syncAdminToolsForTab();
     document.getElementById('search-box').value = "";
     if (tab === 'users') {
-        document.getElementById('recording-section').style.display = 'none';
         renderAdminUserManager();
         return;
     }
@@ -841,7 +844,7 @@ function initFilters() {
         if (!assigneeSelect) {
             assigneeSelect = document.createElement('select');
             assigneeSelect.id = 'assignee-filter';
-            assigneeSelect.onchange = applyFilters; 
+            assigneeSelect.onchange = handleFilterChange;
             
             const searchBox = document.getElementById('search-box');
             searchBox.parentNode.insertBefore(assigneeSelect, searchBox);
@@ -905,17 +908,20 @@ function updateTowns() {
 function selectType(type, element) {
     state.selectedType = type;
     document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected'); applyFilters();
+    element.classList.add('selected');
+    handleFilterChange();
 }
 function selectHakArea(hakArea, element) {
     state.selectedHakArea = hakArea;
     document.querySelectorAll('.hak-area-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected'); applyFilters();
+    element.classList.add('selected');
+    handleFilterChange();
 }
 function selectStatus(status, element) {
     state.selectedStatus = status;
     document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected'); applyFilters();
+    element.classList.add('selected');
+    handleFilterChange();
 }
 function selectClassFilter(language, value) {
     if (language === 'hak') {
@@ -923,6 +929,11 @@ function selectClassFilter(language, value) {
     } else {
         state.selectedTaiClass = value;
     }
+    handleFilterChange();
+}
+
+function handleFilterChange() {
+    closeRecordingUI();
     applyFilters();
 }
 
@@ -1357,6 +1368,13 @@ function openRecordingUI(place, element) {
     
     resetRecordingState(); renderHistoryList(place.id); 
     recSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeRecordingUI() {
+    state.selectedPlace = null;
+    document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
+    const recSection = document.getElementById('recording-section');
+    if (recSection) recSection.style.display = 'none';
 }
 
 function renderHistoryList(placeId) {

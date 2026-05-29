@@ -38,12 +38,12 @@
         </div>
 
         <div class="filter-section">
-            <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="applyFilters()">
+            <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
             <div class="filter-row">
-                <select id="county-filter" onchange="updateTowns(); applyFilters()">
+                <select id="county-filter" onchange="updateTowns(); handleFilterChange()">
                     <option value="">所有縣市</option>
                 </select>
-                <select id="town-filter" onchange="applyFilters()">
+                <select id="town-filter" onchange="handleFilterChange()">
                     <option value="">所有鄉鎮</option>
                 </select>
             </div>

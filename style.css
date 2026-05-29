@@ -337,6 +337,10 @@ button:disabled {
     margin-bottom: 8px;
 }
 
+.tab-container.admin-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .tab-btn {
     min-height: 36px;
     margin: 0;
@@ -1166,6 +1170,15 @@ button:disabled {
 
     .tab-container {
         grid-template-columns: 1fr;
+    }
+
+    .tab-container.admin-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .tab-container.admin-tabs .tab-btn {
+        padding: 7px 6px;
+        font-size: 13px;
     }
 
     .audio-source-panel,
