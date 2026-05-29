@@ -1050,7 +1050,7 @@ button:disabled {
 
 .user-status-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
@@ -1100,6 +1100,45 @@ button:disabled {
     height: 20px;
     margin: 0;
     accent-color: var(--accent);
+}
+
+.delete-user-btn {
+    width: auto;
+    min-height: 30px;
+    margin: 0;
+    padding: 5px 10px;
+    border: 1px solid #ffd0d0;
+    background: #fff5f5;
+    color: var(--danger);
+    font-size: 12px;
+}
+
+.delete-user-btn:hover {
+    border-color: var(--danger);
+    background: #ffecec;
+}
+
+.review-action-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.review-passed-label {
+    color: var(--accent-deep);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.review-revoke-btn {
+    width: auto;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 14px;
+    border: 1px solid #ffd0d0;
+    background: #fff5f5;
+    color: var(--danger);
+    border-radius: 9999px;
 }
 
 .empty-state {
@@ -1176,7 +1215,8 @@ button:disabled {
         align-items: flex-start;
     }
 
-    .review-approve-btn {
+    .review-approve-btn,
+    .review-revoke-btn {
         width: 100%;
     }
 

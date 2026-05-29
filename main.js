@@ -558,11 +558,12 @@ function configureRoleUI() {
     const tabAssigned = document.getElementById('tab-assigned');
     const tabOther = document.getElementById('tab-other');
     const tabReview = document.getElementById('tab-review');
+    const tabUsers = document.getElementById('tab-users');
     const assigneeFilter = document.getElementById('assignee-filter');
     const classFilterRow = document.getElementById('class-filter-row');
     const adminBar = document.getElementById('admin-assign-bar');
-    const userManager = document.getElementById('admin-user-manager');
     const appSection = document.getElementById('app-section');
+    const filterSection = document.querySelector('.filter-section');
 
     if (state.userRole === 'admin') {
         if (tabAssigned) tabAssigned.innerText = '全部地名清單';
@@ -574,7 +575,10 @@ function configureRoleUI() {
             tabReview.classList.remove('hidden');
             tabReview.style.display = '';
         }
-        renderAdminUserManager();
+        if (tabUsers) {
+            tabUsers.classList.remove('hidden');
+            tabUsers.style.display = '';
+        }
         return;
     }
 
@@ -587,25 +591,20 @@ function configureRoleUI() {
         tabReview.classList.add('hidden');
         tabReview.classList.remove('active');
     }
+    if (tabUsers) {
+        tabUsers.classList.add('hidden');
+        tabUsers.classList.remove('active');
+    }
     if (assigneeFilter) assigneeFilter.remove();
     if (classFilterRow) classFilterRow.remove();
     if (adminBar) adminBar.remove();
-    if (userManager) userManager.remove();
     if (appSection) appSection.style.paddingBottom = '';
+    if (filterSection) filterSection.classList.remove('hidden');
 }
 
 function renderAdminUserManager() {
     if (state.userRole !== 'admin') return;
-
-    let panel = document.getElementById('admin-user-manager');
-    if (!panel) {
-        panel = document.createElement('section');
-        panel.id = 'admin-user-manager';
-        panel.className = 'card';
-        const appSection = document.getElementById('app-section');
-        const tabContainer = document.querySelector('.tab-container');
-        appSection.insertBefore(panel, tabContainer);
-    }
+    const container = document.getElementById('place-list-container');
 
     const investigators = state.allUserRecords.filter(user => user.role !== 'admin');
     const body = investigators.length === 0
@@ -613,7 +612,7 @@ function renderAdminUserManager() {
         : investigators.map(user => {
             const hoverTitle = getUserHoverTitle(user);
             return `
-            <label class="user-status-row">
+            <div class="user-status-row">
                 <span class="user-identity" title="${escapeHtml(hoverTitle)}">
                     <span class="user-name">${escapeHtml(user.name || user.account)}</span>
                     <span class="user-email">${escapeHtml(user.email || user.account)}</span>
@@ -621,16 +620,19 @@ function renderAdminUserManager() {
                 </span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
-            </label>
+                <button class="delete-user-btn" type="button" onclick="deleteInvestigatorUser('${user.id}', this)">刪除</button>
+            </div>
         `;
         }).join('');
 
-    panel.innerHTML = `
-        <div class="admin-user-manager-header">
-            <h3>調查員帳號狀態</h3>
-            <button class="btn-secondary refresh-users-btn" onclick="refreshAdminUsers()">重新整理</button>
-        </div>
-        <div class="user-status-list">${body}</div>
+    container.innerHTML = `
+        <section id="admin-user-manager" class="card">
+            <div class="admin-user-manager-header">
+                <h3>調查員帳號狀態</h3>
+                <button class="btn-secondary refresh-users-btn" onclick="refreshAdminUsers()">重新整理</button>
+            </div>
+            <div class="user-status-list">${body}</div>
+        </section>
     `;
 }
 
@@ -668,13 +670,57 @@ async function toggleInvestigatorActive(userId, isActive, checkbox) {
     }
 }
 
+async function deleteInvestigatorUser(userId, button) {
+    const user = state.allUserRecords.find(record => record.id === userId);
+    const displayName = user ? (user.name || user.account) : '這位調查員';
+    const account = user ? (user.email || user.account) : userId;
+    const confirmText = 'delete user confirm';
+    const input = prompt(`確定要刪除「${displayName}」嗎？\n\n這會移除調查員帳號，並停用他目前的任務指派。\n如果 Places 的 Users 表仍保留這位使用者，下次同步可能會重新建立。\n若要繼續，請輸入：${confirmText}\n\n帳號：${account}`);
+
+    if (input !== confirmText) {
+        if (input !== null) alert('指令不一致，已取消刪除。');
+        return;
+    }
+
+    const originalText = button.innerText;
+    button.innerText = '刪除中...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/delete_investigator_user`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                p_user_id: userId,
+                p_actor_account: state.userId
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+        alert(`已刪除「${displayName}」。`);
+        await refreshAdminUsers();
+    } catch (err) {
+        console.error('刪除調查員失敗:', err);
+        alert(`刪除調查員失敗：${err.message}`);
+        button.innerText = originalText;
+        button.disabled = false;
+    }
+}
+
 function syncAdminToolsForTab() {
     if (state.userRole !== 'admin') return;
 
     const adminBar = document.getElementById('admin-assign-bar');
     const appSection = document.getElementById('app-section');
+    const filterSection = document.querySelector('.filter-section');
 
-    if (state.currentTab === 'review') {
+    if (filterSection) filterSection.classList.toggle('hidden', state.currentTab === 'users');
+
+    if (state.currentTab === 'review' || state.currentTab === 'users') {
         if (adminBar) adminBar.style.display = 'none';
         if (appSection) appSection.style.paddingBottom = '';
         return;
@@ -764,8 +810,15 @@ function switchTab(tab) {
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
     document.getElementById('tab-review')?.classList.toggle('active', tab === 'review');
+    document.getElementById('tab-users')?.classList.toggle('active', tab === 'users');
     syncAdminToolsForTab();
-    document.getElementById('search-box').value = ""; applyFilters();
+    document.getElementById('search-box').value = "";
+    if (tab === 'users') {
+        document.getElementById('recording-section').style.display = 'none';
+        renderAdminUserManager();
+        return;
+    }
+    applyFilters();
 }
 // 🌟 更新版：初始化篩選器
 function initFilters() {
@@ -801,7 +854,9 @@ function initFilters() {
 
         initClassFilters();
                                    
-        renderAdminBatchAssignUI(); 
+        if (state.currentTab !== 'review' && state.currentTab !== 'users') {
+            renderAdminBatchAssignUI();
+        }
     }
 }
 
@@ -873,6 +928,11 @@ function selectClassFilter(language, value) {
 
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
+    if (state.currentTab === 'users') {
+        renderAdminUserManager();
+        return;
+    }
+
     const keyword = document.getElementById('search-box').value.toLowerCase();
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
@@ -1113,9 +1173,12 @@ function renderReviewLanguageBlock(place, language, records) {
         <section class="review-language">
             <div class="review-language-header">
                 <h4>${language}錄音</h4>
-                <button class="review-approve-btn" ${isDone ? 'disabled' : ''} onclick="approveReviewLanguage(${place.id}, '${language}', this)">
-                    ${isDone ? '已通過' : '審查通過'}
-                </button>
+                <div class="review-action-group">
+                    ${isDone
+                        ? `<span class="review-passed-label">已通過</span><button class="review-revoke-btn" onclick="revokeReviewLanguage(${place.id}, '${language}', this)">撤回審查</button>`
+                        : `<button class="review-approve-btn" onclick="approveReviewLanguage(${place.id}, '${language}', this)">審查通過</button>`
+                    }
+                </div>
             </div>
             ${renderReviewRecordTable(place.id, languageKey, records, fields)}
             ${renderFinalReviewFields(place.id, languageKey, fields, isDone)}
@@ -1156,6 +1219,41 @@ async function approveReviewLanguage(taskId, language, button) {
     } catch (err) {
         console.error('審查寫入失敗:', err);
         alert(`審查寫入失敗：${err.message}`);
+        button.innerText = originalText;
+        button.disabled = false;
+    }
+}
+
+async function revokeReviewLanguage(taskId, language, button) {
+    if (!confirm(`確定撤回這筆地名的${language}審查通過狀態嗎？`)) return;
+
+    const originalText = button.innerText;
+    button.innerText = '撤回中...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/revoke_task_language_review`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                p_task_id: Number(taskId),
+                p_language: language,
+                p_reviewed_by: state.userId
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        alert(`${language}審查已撤回。`);
+        await loadDataFromSupabase(state.userId);
+        applyFilters();
+    } catch (err) {
+        console.error('撤回審查失敗:', err);
+        alert(`撤回審查失敗：${err.message}`);
         button.innerText = originalText;
         button.disabled = false;
     }

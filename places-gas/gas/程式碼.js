@@ -585,11 +585,29 @@ function getReviewUpdatedStamp_(review) {
   return 'APP審查通過|' + reviewer + '|' + reviewedAt;
 }
 
+function getReviewRevokedStamp_(review) {
+  var reviewedAt = review.reviewed_at ? String(review.reviewed_at) : new Date().toISOString();
+  var reviewer = review.reviewed_by ? String(review.reviewed_by) : 'APP';
+  return 'APP審查撤回|' + reviewer + '|' + reviewedAt;
+}
+
 function buildReviewSheetUpdate_(review) {
   var annotations = parseAudioAnnotations_(review.audio_note);
   var finalFields = parseFinalReviewFields_(review.final_fields);
   var updateData = {};
   var stamp = getReviewUpdatedStamp_(review);
+
+  if (review.app_state !== REVIEW_DONE_STATE) {
+    var revokedStamp = getReviewRevokedStamp_(review);
+    if (review.language === '台語') {
+      updateData.T_State = '待審查';
+      updateData.T_UpdatedAt = revokedStamp;
+    } else if (review.language === '客語') {
+      updateData.H_State = '待審查';
+      updateData.H_UpdatedAt = revokedStamp;
+    }
+    return updateData;
+  }
 
   if (review.language === '台語') {
     updateData.TaiHan1 = finalFieldValue_(finalFields, 'TaiHan1', firstNonEmpty_(annotations.taihan, review.taihan));
