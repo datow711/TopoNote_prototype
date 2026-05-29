@@ -640,6 +640,54 @@ function applyReviewUpdateToSheet_(sheet, headerMap, rowNumber, updateData) {
   });
 }
 
+function getReviewStampHeader_(language) {
+  return language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
+}
+
+function getReviewSourceStamp_(review) {
+  return review.language === '台語'
+    ? String(review.t_updated_at || '').trim()
+    : String(review.h_updated_at || '').trim();
+}
+
+function getSheetStamp_(sheet, headerMap, rowNumber, language) {
+  var header = getReviewStampHeader_(language);
+  if (!headerMap[header]) return '';
+  return String(sheet.getRange(rowNumber, headerMap[header]).getDisplayValue() || '').trim();
+}
+
+function buildReviewConflictWarning_(review, currentStamp, expectedStamp) {
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  return [
+    'APP回寫衝突',
+    review.language || '',
+    review.reviewed_by || 'APP',
+    stamp,
+    'Sheet=' + (currentStamp || '空白'),
+    'Supabase=' + (expectedStamp || '空白')
+  ].join('|');
+}
+
+function writeReviewConflictWarning_(sheet, headerMap, rowNumber, warning) {
+  if (!headerMap['同步警告']) return;
+  sheet.getRange(rowNumber, headerMap['同步警告']).setValue(warning);
+}
+
+function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
+  var expectedStamp = getReviewSourceStamp_(review);
+  var currentStamp = getSheetStamp_(sheet, headerMap, rowNumber, review.language);
+
+  if (!expectedStamp || !currentStamp || expectedStamp === currentStamp) {
+    return null;
+  }
+
+  return {
+    expectedStamp: expectedStamp,
+    currentStamp: currentStamp,
+    warning: buildReviewConflictWarning_(review, currentStamp, expectedStamp)
+  };
+}
+
 function fetchPendingReviewSheetSyncs_() {
   var supabase = getSupabaseConfig_();
   var url = supabase.url + '/rest/v1/app_sheet_sync_queue?select=*&order=source_table.asc,source_id.asc,language.asc';
@@ -715,6 +763,13 @@ function syncApprovedReviewsToSheets() {
 
       if (!rowNumber) {
         skipped.push(review.source_id + '：' + sheetName + ' 找不到 UUID');
+        return;
+      }
+
+      var conflict = detectReviewSheetConflict_(sheet, headerMap, rowNumber, review);
+      if (conflict) {
+        writeReviewConflictWarning_(sheet, headerMap, rowNumber, conflict.warning);
+        skipped.push(review.source_id + '：' + review.language + ' 回寫衝突，Sheet 已有較新更新，已略過。');
         return;
       }
 
