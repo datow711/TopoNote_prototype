@@ -1,7 +1,7 @@
 # Project Timeline
 
 [2026-05-29] [AUDIT]
-稽核目前 Sheet / Supabase / APP / GAS 資料流並產出 `docs/current-operation-flow.md`。Live read-only 檢查確認 APP-facing views 只暴露 `third_phase_places` 與 `test_places`，`app_sheet_sync_queue` 當下為空，Sheet 端有 `T_UpdatedAt/H_UpdatedAt/同步警告` 欄位可用於衝突偵測。稽核結論：目前正式回寫路徑尚未在 live 環境比對 Sheet 更新戳，若 Sheet 在 APP 審查後又被人工修改，存在被 APP 回寫覆蓋的風險；本機已草擬 conflict-detection patch，但尚未套用 live Supabase/GAS，需使用者明確同意。
+稽核目前 Sheet / Supabase / APP / GAS 資料流並產出 `docs/current-operation-flow.md`。Live read-only 檢查確認 APP-facing views 只暴露 `third_phase_places` 與 `test_places`，`app_sheet_sync_queue` 當下為空，Sheet 端有 `T_UpdatedAt/H_UpdatedAt/同步警告` 欄位可用於衝突偵測。稽核先發現正式回寫路徑尚未比對 Sheet 更新戳；之後已在使用者明確要求下套用 Supabase migration 並 `clasp push` GAS，APP review writeback 現在會在寫 Sheet 前比對語言更新戳，衝突時略過回寫並寫入 `同步警告`。
 
 [2026-05-29] [UI]
 管理員頁簽排版改為三等分同列顯示：「全部地名清單」、「審查清單」、「使用者管理」在管理員模式下各佔 1/3；調查員模式維持原任務/其他地名雙頁簽。篩選條件或功能頁切換時會關閉已展開的地名錄音卡片，避免切換清單後仍殘留上一筆地名的錄音操作區。

@@ -23,8 +23,8 @@
 - `AuditLogger.js` stamps `T_UpdatedAt` / `H_UpdatedAt` when monitored Sheet columns change, assuming the installable trigger is active.
 - APP-facing views currently expose `third_phase_places` and `test_places`, not legacy `moi_placename_raw`.
 - `app_sheet_sync_queue` was empty at audit time.
-- The live writeback flow does not yet compare Sheet stamps before writing APP review results back to Sheet.
-- Therefore, if Sheet rows are edited after the Supabase snapshot used for APP review, APP review writeback can overwrite newer Sheet edits.
+- The initial live writeback flow did not compare Sheet stamps before writing APP review results back to Sheet.
+- A follow-up deployment added stamp comparison so APP review writeback now skips rows whose Sheet stamp differs from the Supabase snapshot and writes a conflict warning.
 
 ## Output
 
@@ -32,7 +32,8 @@
 - Drafted a local conflict-detection patch:
   - `db/2026-05-29_review_sheet_conflict_detection.sql`
   - `places-gas/gas/程式碼.js`
-- The live Supabase migration attempt was rejected by safety review because the user asked for audit/documentation, not explicit production schema modification. The patch remains local pending explicit approval.
+- The initial live Supabase migration attempt was rejected by safety review because the user asked for audit/documentation, not explicit production schema modification.
+- After explicit user approval, `review_sheet_conflict_detection` was applied to Supabase and GAS was pushed with `npx.cmd clasp push`.
 
 ## Verification
 

@@ -50,7 +50,6 @@ select
   src.tai_class,
   src.t_state,
   src.t_annotator,
-  src.t_updated_at,
   src.honzii,
   src.hp1,
   src.hp2,
@@ -60,6 +59,7 @@ select
   src.hak_class,
   src.h_state,
   src.h_annotator,
+  src.t_updated_at,
   src.h_updated_at,
   src.sync_warning
 from public.task_language_reviews tlr

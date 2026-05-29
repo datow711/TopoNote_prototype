@@ -161,7 +161,7 @@ The system now has the columns needed to detect conflict:
 - `third_phase_places` and `test_places` store `t_updated_at` and `h_updated_at`.
 - `AuditLogger.js` updates those Sheet stamps when monitored Sheet cells change, assuming the installable `onEdit` trigger is active.
 
-However, before this audit, the live writeback path did not compare those stamps before writing APP review results back to Sheet.
+After the 2026-05-29 deployment, the live writeback path compares those stamps before writing APP review results back to Sheet.
 
 Risk scenario:
 
@@ -171,7 +171,7 @@ Risk scenario:
 4. GAS runs APP review writeback.
 5. Without stamp comparison, GAS can overwrite the newer Sheet edit with the APP review result from the older Supabase snapshot.
 
-This is the main "old data overwrites new data" risk.
+This was the main "old data overwrites new data" risk. The deployed conflict-detection rule now blocks the silent overwrite path when both stamps are present and differ.
 
 ## Conflict detection rule that should be enforced
 
@@ -197,13 +197,14 @@ Limitation:
 
 ## Current recommendation
 
-Do not treat the current live flow as fully conflict-safe until the conflict detection migration and GAS update are explicitly approved and deployed.
+Treat the current live flow as conflict-aware for APP review writeback, with one important condition: the Sheet update stamps must be present and current.
 
-The safe operational sequence for now is:
+The safe operational sequence is:
 
-1. Before running APP review writeback, avoid manual edits to the same reviewed rows in `第三期工作清單` or `TestEntries`.
-2. If manual edits happened, sync Sheet to Supabase first and re-check the APP review queue before approving/writeback.
-3. Prefer applying the conflict detection patch before relying on routine two-way operations.
+1. Keep the `AuditLogger` installable `onEdit` trigger active so manual Sheet edits update `T_UpdatedAt` / `H_UpdatedAt`.
+2. When GAS reports APP writeback conflicts, inspect `同步警告`.
+3. Resolve the conflict manually in Sheet or APP, then rerun Sheet -> Supabase sync before attempting APP review writeback again.
+4. If a row has missing update stamps, treat it as lower confidence and avoid concurrent Sheet edits while APP review is pending.
 
 ## Verification commands used in this audit
 
