@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-01] [GAS]
+Added a daily prework Sheet/Supabase alignment runner in Places GAS. The new `runDailyPreworkSync` uses a script lock, writes `LAST_DAILY_PREWORK_SYNC`, and runs APP review writeback before refreshing `third_phase_places`, `final_tasks`, and Users from Sheet. Added install/remove/status GAS helpers for the daily 06:30 Asia/Taipei trigger.
+
 [2026-05-29] [AUDIT]
 稽核目前 Sheet / Supabase / APP / GAS 資料流並產出 `docs/current-operation-flow.md`。Live read-only 檢查確認 APP-facing views 只暴露 `third_phase_places` 與 `test_places`，`app_sheet_sync_queue` 當下為空，Sheet 端有 `T_UpdatedAt/H_UpdatedAt/同步警告` 欄位可用於衝突偵測。稽核先發現正式回寫路徑尚未比對 Sheet 更新戳；之後已在使用者明確要求下套用 Supabase migration 並 `clasp push` GAS，APP review writeback 現在會在寫 Sheet 前比對語言更新戳，衝突時略過回寫並寫入 `同步警告`。
 

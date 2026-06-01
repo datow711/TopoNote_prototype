@@ -7,6 +7,9 @@ var DEFAULT_SUPABASE_URL = 'https://sikconjhtomqdkicbjal.supabase.co';
 var THIRD_PHASE_SHEET_NAME = '第三期工作清單';
 var TEST_ENTRIES_SHEET_NAME = 'TestEntries';
 var REVIEW_DONE_STATE = '已完成標注';
+var DAILY_PREWORK_SYNC_HANDLER = 'runDailyPreworkSync';
+var DAILY_PREWORK_SYNC_HOUR = 6;
+var DAILY_PREWORK_SYNC_MINUTE = 30;
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
@@ -44,6 +47,136 @@ function getSupabaseHeaders_(supabase, extraHeaders) {
   return headers;
 }
 
+function notify_(message, options) {
+  Logger.log(message);
+  if (options && options.silent) return message;
+
+  try {
+    SpreadsheetApp.getUi().alert(message);
+  } catch (e) {
+    Logger.log('UI notification skipped: ' + e.message);
+  }
+
+  return message;
+}
+
+function handleSyncError_(label, error, options) {
+  var message = '❌ ' + label + '失敗: ' + error.message;
+  notify_(message, options);
+  if (options && options.throwErrors) throw error;
+  return message;
+}
+
+function failSyncCondition_(message, options) {
+  notify_(message, options);
+  if (options && options.throwErrors) throw new Error(message);
+  return message;
+}
+
+function runSyncStep_(label, fn, options) {
+  var startedAt = new Date();
+  Logger.log('[DailyPreworkSync] start: ' + label);
+  var result = fn(options || {});
+  Logger.log('[DailyPreworkSync] done: ' + label);
+  return {
+    label: label,
+    result: result || '',
+    started_at: startedAt.toISOString(),
+    finished_at: new Date().toISOString()
+  };
+}
+
+function runDailyPreworkSync() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    Logger.log('[DailyPreworkSync] skipped: another sync is running.');
+    return 'skipped: another sync is running';
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  var startedAt = new Date();
+  var steps = [];
+
+  try {
+    var options = { silent: true, throwErrors: true };
+    steps.push(runSyncStep_('APP審查回寫至 Sheet', syncApprovedReviewsToSheets, options));
+    steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
+    steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
+    steps.push(runSyncStep_('Users 同步至 Supabase', syncUsersToSupabase, options));
+
+    var summary = {
+      status: 'success',
+      started_at: startedAt.toISOString(),
+      finished_at: new Date().toISOString(),
+      steps: steps
+    };
+    props.setProperty('LAST_DAILY_PREWORK_SYNC', JSON.stringify(summary));
+    Logger.log('[DailyPreworkSync] success: ' + JSON.stringify(summary));
+    return JSON.stringify(summary);
+  } catch (e) {
+    var failure = {
+      status: 'failed',
+      started_at: startedAt.toISOString(),
+      finished_at: new Date().toISOString(),
+      error: e.message,
+      steps: steps
+    };
+    props.setProperty('LAST_DAILY_PREWORK_SYNC', JSON.stringify(failure));
+    Logger.log('[DailyPreworkSync] failed: ' + JSON.stringify(failure));
+    throw e;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function installDailyPreworkSyncTrigger() {
+  removeDailyPreworkSyncTriggers();
+  ScriptApp.newTrigger(DAILY_PREWORK_SYNC_HANDLER)
+    .timeBased()
+    .everyDays(1)
+    .atHour(DAILY_PREWORK_SYNC_HOUR)
+    .nearMinute(DAILY_PREWORK_SYNC_MINUTE)
+    .create();
+
+  return notify_('✅ 已建立每日上班前同步排程：Asia/Taipei 約 06:30 執行。');
+}
+
+function removeDailyPreworkSyncTriggers() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var removed = 0;
+  triggers.forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === DAILY_PREWORK_SYNC_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  Logger.log('[DailyPreworkSync] removed triggers: ' + removed);
+  return removed;
+}
+
+function getDailyPreworkSyncStatus() {
+  var triggers = ScriptApp.getProjectTriggers()
+    .filter(function(trigger) {
+      return trigger.getHandlerFunction() === DAILY_PREWORK_SYNC_HANDLER;
+    })
+    .map(function(trigger) {
+      return {
+        handler: trigger.getHandlerFunction(),
+        source: String(trigger.getTriggerSource()),
+        event_type: String(trigger.getEventType()),
+        unique_id: trigger.getUniqueId()
+      };
+    });
+
+  return JSON.stringify({
+    handler: DAILY_PREWORK_SYNC_HANDLER,
+    intended_time: 'Asia/Taipei about 06:30, before 07:30',
+    trigger_count: triggers.length,
+    triggers: triggers,
+    last_run: PropertiesService.getScriptProperties().getProperty('LAST_DAILY_PREWORK_SYNC') || ''
+  });
+}
+
 // ==========================================
 // 2. 自訂選單 (整合新舊功能)
 // ==========================================
@@ -63,6 +196,9 @@ function onOpen() {
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
     .addItem('5. 回寫 APP 審查結果至工作表', 'syncApprovedReviewsToSheets')
+    .addSeparator()
+    .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
+    .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
     .addSeparator()
     .addSubMenu(ui.createMenu('🧪 TestEntries')
       .addItem('建立/修正 TestEntries 表頭', 'setupTestEntriesSheet'))
@@ -295,12 +431,12 @@ function normalizeUserActive_(value) {
   return true;
 }
 
-function syncUsersToSupabase() {
+function syncUsersToSupabase(options) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
-  if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到 Users 工作表。');
+  if (!sheet) return failSyncCondition_('❌ 找不到 Users 工作表。', options);
 
   var data = sheet.getDataRange().getValues();
-  if (data.length < 2) return SpreadsheetApp.getUi().alert('沒有 Users 資料可同步。');
+  if (data.length < 2) return notify_('沒有 Users 資料可同步。', options);
 
   var headers = data[0].map(function(header) {
     return String(header).trim();
@@ -314,7 +450,7 @@ function syncUsersToSupabase() {
     return colMap[header] === undefined;
   });
   if (missingHeaders.length > 0) {
-    return SpreadsheetApp.getUi().alert('❌ Users 缺少欄位：' + missingHeaders.join(', '));
+    return failSyncCondition_('❌ Users 缺少欄位：' + missingHeaders.join(', '), options);
   }
 
   var payload = [];
@@ -350,33 +486,33 @@ function syncUsersToSupabase() {
     });
   }
 
-  if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有可同步的有效 Users 資料。');
+  if (payload.length === 0) return notify_('沒有可同步的有效 Users 資料。', options);
 
   try {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/rpc/sync_sheet_users';
-    var options = {
+    var requestOptions = {
       method: 'post',
       contentType: 'application/json',
       headers: getSupabaseHeaders_(supabase),
       payload: JSON.stringify({ p_users: payload }),
       muteHttpExceptions: true
     };
-    var response = UrlFetchApp.fetch(url, options);
+    var response = UrlFetchApp.fetch(url, requestOptions);
     var statusCode = response.getResponseCode();
     if (statusCode < 200 || statusCode >= 300) {
       throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
     }
 
-    SpreadsheetApp.getUi().alert('✅ 已同步 ' + payload.length + ' 位 Users 至 Supabase。略過 ' + skipped + ' 列缺少 email/name 的資料。');
+    return notify_('✅ 已同步 ' + payload.length + ' 位 Users 至 Supabase。略過 ' + skipped + ' 列缺少 email/name 的資料。', options);
   } catch (e) {
-    SpreadsheetApp.getUi().alert('❌ Users 同步失敗: ' + e.message);
+    return handleSyncError_('Users 同步', e, options);
   }
 }
 
-function syncThirdPhasePlacesToSupabase() {
+function syncThirdPhasePlacesToSupabase(options) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('第三期工作清單');
-  if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到「第三期工作清單」工作表！');
+  if (!sheet) return failSyncCondition_('❌ 找不到「第三期工作清單」工作表！', options);
 
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
@@ -430,21 +566,21 @@ function syncThirdPhasePlacesToSupabase() {
     });
   }
 
-  if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有第三期清冊資料可同步。');
+  if (payload.length === 0) return notify_('沒有第三期清冊資料可同步。', options);
 
   try {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/third_phase_places?on_conflict=uuid';
     postSupabaseBatches_(url, payload, 'resolution=merge-duplicates');
-    SpreadsheetApp.getUi().alert('✅ 已同步 ' + payload.length + ' 筆第三期完整清冊至 Supabase。');
+    return notify_('✅ 已同步 ' + payload.length + ' 筆第三期完整清冊至 Supabase。', options);
   } catch (e) {
-    SpreadsheetApp.getUi().alert('❌ 第三期清冊同步失敗: ' + e.message);
+    return handleSyncError_('第三期清冊同步', e, options);
   }
 }
 
-function syncFinalTasksToSupabase() {
+function syncFinalTasksToSupabase(options) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('第三期工作清單');
-  if (!sheet) return SpreadsheetApp.getUi().alert('❌ 找不到「第三期工作清單」工作表！');
+  if (!sheet) return failSyncCondition_('❌ 找不到「第三期工作清單」工作表！', options);
   
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
@@ -468,15 +604,15 @@ function syncFinalTasksToSupabase() {
     }
   }
 
-  if (payload.length === 0) return SpreadsheetApp.getUi().alert('沒有資料可同步。');
+  if (payload.length === 0) return notify_('沒有資料可同步。', options);
 
   try {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/final_tasks?on_conflict=source_id,source_table';
     postSupabaseBatches_(url, payload, 'resolution=merge-duplicates');
-    SpreadsheetApp.getUi().alert('🚀 成功將 ' + payload.length + ' 筆第三期任務索引同步至 Supabase！');
+    return notify_('🚀 成功將 ' + payload.length + ' 筆第三期任務索引同步至 Supabase！', options);
   } catch (e) {
-    SpreadsheetApp.getUi().alert('❌ 同步失敗: ' + e.message);
+    return handleSyncError_('第三期任務索引同步', e, options);
   }
 }
 
@@ -724,11 +860,11 @@ function markReviewsSheetSynced_(reviewIds) {
   return Number(response.getContentText() || 0);
 }
 
-function syncApprovedReviewsToSheets() {
+function syncApprovedReviewsToSheets(options) {
   try {
     var rows = fetchPendingReviewSheetSyncs_();
     if (!rows || rows.length === 0) {
-      return SpreadsheetApp.getUi().alert('沒有待回寫的 APP 審查結果。');
+      return notify_('沒有待回寫的 APP 審查結果。', options);
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -780,9 +916,9 @@ function syncApprovedReviewsToSheets() {
     var marked = markReviewsSheetSynced_(syncedReviewIds);
     var message = '✅ APP 審查結果回寫完成：' + syncedReviewIds.length + ' 筆；已清除待同步標記：' + marked + ' 筆。';
     if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
-    SpreadsheetApp.getUi().alert(message);
+    return notify_(message, options);
   } catch (e) {
-    SpreadsheetApp.getUi().alert('❌ APP 審查結果回寫失敗: ' + e.message);
+    return handleSyncError_('APP 審查結果回寫', e, options);
   }
 }
 

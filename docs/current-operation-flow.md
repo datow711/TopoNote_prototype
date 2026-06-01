@@ -206,6 +206,39 @@ The safe operational sequence is:
 3. Resolve the conflict manually in Sheet or APP, then rerun Sheet -> Supabase sync before attempting APP review writeback again.
 4. If a row has missing update stamps, treat it as lower confidence and avoid concurrent Sheet edits while APP review is pending.
 
+## Daily prework sync
+
+The ideal daily alignment is now a single GAS time-driven trigger instead of several separate triggers.
+
+Schedule:
+
+- Handler: `runDailyPreworkSync`
+- Intended time: Asia/Taipei about 06:30 every day, before the 07:30 workday target
+- Installer: run GAS function `installDailyPreworkSyncTrigger` once
+- Removal: run GAS function `removeDailyPreworkSyncTriggers`
+- Status: run GAS function `getDailyPreworkSyncStatus`
+- If `clasp run` is unavailable, open the Apps Script editor and run `installDailyPreworkSyncTrigger` manually once.
+
+Execution order:
+
+1. APP review results -> Sheet: `syncApprovedReviewsToSheets({ silent: true, throwErrors: true })`
+2. Sheet source snapshot -> Supabase: `syncThirdPhasePlacesToSupabase({ silent: true, throwErrors: true })`
+3. Sheet task index -> Supabase: `syncFinalTasksToSupabase({ silent: true, throwErrors: true })`
+4. Users Sheet -> Supabase: `syncUsersToSupabase({ silent: true, throwErrors: true })`
+
+Why this order:
+
+- Pending APP review writebacks are attempted first, using the conflict check against `T_UpdatedAt` / `H_UpdatedAt`.
+- If a Sheet row changed after the APP review snapshot, GAS writes `同步警告`, skips that row, and keeps the Supabase queue pending.
+- Only after writeback attempts does GAS refresh the Supabase source snapshot from Sheet, so Sheet remains the daily morning baseline.
+- The script uses `LockService.getScriptLock()` so a manual sync and the daily sync cannot run at the same time.
+
+Operational notes:
+
+- Apps Script time triggers are approximate, so 06:30 means around 06:30, not exactly to the minute.
+- The AuditLogger installable `onEdit` trigger must remain active; otherwise manual Sheet edits may not update `T_UpdatedAt` / `H_UpdatedAt`, reducing conflict detection confidence.
+- The last run summary is stored in Script Properties as `LAST_DAILY_PREWORK_SYNC`.
+
 ## Verification commands used in this audit
 
 ```powershell
