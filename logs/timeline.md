@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-08] [FEATURE]
+新增管理員撤回地名指派流程。前端地名卡片的已指派調查員 chip 現在可單筆撤回，底部批次工具列也可對勾選地名執行「撤回指派」。Supabase 新增 `unassign_tasks_from_user()` RPC 與 `app_assignment_sheet_view`；Places GAS 新增 `syncTaskAssignmentsToSheets()`、選單項目與每日同步步驟，會將 APP 指派狀態回寫到 `第三期工作清單` / `TestEntries` 的 `AssignedUsers` 與 `AssignmentSyncedAt` 欄位。
+
 [2026-06-01] [GAS]
 Added a daily prework Sheet/Supabase alignment runner in Places GAS. The new `runDailyPreworkSync` uses a script lock, writes `LAST_DAILY_PREWORK_SYNC`, and runs APP review writeback before refreshing `third_phase_places`, `final_tasks`, and Users from Sheet. Added install/remove/status GAS helpers for the daily 06:30 Asia/Taipei trigger.
 

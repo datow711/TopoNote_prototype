@@ -559,10 +559,39 @@ button:disabled {
 .assigned-user-chip {
     display: inline-flex;
     align-items: center;
+    gap: 3px;
     max-width: 120px;
+    min-height: 22px;
+}
+
+.assigned-user-name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.unassign-user-btn {
+    display: inline-flex;
+    flex: 0 0 18px;
+    width: 18px;
+    min-height: 18px;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #d6c4ff;
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--accent-purple);
+    font-size: 13px;
+    line-height: 1;
+}
+
+.unassign-user-btn:hover {
+    border-color: var(--danger);
+    background: #fff5f5;
+    color: var(--danger);
 }
 
 .unassigned-badge {
@@ -992,6 +1021,17 @@ button:disabled {
 .assign-submit {
     background: var(--accent);
     color: var(--ink);
+}
+
+.unassign-submit {
+    border-color: #ffd0d0;
+    background: #fff5f5;
+    color: var(--danger);
+}
+
+.unassign-submit:hover {
+    border-color: var(--danger);
+    background: #ffecec;
 }
 
 .assign-hint {

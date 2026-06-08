@@ -15,8 +15,9 @@ var TEST_ENTRY_HEADERS = [
   'PlaceName', 'Info',
   'TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote', 'TaiClass', 'T_State', 'T_Annotator', 'T_CreatedAt', 'T_UpdatedAt',
   'Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote', 'HakClass', 'H_State', 'H_Annotator', 'H_CreatedAt', 'H_UpdatedAt',
-  '同步警告'
+  '同步警告', 'AssignedUsers', 'AssignmentSyncedAt'
 ];
+var ASSIGNMENT_SYNC_HEADERS = ['AssignedUsers', 'AssignmentSyncedAt'];
 
 function getSupabaseConfig_() {
   var props = PropertiesService.getScriptProperties();
@@ -100,6 +101,7 @@ function runDailyPreworkSync() {
   try {
     var options = { silent: true, throwErrors: true };
     steps.push(runSyncStep_('APP審查回寫至 Sheet', syncApprovedReviewsToSheets, options));
+    steps.push(runSyncStep_('APP指派狀態回寫至 Sheet', syncTaskAssignmentsToSheets, options));
     steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
     steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
     steps.push(runSyncStep_('Users 同步至 Supabase', syncUsersToSupabase, options));
@@ -196,6 +198,7 @@ function onOpen() {
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
     .addItem('5. 回寫 APP 審查結果至工作表', 'syncApprovedReviewsToSheets')
+    .addItem('6. 回寫 APP 指派狀態至工作表', 'syncTaskAssignmentsToSheets')
     .addSeparator()
     .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
     .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
@@ -642,6 +645,23 @@ function getSheetHeaderMap_(sheet) {
   return map;
 }
 
+function ensureSheetHeaders_(sheet, headers) {
+  var headerMap = getSheetHeaderMap_(sheet);
+  var missing = headers.filter(function(header) {
+    return !headerMap[header];
+  });
+
+  if (missing.length > 0) {
+    var startCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, startCol, 1, missing.length).setFontWeight('bold');
+    sheet.autoResizeColumns(startCol, missing.length);
+    headerMap = getSheetHeaderMap_(sheet);
+  }
+
+  return headerMap;
+}
+
 function findRowByUuid_(sheet, headerMap, uuid) {
   var uuidCol = headerMap.UUID;
   if (!uuidCol) throw new Error(sheet.getName() + ' 缺少 UUID 欄位。');
@@ -822,6 +842,76 @@ function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
     currentStamp: currentStamp,
     warning: buildReviewConflictWarning_(review, currentStamp, expectedStamp)
   };
+}
+
+function fetchTaskAssignmentSheetRows_() {
+  var supabase = getSupabaseConfig_();
+  var url = supabase.url + '/rest/v1/app_assignment_sheet_view?select=source_id,source_table,assigned_users_text&order=source_table.asc,source_id.asc';
+  var options = {
+    method: 'get',
+    headers: getSupabaseHeaders_(supabase),
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(url, options);
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  return JSON.parse(response.getContentText());
+}
+
+function syncTaskAssignmentsToSheets(options) {
+  try {
+    var rows = fetchTaskAssignmentSheetRows_();
+    if (!rows || rows.length === 0) {
+      return notify_('沒有 APP 指派狀態可回寫。', options);
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetCache = {};
+    var headerCache = {};
+    var updated = 0;
+    var skipped = [];
+    var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+    rows.forEach(function(row) {
+      var sheetName = row.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+      var sheet = sheetCache[sheetName];
+
+      if (!sheet) {
+        sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+          ? getOrCreateTestEntriesSheet_()
+          : ss.getSheetByName(sheetName);
+        if (!sheet) {
+          skipped.push(row.source_id + '：找不到工作表 ' + sheetName);
+          return;
+        }
+        sheetCache[sheetName] = sheet;
+        headerCache[sheetName] = ensureSheetHeaders_(sheet, ASSIGNMENT_SYNC_HEADERS);
+      }
+
+      var headerMap = headerCache[sheetName];
+      var rowNumber = findRowByUuid_(sheet, headerMap, row.source_id);
+      if (!rowNumber) {
+        skipped.push(row.source_id + '：' + sheetName + ' 找不到 UUID');
+        return;
+      }
+
+      var assignedText = String(row.assigned_users_text || '');
+      var currentText = String(sheet.getRange(rowNumber, headerMap.AssignedUsers).getDisplayValue() || '');
+      if (currentText !== assignedText) {
+        sheet.getRange(rowNumber, headerMap.AssignedUsers).setValue(assignedText);
+        sheet.getRange(rowNumber, headerMap.AssignmentSyncedAt).setValue(syncTime);
+        updated++;
+      }
+    });
+
+    var message = '✅ 已回寫 APP 指派狀態至工作表：更新 ' + updated + ' 筆。';
+    if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
+    return notify_(message, options);
+  } catch (e) {
+    return handleSyncError_('APP 指派狀態回寫', e, options);
+  }
 }
 
 function fetchPendingReviewSheetSyncs_() {

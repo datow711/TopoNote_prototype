@@ -132,6 +132,13 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function escapeJsString(value) {
+    return String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r?\n/g, ' ');
+}
+
 function normalizeUserRecord(user = {}) {
     const account = user.account || user.user_name || user.email || '';
     return {
@@ -1345,6 +1352,88 @@ async function revokeReviewLanguage(taskId, language, button) {
     }
 }
 
+function renderAssignedUserChip(place, account) {
+    const displayName = getUserDisplayName(account);
+    const email = getUserEmail(account);
+    const accountArg = escapeHtml(escapeJsString(account));
+    const displayNameArg = escapeHtml(escapeJsString(displayName));
+    return `
+        <span class="assigned-user-chip" title="${escapeHtml(email)}">
+            <span class="assigned-user-name">${escapeHtml(displayName)}</span>
+            <button class="unassign-user-btn" type="button" onclick="unassignTaskFromUser(event, ${Number(place.id)}, '${accountArg}', '${displayNameArg}', this)" aria-label="撤回 ${escapeHtml(displayName)} 的指派">×</button>
+        </span>
+    `;
+}
+
+function getPlaceByTaskId(taskId) {
+    const id = Number(taskId);
+    return state.assignedPlaces
+        .concat(state.allPlaces, state.reviewQueue)
+        .find(place => Number(place.id) === id) || null;
+}
+
+async function callUnassignTasksRpc(taskIds, targetUser) {
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/unassign_tasks_from_user`, {
+        method: 'POST',
+        headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            p_task_ids: taskIds.map(id => Number(id)),
+            p_user_name: targetUser,
+            p_unassigned_by: state.userId
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || '資料庫撤回失敗');
+    }
+
+    const resultText = await response.text();
+    return Number(resultText || 0);
+}
+
+async function refreshAfterAssignmentChange() {
+    await loadDataFromSupabase(state.userId);
+    initFilters();
+    applyFilters();
+}
+
+async function unassignTaskFromUser(event, taskId, targetUser, targetUserName, button) {
+    if (event) event.stopPropagation();
+    if (!targetUser) return;
+
+    const place = getPlaceByTaskId(taskId);
+    const placeName = place ? place.placeName : `任務 ${taskId}`;
+    if (!confirm(`確定要撤回「${targetUserName}」在「${placeName}」的指派嗎？`)) return;
+
+    const originalText = button ? button.textContent : '';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '...';
+    }
+
+    try {
+        const changed = await callUnassignTasksRpc([taskId], targetUser);
+        if (changed === 0) {
+            alert('這筆指派已經不是啟用狀態，畫面將重新整理。');
+        } else {
+            alert('已撤回指派。');
+        }
+        await refreshAfterAssignmentChange();
+    } catch (err) {
+        console.error('撤回指派失敗:', err);
+        alert(`撤回指派失敗：${err.message}`);
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
 // 🌟 升級：渲染清單 (插入 Checkbox)
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
@@ -1372,7 +1461,7 @@ function renderPlaceList(places) {
             checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆">`;
             
             if (place.assignedUsers.length > 0) {
-                const assignedLabels = place.assignedUsers.map(account => `<span class="assigned-user-chip" title="${escapeHtml(getUserEmail(account))}">${escapeHtml(getUserDisplayName(account))}</span>`).join('');
+                const assignedLabels = place.assignedUsers.map(account => renderAssignedUserChip(place, account)).join('');
                 adminAssignBadge = `<span class="meta-badge assign-badge">👤 <span class="assigned-user-list">${assignedLabels}</span></span>`;
             } else {
                 adminAssignBadge = `<span class="meta-badge unassigned-badge">⚠️ 未指派</span>`;
@@ -1731,7 +1820,8 @@ function renderAdminBatchAssignUI() {
             <option value="">選擇調查員</option>
             ${options}
         </select>
-        <button class="assign-submit" onclick="batchAssignTasks()">確認送出</button>
+        <button id="assign-submit-btn" class="assign-submit" onclick="batchAssignTasks()">確認指派</button>
+        <button id="unassign-submit-btn" class="unassign-submit" onclick="batchUnassignTasks()">撤回指派</button>
         <span class="assign-hint">Shift + 左鍵可連續選取</span>
     `;
     updateSelectedAssignCount();
@@ -1749,7 +1839,11 @@ async function batchAssignTasks() {
     if (!targetUser) return alert("請輸入或選擇要指派的調查員名稱！");
     if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，指派給「${targetUserName}」嗎？`)) return;
 
-    document.querySelector('#admin-assign-bar button').innerText = "處理中...";
+    const button = document.getElementById('assign-submit-btn');
+    if (button) {
+        button.innerText = "處理中...";
+        button.disabled = true;
+    }
 
     try {
         const url = `${CONFIG.SUPABASE_URL}/rest/v1/rpc/assign_tasks_to_user`;
@@ -1782,6 +1876,45 @@ async function batchAssignTasks() {
         alert("指派發生錯誤，請稍後再試。");
     } finally {
         renderAdminBatchAssignUI(); // 恢復按鈕文字
+    }
+}
+
+// 🌟 新增：批次撤回指定調查員的指派
+async function batchUnassignTasks() {
+    const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
+    const taskIds = Array.from(checkboxes).map(cb => Number(cb.value));
+    const targetUser = document.getElementById('assignee-input').value.trim();
+    const targetUserName = getUserDisplayName(targetUser);
+
+    if (taskIds.length === 0) return alert("請先在清單中勾選要撤回指派的地名！");
+    if (!targetUser) return alert("請先選擇要撤回指派的調查員！");
+
+    const selectedPlaces = taskIds.map(getPlaceByTaskId).filter(Boolean);
+    const matchedCount = selectedPlaces.filter(place => place.assignedUsers.includes(targetUser)).length;
+    if (matchedCount === 0) {
+        return alert(`勾選的地名目前都沒有指派給「${targetUserName}」。`);
+    }
+
+    const extraNote = matchedCount < taskIds.length
+        ? `\n\n其中 ${taskIds.length - matchedCount} 筆目前沒有指派給這位調查員，系統會略過。`
+        : '';
+    if (!confirm(`確定要撤回「${targetUserName}」在 ${matchedCount} 筆地名上的指派嗎？${extraNote}`)) return;
+
+    const button = document.getElementById('unassign-submit-btn');
+    if (button) {
+        button.innerText = "撤回中...";
+        button.disabled = true;
+    }
+
+    try {
+        const changed = await callUnassignTasksRpc(taskIds, targetUser);
+        alert(`已撤回 ${changed} 筆指派。`);
+        await refreshAfterAssignmentChange();
+    } catch (err) {
+        console.error("撤回指派失敗:", err);
+        alert(`撤回指派發生錯誤：${err.message}`);
+    } finally {
+        renderAdminBatchAssignUI();
     }
 }
 
