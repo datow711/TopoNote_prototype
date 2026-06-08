@@ -6,10 +6,12 @@ AudioUploads/
 
 # 忽略 Node 套件 (如果你未來有使用 npm 安裝東西)
 node_modules/
+.npm-cache/
 
 # 忽略作業系統產生的隱藏檔
 .DS_Store
 Thumbs.db
+debug.log
 
 plan.md
 
