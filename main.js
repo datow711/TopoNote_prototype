@@ -33,6 +33,18 @@ let uploadedFileName = "";
 
 const SESSION_KEY = 'toponote_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const USER_LABEL_SELECT = 'id,account,role,is_active,name,email,phone';
+const USER_PROFILE_SELECT = [
+    USER_LABEL_SELECT,
+    'languages',
+    'hakka_dialect',
+    'life_area_1',
+    'survey_area_1',
+    'life_area_2',
+    'survey_area_2',
+    'life_area_3',
+    'survey_area_3'
+].join(',');
 
 const ANNOTATION_FIELDS = [
     'taihan', 'tl1', 'tainote',
@@ -127,8 +139,56 @@ function normalizeUserRecord(user = {}) {
         account,
         name: user.name || account,
         email: user.email || account,
-        phone: user.phone || ''
+        phone: user.phone || '',
+        languages: user.languages || '',
+        hakka_dialect: user.hakka_dialect || '',
+        life_area_1: user.life_area_1 || '',
+        survey_area_1: user.survey_area_1 || '',
+        life_area_2: user.life_area_2 || '',
+        survey_area_2: user.survey_area_2 || '',
+        life_area_3: user.life_area_3 || '',
+        survey_area_3: user.survey_area_3 || ''
     };
+}
+
+function getUserDetailElementId(userKey) {
+    return `user-detail-${String(userKey || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function renderUserDetailField(label, value) {
+    return `
+        <div class="user-detail-field">
+            <span class="user-detail-label">${escapeHtml(label)}</span>
+            <span class="user-detail-value">${escapeHtml(value || '未填')}</span>
+        </div>
+    `;
+}
+
+function renderUserDetailFields(user) {
+    const detailRows = [
+        ['語言', user.languages],
+        ['客語腔調', user.hakka_dialect],
+        ['生活區域 1', user.life_area_1],
+        ['調查區域 1', user.survey_area_1],
+        ['生活區域 2', user.life_area_2],
+        ['調查區域 2', user.survey_area_2],
+        ['生活區域 3', user.life_area_3],
+        ['調查區域 3', user.survey_area_3]
+    ];
+
+    return detailRows.map(([label, value]) => renderUserDetailField(label, value)).join('');
+}
+
+function toggleUserDetails(userKey, button) {
+    const detail = document.getElementById(getUserDetailElementId(userKey));
+    if (!detail) return;
+
+    const shouldExpand = detail.hidden;
+    detail.hidden = !shouldExpand;
+    if (button) {
+        button.setAttribute('aria-expanded', String(shouldExpand));
+        button.textContent = shouldExpand ? '收合' : '展開';
+    }
 }
 
 function getUserRecordByAccount(account) {
@@ -614,16 +674,20 @@ function renderAdminUserManager() {
         ? '<div class="empty-state compact">目前沒有調查員帳號。請從 Places 的 Users 表同步。</div>'
         : investigators.map(user => {
             const hoverTitle = getUserHoverTitle(user);
+            const userKey = user.id || user.account || user.email;
+            const detailId = getUserDetailElementId(userKey);
             return `
             <div class="user-status-row">
-                <span class="user-identity" title="${escapeHtml(hoverTitle)}">
-                    <span class="user-name">${escapeHtml(user.name || user.account)}</span>
-                    <span class="user-email">${escapeHtml(user.email || user.account)}</span>
-                    <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
-                </span>
+                <button class="user-detail-toggle" type="button" onclick="toggleUserDetails('${escapeHtml(userKey)}', this)" aria-expanded="false" aria-controls="${escapeHtml(detailId)}">展開</button>
+                <span class="user-name" title="${escapeHtml(hoverTitle)}">${escapeHtml(user.name || user.account)}</span>
+                <span class="user-email" title="${escapeHtml(user.email || user.account)}">${escapeHtml(user.email || user.account)}</span>
+                <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
                 <button class="delete-user-btn" type="button" onclick="deleteInvestigatorUser('${user.id}', this)">刪除</button>
+                <div class="user-detail-panel" id="${escapeHtml(detailId)}" hidden>
+                    ${renderUserDetailFields(user)}
+                </div>
             </div>
         `;
         }).join('');
@@ -634,7 +698,18 @@ function renderAdminUserManager() {
                 <h3>調查員帳號狀態</h3>
                 <button class="btn-secondary refresh-users-btn" onclick="refreshAdminUsers()">重新整理</button>
             </div>
-            <div class="user-status-list">${body}</div>
+            <div class="user-status-list">
+                <div class="user-status-header">
+                    <span></span>
+                    <span>姓名</span>
+                    <span>登入 ID (email)</span>
+                    <span>手機</span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                ${body}
+            </div>
         </section>
     `;
 }
@@ -752,7 +827,7 @@ async function loadDataFromSupabase(userName) {
 
         if (state.userRole === 'admin') {
             // 🛑 核心新增：管理員額外抓取全體調查員名單
-            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active,name,email,phone&order=name.asc`, { headers });
+            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=${USER_PROFILE_SELECT}&order=name.asc`, { headers });
             const usersData = await usersRes.json();
             // 將抓回來的名字存入 state
             state.allUserRecords = usersData.map(normalizeUserRecord);
@@ -773,7 +848,7 @@ async function loadDataFromSupabase(userName) {
             let labelUserRecords = [];
             if (labelAccounts.length > 0) {
                 const userFilter = encodeURIComponent(buildPostgrestInFilter(labelAccounts));
-                const labelUsersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=id,account,role,is_active,name,email,phone&account=${userFilter}`, { headers });
+                const labelUsersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=${USER_LABEL_SELECT}&account=${userFilter}`, { headers });
                 if (labelUsersRes.ok) {
                     labelUserRecords = await labelUsersRes.json();
                 } else {
