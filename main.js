@@ -198,8 +198,58 @@ function toggleUserDetails(userKey, button) {
     }
 }
 
+function normalizeIdentifier(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function getUserIdentifierAliases(user = {}) {
+    return [
+        user.account,
+        user.email,
+        user.name,
+        user.user_name
+    ].filter(Boolean);
+}
+
 function getUserRecordByAccount(account) {
-    return state.allUserRecords.find(user => user.account === account || user.email === account) || null;
+    const target = normalizeIdentifier(account);
+    if (!target) return null;
+    return state.allUserRecords.find(user =>
+        getUserIdentifierAliases(user).some(alias => normalizeIdentifier(alias) === target)
+    ) || null;
+}
+
+function isSameUserIdentifier(left, right) {
+    const leftNorm = normalizeIdentifier(left);
+    const rightNorm = normalizeIdentifier(right);
+    if (!leftNorm || !rightNorm) return false;
+    if (leftNorm === rightNorm) return true;
+
+    const leftUser = getUserRecordByAccount(left);
+    const rightUser = getUserRecordByAccount(right);
+    if (leftUser && rightUser) {
+        return getUserIdentifierAliases(leftUser).some(leftAlias =>
+            getUserIdentifierAliases(rightUser).some(rightAlias =>
+                normalizeIdentifier(leftAlias) === normalizeIdentifier(rightAlias)
+            )
+        );
+    }
+    const user = leftUser || rightUser;
+    const other = leftUser ? right : left;
+    return !!user && getUserIdentifierAliases(user).some(alias =>
+        normalizeIdentifier(alias) === normalizeIdentifier(other)
+    );
+}
+
+function assignedUsersInclude(assignedUsers, identifier) {
+    return normalizeAssignedUsers(assignedUsers).some(assignee => isSameUserIdentifier(assignee, identifier));
+}
+
+function getUserAnnotatorName(userOrAccount) {
+    const user = typeof userOrAccount === 'object'
+        ? normalizeUserRecord(userOrAccount)
+        : getUserRecordByAccount(userOrAccount);
+    return (user && user.name) || userOrAccount || '';
 }
 
 function getUserDisplayName(account) {
@@ -871,10 +921,10 @@ async function loadDataFromSupabase(userName) {
             ]);
             state.reviewQueue = [];
             state.assignedPlaces = places
-                .filter(place => place.assignedUsers.includes(userName));
+                .filter(place => assignedUsersInclude(place.assignedUsers, state.userId) || assignedUsersInclude(place.assignedUsers, state.userName));
                 
             state.allPlaces = places
-                .filter(place => !place.assignedUsers.includes(userName) && place.sourceTable !== 'test_places');
+                .filter(place => !assignedUsersInclude(place.assignedUsers, state.userId) && !assignedUsersInclude(place.assignedUsers, state.userName) && place.sourceTable !== 'test_places');
         }
 
         state.uploadedRecords = recordsData.map(r => ({
@@ -937,7 +987,7 @@ function initFilters() {
         // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
-                                   state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
+                                   state.allUsers.map(u => `<option value="${escapeHtml(getUserAnnotatorName(u))}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
 
         initClassFilters();
                                    
@@ -1065,7 +1115,7 @@ function applyFilters() {
             if (assigneeFilter === "UNASSIGNED") {
                 matchAssignee = place.assignedUsers.length === 0;
             } else {
-                matchAssignee = place.assignedUsers.includes(assigneeFilter);
+                matchAssignee = assignedUsersInclude(place.assignedUsers, assigneeFilter);
             }
         }
         
@@ -1376,8 +1426,9 @@ function getLanguageAssignmentSelectId(placeId, language) {
 
 function renderLanguageAssigneeOptions(currentAccount) {
     return '<option value="">未指派</option>' + state.allUsers.map(user => {
-        const selected = user.account === currentAccount ? 'selected' : '';
-        return `<option value="${escapeHtml(user.account)}" ${selected} title="${escapeHtml(getUserHoverTitle(user))}">${escapeHtml(user.name || user.account)}</option>`;
+        const annotatorName = getUserAnnotatorName(user);
+        const selected = isSameUserIdentifier(annotatorName, currentAccount) ? 'selected' : '';
+        return `<option value="${escapeHtml(annotatorName)}" ${selected} title="${escapeHtml(getUserHoverTitle(user))}">${escapeHtml(user.name || user.account)}</option>`;
     }).join('');
 }
 
@@ -1823,9 +1874,10 @@ function uploadAudio() {
                 
                 // 階段二：🌟 將紀錄寫入 Supabase (安全防護：前端只能寫入，不能刪改)
                 const supaUrl = `${CONFIG.SUPABASE_URL}/rest/v1/audio_records`;
+                const recorderName = getUserAnnotatorName(state.userId) || state.userName || state.userId;
                 const supaPayload = {
                     task_id: state.selectedPlace.id,
-                    recorder_name: state.userId,
+                    recorder_name: recorderName,
                     audio_file_id: driveFileIdOrUrl,
                     phonetic_reading: phonetic,
                     language: lang,
@@ -1851,7 +1903,7 @@ function uploadAudio() {
                     recordId: new Date().getTime(), // 暫時給個隨機ID讓畫面好顯示
                     placeId: state.selectedPlace.id,
                     language: lang,
-                    uploaderId: state.userId,
+                    uploaderId: recorderName,
                     phonetic: phonetic,
                     url: driveFileIdOrUrl,
                     annotations: annotations
@@ -1885,7 +1937,7 @@ function renderAdminBatchAssignUI() {
     document.getElementById('app-section').style.paddingBottom = "80px";
 
     // 🛑 核心修改：改用 state.allUsers 來產生建議選單
-    let options = state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">${escapeHtml(u.name || u.account)}</option>`).join('');
+    let options = state.allUsers.map(u => `<option value="${escapeHtml(getUserAnnotatorName(u))}" title="${escapeHtml(getUserHoverTitle(u))}">${escapeHtml(u.name || u.account)}</option>`).join('');
 
     bar.innerHTML = `
         <span class="assign-label">批次語種指派</span>
