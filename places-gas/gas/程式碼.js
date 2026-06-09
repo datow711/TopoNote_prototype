@@ -10,6 +10,8 @@ var REVIEW_DONE_STATE = '已完成標注';
 var DAILY_PREWORK_SYNC_HANDLER = 'runDailyPreworkSync';
 var DAILY_PREWORK_SYNC_HOUR = 6;
 var DAILY_PREWORK_SYNC_MINUTE = 30;
+var CHECKPOINT_PREFIX = '__ckpt_';
+var CHECKPOINT_DEFAULT_RETENTION = 5;
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
@@ -71,6 +73,82 @@ function failSyncCondition_(message, options) {
   notify_(message, options);
   if (options && options.throwErrors) throw new Error(message);
   return message;
+}
+
+function getCheckpointRetention_() {
+  var rawValue = PropertiesService.getScriptProperties().getProperty('CHECKPOINT_MAX_PER_SOURCE');
+  var parsed = Number(rawValue || CHECKPOINT_DEFAULT_RETENTION);
+  if (!isFinite(parsed) || parsed < 1) return CHECKPOINT_DEFAULT_RETENTION;
+  return Math.floor(parsed);
+}
+
+function getCheckpointSourceKey_(sheetName) {
+  if (sheetName === THIRD_PHASE_SHEET_NAME) return 'third_phase';
+  if (sheetName === TEST_ENTRIES_SHEET_NAME) return 'test_entries';
+  if (sheetName === 'Users') return 'users';
+  return String(sheetName || 'sheet')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24) || 'sheet';
+}
+
+function buildCheckpointName_(sheetName, label, createdAt) {
+  var timestamp = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  var labelKey = String(label || 'sync')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 18) || 'sync';
+  return CHECKPOINT_PREFIX + getCheckpointSourceKey_(sheetName) + '_' + timestamp + '_' + labelKey;
+}
+
+function pruneSheetCheckpoints_(ss, sourceSheetName) {
+  var sourceKey = getCheckpointSourceKey_(sourceSheetName);
+  var checkpointPrefix = CHECKPOINT_PREFIX + sourceKey + '_';
+  var retention = getCheckpointRetention_();
+  var checkpoints = ss.getSheets()
+    .filter(function(sheet) {
+      return sheet.getName().indexOf(checkpointPrefix) === 0;
+    })
+    .sort(function(a, b) {
+      return a.getName() < b.getName() ? -1 : 1;
+    });
+
+  while (checkpoints.length > retention) {
+    ss.deleteSheet(checkpoints.shift());
+  }
+}
+
+function createSheetCheckpoint_(sheet, label, options) {
+  if (!sheet || (options && options.skipCheckpoint)) return '';
+
+  var ss = sheet.getParent();
+  var createdAt = new Date();
+  var checkpointName = buildCheckpointName_(sheet.getName(), label, createdAt);
+  var checkpoint = sheet.copyTo(ss);
+  checkpoint.setName(checkpointName);
+  checkpoint.hideSheet();
+  checkpoint.getRange(1, 1).setNote(
+    'Checkpoint before ' + label +
+    '\nsource_sheet=' + sheet.getName() +
+    '\ncreated_at=' + createdAt.toISOString()
+  );
+  pruneSheetCheckpoints_(ss, sheet.getName());
+  Logger.log('[Checkpoint] created: ' + checkpointName);
+  return checkpointName;
+}
+
+function ensureSheetCheckpoint_(sheet, label, options) {
+  if (!sheet || (options && options.skipCheckpoint)) return '';
+  if (!options) return createSheetCheckpoint_(sheet, label, options);
+
+  if (!options._checkpointNames) options._checkpointNames = {};
+  var key = String(sheet.getSheetId ? sheet.getSheetId() : sheet.getName());
+  if (options._checkpointNames[key]) return options._checkpointNames[key];
+
+  options._checkpointNames[key] = createSheetCheckpoint_(sheet, label, options);
+  return options._checkpointNames[key];
 }
 
 function runSyncStep_(label, fn, options) {
@@ -490,6 +568,8 @@ function syncUsersToSupabase(options) {
 
   if (payload.length === 0) return notify_('沒有可同步的有效 Users 資料。', options);
 
+  ensureSheetCheckpoint_(sheet, 'users_to_supabase', options);
+
   try {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/rpc/sync_sheet_users';
@@ -570,6 +650,8 @@ function syncThirdPhasePlacesToSupabase(options) {
 
   if (payload.length === 0) return notify_('沒有第三期清冊資料可同步。', options);
 
+  ensureSheetCheckpoint_(sheet, 'third_phase_to_supabase', options);
+
   try {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/third_phase_places?on_conflict=uuid';
@@ -607,6 +689,8 @@ function syncFinalTasksToSupabase(options) {
   }
 
   if (payload.length === 0) return notify_('沒有資料可同步。', options);
+
+  ensureSheetCheckpoint_(sheet, 'final_tasks_to_supabase', options);
 
   try {
     var supabase = getSupabaseConfig_();
@@ -870,6 +954,7 @@ function syncTaskAssignmentsToSheets(options) {
         }
         sheetCache[sheetName] = sheet;
         headerCache[sheetName] = getSheetHeaderMap_(sheet);
+        ensureSheetCheckpoint_(sheet, 'assignment_writeback', options);
       }
 
       var headerMap = headerCache[sheetName];
@@ -998,6 +1083,7 @@ function syncApprovedReviewsToSheets(options) {
         }
         sheetCache[sheetName] = sheet;
         headerCache[sheetName] = getSheetHeaderMap_(sheet);
+        ensureSheetCheckpoint_(sheet, 'review_writeback', options);
       }
 
       var headerMap = headerCache[sheetName];
