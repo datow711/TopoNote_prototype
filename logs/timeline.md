@@ -1,5 +1,11 @@
 # Project Timeline
 
+[2026-06-09] [DATA]
+Mapped existing legacy place assignments into 台語 language assignment and left 客語 unassigned for manual reset. Live Supabase now has 184 台語 assignees and 0 客語 assignees; `app_language_assignment_sheet_view` was narrowed to only `needs_sheet_sync` rows so GAS writeback does not sweep unrelated Sheet language columns. Places GAS was pushed to Apps Script at 上午8:49:37.
+
+[2026-06-08] [FEATURE]
+Aligned place assignment with the original Sheet per-language model. Admin place cards now expose separate 台語 and 客語 assignment controls, batch assignment/unassignment requires choosing a language, Supabase stores `assigned_to/assigned_by/assigned_at` on `task_language_reviews`, and Places GAS writes APP assignment state back to Sheet columns `T_State/T_Annotator` and `H_State/H_Annotator` through `app_language_assignment_sheet_view`. This supersedes the earlier generic `AssignedUsers` sheet sync approach.
+
 [2026-06-08] [FEATURE]
 新增管理員撤回地名指派流程。前端地名卡片的已指派調查員 chip 現在可單筆撤回，底部批次工具列也可對勾選地名執行「撤回指派」。Supabase 新增 `unassign_tasks_from_user()` RPC 與 `app_assignment_sheet_view`；Places GAS 新增 `syncTaskAssignmentsToSheets()`、選單項目與每日同步步驟，會將 APP 指派狀態回寫到 `第三期工作清單` / `TestEntries` 的 `AssignedUsers` 與 `AssignmentSyncedAt` 欄位。
 

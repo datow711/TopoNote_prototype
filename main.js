@@ -302,6 +302,8 @@ function normalizeTask(t) {
         hakClass: t.hak_class || '',
         assignedTo: t.assigned_to,
         assignedUsers: assignedUsers,
+        tAssignee: t.t_assignee || '',
+        hAssignee: t.h_assignee || '',
         hakArea: t.hak_area,
         recordingStatus: t.recording_status || '未錄音',
         taiAudioCount: Number(t.tai_audio_count || 0),
@@ -1352,19 +1354,6 @@ async function revokeReviewLanguage(taskId, language, button) {
     }
 }
 
-function renderAssignedUserChip(place, account) {
-    const displayName = getUserDisplayName(account);
-    const email = getUserEmail(account);
-    const accountArg = escapeHtml(escapeJsString(account));
-    const displayNameArg = escapeHtml(escapeJsString(displayName));
-    return `
-        <span class="assigned-user-chip" title="${escapeHtml(email)}">
-            <span class="assigned-user-name">${escapeHtml(displayName)}</span>
-            <button class="unassign-user-btn" type="button" onclick="unassignTaskFromUser(event, ${Number(place.id)}, '${accountArg}', '${displayNameArg}', this)" aria-label="撤回 ${escapeHtml(displayName)} 的指派">×</button>
-        </span>
-    `;
-}
-
 function getPlaceByTaskId(taskId) {
     const id = Number(taskId);
     return state.assignedPlaces
@@ -1372,8 +1361,55 @@ function getPlaceByTaskId(taskId) {
         .find(place => Number(place.id) === id) || null;
 }
 
-async function callUnassignTasksRpc(taskIds, targetUser) {
-    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/unassign_tasks_from_user`, {
+function getLanguageAssignee(place, language) {
+    return language === '台語' ? (place.tAssignee || '') : (place.hAssignee || '');
+}
+
+function getLanguageAssigneeLabel(place, language) {
+    const account = getLanguageAssignee(place, language);
+    return account ? getUserDisplayName(account) : '未指派';
+}
+
+function getLanguageAssignmentSelectId(placeId, language) {
+    return `language-assignee-${placeId}-${language === '台語' ? 'tai' : 'hak'}`;
+}
+
+function renderLanguageAssigneeOptions(currentAccount) {
+    return '<option value="">未指派</option>' + state.allUsers.map(user => {
+        const selected = user.account === currentAccount ? 'selected' : '';
+        return `<option value="${escapeHtml(user.account)}" ${selected} title="${escapeHtml(getUserHoverTitle(user))}">${escapeHtml(user.name || user.account)}</option>`;
+    }).join('');
+}
+
+function renderLanguageAssignmentControls(place) {
+    const rows = [
+        { language: '台語', label: '台語', assignee: place.tAssignee || '' },
+        { language: '客語', label: '客語', assignee: place.hAssignee || '' }
+    ];
+
+    return `
+        <div class="language-assignment-panel" onclick="event.stopPropagation()">
+            ${rows.map(row => {
+                const selectId = getLanguageAssignmentSelectId(place.id, row.language);
+                const displayName = row.assignee ? getUserDisplayName(row.assignee) : '未指派';
+                return `
+                    <div class="language-assignment-row">
+                        <span class="language-assignment-label">${row.label}</span>
+                        <span class="language-assignment-current" title="${escapeHtml(row.assignee || '')}">${escapeHtml(displayName)}</span>
+                        <select id="${escapeHtml(selectId)}" class="language-assignee-select">
+                            ${renderLanguageAssigneeOptions(row.assignee)}
+                        </select>
+                        <button class="language-assign-btn" type="button" onclick="assignTaskLanguageFromCard(event, ${Number(place.id)}, '${row.language}')">設定</button>
+                        <button class="language-unassign-btn" type="button" onclick="unassignTaskLanguageFromCard(event, ${Number(place.id)}, '${row.language}')" ${row.assignee ? '' : 'disabled'}>撤回</button>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+async function callAssignTaskLanguageRpc(taskIds, language, targetUser) {
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/assign_task_language`, {
         method: 'POST',
         headers: {
             'apikey': CONFIG.SUPABASE_ANON_KEY,
@@ -1382,7 +1418,32 @@ async function callUnassignTasksRpc(taskIds, targetUser) {
         },
         body: JSON.stringify({
             p_task_ids: taskIds.map(id => Number(id)),
+            p_language: language,
             p_user_name: targetUser,
+            p_assigned_by: state.userId
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || '語種指派失敗');
+    }
+
+    const resultText = await response.text();
+    return Number(resultText || 0);
+}
+
+async function callUnassignTaskLanguageRpc(taskIds, language) {
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/unassign_task_language`, {
+        method: 'POST',
+        headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            p_task_ids: taskIds.map(id => Number(id)),
+            p_language: language,
             p_unassigned_by: state.userId
         })
     });
@@ -1402,35 +1463,46 @@ async function refreshAfterAssignmentChange() {
     applyFilters();
 }
 
-async function unassignTaskFromUser(event, taskId, targetUser, targetUserName, button) {
+async function assignTaskLanguageFromCard(event, taskId, language) {
     if (event) event.stopPropagation();
-    if (!targetUser) return;
+    const select = document.getElementById(getLanguageAssignmentSelectId(taskId, language));
+    const targetUser = select ? select.value.trim() : '';
+    if (!targetUser) return alert(`請先選擇${language}調查員。`);
 
     const place = getPlaceByTaskId(taskId);
     const placeName = place ? place.placeName : `任務 ${taskId}`;
-    if (!confirm(`確定要撤回「${targetUserName}」在「${placeName}」的指派嗎？`)) return;
-
-    const originalText = button ? button.textContent : '';
-    if (button) {
-        button.disabled = true;
-        button.textContent = '...';
-    }
+    const targetUserName = getUserDisplayName(targetUser);
+    if (!confirm(`確定要將「${placeName}」的${language}指派給「${targetUserName}」嗎？`)) return;
 
     try {
-        const changed = await callUnassignTasksRpc([taskId], targetUser);
+        await callAssignTaskLanguageRpc([taskId], language, targetUser);
+        alert(`${language}指派已更新。`);
+        await refreshAfterAssignmentChange();
+    } catch (err) {
+        console.error('語種指派失敗:', err);
+        alert(`語種指派失敗：${err.message}`);
+    }
+}
+
+async function unassignTaskLanguageFromCard(event, taskId, language) {
+    if (event) event.stopPropagation();
+
+    const place = getPlaceByTaskId(taskId);
+    const placeName = place ? place.placeName : `任務 ${taskId}`;
+    const assigneeName = place ? getLanguageAssigneeLabel(place, language) : '目前調查員';
+    if (!confirm(`確定要撤回「${placeName}」的${language}指派嗎？\n\n目前指派：${assigneeName}`)) return;
+
+    try {
+        const changed = await callUnassignTaskLanguageRpc([taskId], language);
         if (changed === 0) {
-            alert('這筆指派已經不是啟用狀態，畫面將重新整理。');
+            alert('這筆語種指派已經是未指派狀態，畫面將重新整理。');
         } else {
-            alert('已撤回指派。');
+            alert(`${language}指派已撤回。`);
         }
         await refreshAfterAssignmentChange();
     } catch (err) {
-        console.error('撤回指派失敗:', err);
-        alert(`撤回指派失敗：${err.message}`);
-        if (button) {
-            button.disabled = false;
-            button.textContent = originalText;
-        }
+        console.error('撤回語種指派失敗:', err);
+        alert(`撤回語種指派失敗：${err.message}`);
     }
 }
 
@@ -1455,14 +1527,15 @@ function renderPlaceList(places) {
         // 🛑 新增：Checkbox 與指派標籤
         let checkboxHTML = '';
         let adminAssignBadge = '';
+        let languageAssignmentControls = '';
         
         if (state.userRole === 'admin') {
             // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
             checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆">`;
+            languageAssignmentControls = renderLanguageAssignmentControls(place);
             
-            if (place.assignedUsers.length > 0) {
-                const assignedLabels = place.assignedUsers.map(account => renderAssignedUserChip(place, account)).join('');
-                adminAssignBadge = `<span class="meta-badge assign-badge">👤 <span class="assigned-user-list">${assignedLabels}</span></span>`;
+            if (place.tAssignee || place.hAssignee) {
+                adminAssignBadge = `<span class="meta-badge assign-badge">👤 台：${escapeHtml(getLanguageAssigneeLabel(place, '台語'))}｜客：${escapeHtml(getLanguageAssigneeLabel(place, '客語'))}</span>`;
             } else {
                 adminAssignBadge = `<span class="meta-badge unassigned-badge">⚠️ 未指派</span>`;
             }
@@ -1481,6 +1554,7 @@ function renderPlaceList(places) {
                         ${classBadges}
                         <div class="meta-badge-row">${recordBadge} ${adminAssignBadge}</div>
                     </div>
+                    ${languageAssignmentControls}
                 </div>
                 <div class="expand-icon">▶</div>
             </div>
@@ -1814,8 +1888,12 @@ function renderAdminBatchAssignUI() {
     let options = state.allUsers.map(u => `<option value="${escapeHtml(u.account)}" title="${escapeHtml(getUserHoverTitle(u))}">${escapeHtml(u.name || u.account)}</option>`).join('');
 
     bar.innerHTML = `
-        <span class="assign-label">批次指派</span>
+        <span class="assign-label">批次語種指派</span>
         <span id="assign-count" class="assign-count">0 筆已選</span>
+        <select id="assignment-language-input">
+            <option value="台語">台語</option>
+            <option value="客語">客語</option>
+        </select>
         <select id="assignee-input">
             <option value="">選擇調查員</option>
             ${options}
@@ -1832,12 +1910,13 @@ async function batchAssignTasks() {
     // 找出所有被打勾的 checkbox
     const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
     const taskIds = Array.from(checkboxes).map(cb => cb.value);
+    const language = document.getElementById('assignment-language-input').value;
     const targetUser = document.getElementById('assignee-input').value.trim();
     const targetUserName = getUserDisplayName(targetUser);
 
     if (taskIds.length === 0) return alert("請先在清單中勾選要指派的地名！");
     if (!targetUser) return alert("請輸入或選擇要指派的調查員名稱！");
-    if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，指派給「${targetUserName}」嗎？`)) return;
+    if (!confirm(`確定要將勾選的 ${taskIds.length} 筆地名，其${language}指派給「${targetUserName}」嗎？`)) return;
 
     const button = document.getElementById('assign-submit-btn');
     if (button) {
@@ -1846,25 +1925,9 @@ async function batchAssignTasks() {
     }
 
     try {
-        const url = `${CONFIG.SUPABASE_URL}/rest/v1/rpc/assign_tasks_to_user`;
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'apikey': CONFIG.SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                p_task_ids: taskIds.map(id => Number(id)),
-                p_user_name: targetUser,
-                p_assigned_by: state.userId
-            })
-        });
+        await callAssignTaskLanguageRpc(taskIds, language, targetUser);
 
-        if (!response.ok) throw new Error('資料庫更新失敗');
-
-        alert('🎉 指派成功！');
+        alert(`🎉 ${language}指派成功！`);
         
         // 重新載入最新資料並刷新畫面
         await loadDataFromSupabase(state.userId);
@@ -1883,22 +1946,20 @@ async function batchAssignTasks() {
 async function batchUnassignTasks() {
     const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
     const taskIds = Array.from(checkboxes).map(cb => Number(cb.value));
-    const targetUser = document.getElementById('assignee-input').value.trim();
-    const targetUserName = getUserDisplayName(targetUser);
+    const language = document.getElementById('assignment-language-input').value;
 
     if (taskIds.length === 0) return alert("請先在清單中勾選要撤回指派的地名！");
-    if (!targetUser) return alert("請先選擇要撤回指派的調查員！");
 
     const selectedPlaces = taskIds.map(getPlaceByTaskId).filter(Boolean);
-    const matchedCount = selectedPlaces.filter(place => place.assignedUsers.includes(targetUser)).length;
+    const matchedCount = selectedPlaces.filter(place => getLanguageAssignee(place, language)).length;
     if (matchedCount === 0) {
-        return alert(`勾選的地名目前都沒有指派給「${targetUserName}」。`);
+        return alert(`勾選的地名目前都沒有${language}指派。`);
     }
 
     const extraNote = matchedCount < taskIds.length
-        ? `\n\n其中 ${taskIds.length - matchedCount} 筆目前沒有指派給這位調查員，系統會略過。`
+        ? `\n\n其中 ${taskIds.length - matchedCount} 筆目前沒有${language}指派，系統會略過。`
         : '';
-    if (!confirm(`確定要撤回「${targetUserName}」在 ${matchedCount} 筆地名上的指派嗎？${extraNote}`)) return;
+    if (!confirm(`確定要撤回 ${matchedCount} 筆地名的${language}指派嗎？${extraNote}`)) return;
 
     const button = document.getElementById('unassign-submit-btn');
     if (button) {
@@ -1907,8 +1968,8 @@ async function batchUnassignTasks() {
     }
 
     try {
-        const changed = await callUnassignTasksRpc(taskIds, targetUser);
-        alert(`已撤回 ${changed} 筆指派。`);
+        const changed = await callUnassignTaskLanguageRpc(taskIds, language);
+        alert(`已撤回 ${changed} 筆${language}指派。`);
         await refreshAfterAssignmentChange();
     } catch (err) {
         console.error("撤回指派失敗:", err);

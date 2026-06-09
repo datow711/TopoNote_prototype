@@ -15,9 +15,8 @@ var TEST_ENTRY_HEADERS = [
   'PlaceName', 'Info',
   'TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote', 'TaiClass', 'T_State', 'T_Annotator', 'T_CreatedAt', 'T_UpdatedAt',
   'Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote', 'HakClass', 'H_State', 'H_Annotator', 'H_CreatedAt', 'H_UpdatedAt',
-  '同步警告', 'AssignedUsers', 'AssignmentSyncedAt'
+  '同步警告'
 ];
-var ASSIGNMENT_SYNC_HEADERS = ['AssignedUsers', 'AssignmentSyncedAt'];
 
 function getSupabaseConfig_() {
   var props = PropertiesService.getScriptProperties();
@@ -101,7 +100,7 @@ function runDailyPreworkSync() {
   try {
     var options = { silent: true, throwErrors: true };
     steps.push(runSyncStep_('APP審查回寫至 Sheet', syncApprovedReviewsToSheets, options));
-    steps.push(runSyncStep_('APP指派狀態回寫至 Sheet', syncTaskAssignmentsToSheets, options));
+    steps.push(runSyncStep_('APP語種指派回寫至 Sheet', syncTaskAssignmentsToSheets, options));
     steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
     steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
     steps.push(runSyncStep_('Users 同步至 Supabase', syncUsersToSupabase, options));
@@ -198,7 +197,7 @@ function onOpen() {
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
     .addItem('5. 回寫 APP 審查結果至工作表', 'syncApprovedReviewsToSheets')
-    .addItem('6. 回寫 APP 指派狀態至工作表', 'syncTaskAssignmentsToSheets')
+    .addItem('6. 回寫 APP 語種指派至工作表', 'syncTaskAssignmentsToSheets')
     .addSeparator()
     .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
     .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
@@ -645,23 +644,6 @@ function getSheetHeaderMap_(sheet) {
   return map;
 }
 
-function ensureSheetHeaders_(sheet, headers) {
-  var headerMap = getSheetHeaderMap_(sheet);
-  var missing = headers.filter(function(header) {
-    return !headerMap[header];
-  });
-
-  if (missing.length > 0) {
-    var startCol = sheet.getLastColumn() + 1;
-    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
-    sheet.getRange(1, startCol, 1, missing.length).setFontWeight('bold');
-    sheet.autoResizeColumns(startCol, missing.length);
-    headerMap = getSheetHeaderMap_(sheet);
-  }
-
-  return headerMap;
-}
-
 function findRowByUuid_(sheet, headerMap, uuid) {
   var uuidCol = headerMap.UUID;
   if (!uuidCol) throw new Error(sheet.getName() + ' 缺少 UUID 欄位。');
@@ -846,7 +828,7 @@ function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
 
 function fetchTaskAssignmentSheetRows_() {
   var supabase = getSupabaseConfig_();
-  var url = supabase.url + '/rest/v1/app_assignment_sheet_view?select=source_id,source_table,assigned_users_text&order=source_table.asc,source_id.asc';
+  var url = supabase.url + '/rest/v1/app_language_assignment_sheet_view?select=source_id,source_table,t_state,t_annotator,h_state,h_annotator&order=source_table.asc,source_id.asc';
   var options = {
     method: 'get',
     headers: getSupabaseHeaders_(supabase),
@@ -864,7 +846,7 @@ function syncTaskAssignmentsToSheets(options) {
   try {
     var rows = fetchTaskAssignmentSheetRows_();
     if (!rows || rows.length === 0) {
-      return notify_('沒有 APP 指派狀態可回寫。', options);
+      return notify_('沒有 APP 語種指派狀態可回寫。', options);
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -887,30 +869,69 @@ function syncTaskAssignmentsToSheets(options) {
           return;
         }
         sheetCache[sheetName] = sheet;
-        headerCache[sheetName] = ensureSheetHeaders_(sheet, ASSIGNMENT_SYNC_HEADERS);
+        headerCache[sheetName] = getSheetHeaderMap_(sheet);
       }
 
       var headerMap = headerCache[sheetName];
+      var requiredHeaders = ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
+      var missingHeaders = requiredHeaders.filter(function(header) {
+        return !headerMap[header];
+      });
+      if (missingHeaders.length > 0) {
+        skipped.push(row.source_id + '：' + sheetName + ' 缺少欄位 ' + missingHeaders.join(', '));
+        return;
+      }
+
       var rowNumber = findRowByUuid_(sheet, headerMap, row.source_id);
       if (!rowNumber) {
         skipped.push(row.source_id + '：' + sheetName + ' 找不到 UUID');
         return;
       }
 
-      var assignedText = String(row.assigned_users_text || '');
-      var currentText = String(sheet.getRange(rowNumber, headerMap.AssignedUsers).getDisplayValue() || '');
-      if (currentText !== assignedText) {
-        sheet.getRange(rowNumber, headerMap.AssignedUsers).setValue(assignedText);
-        sheet.getRange(rowNumber, headerMap.AssignmentSyncedAt).setValue(syncTime);
+      var tState = String(row.t_state || '');
+      var tAnnotator = String(row.t_annotator || '');
+      var hState = String(row.h_state || '');
+      var hAnnotator = String(row.h_annotator || '');
+      var changed = false;
+
+      if (tState && (tState === '待指派' || tState === '尚未標注')) {
+        if (String(sheet.getRange(rowNumber, headerMap.T_State).getDisplayValue() || '') !== tState) {
+          sheet.getRange(rowNumber, headerMap.T_State).setValue(tState);
+          changed = true;
+        }
+        if (String(sheet.getRange(rowNumber, headerMap.T_Annotator).getDisplayValue() || '') !== tAnnotator) {
+          sheet.getRange(rowNumber, headerMap.T_Annotator).setValue(tAnnotator);
+          changed = true;
+        }
+        if (changed) sheet.getRange(rowNumber, headerMap.T_UpdatedAt).setValue('APP語種指派|' + syncTime);
+      }
+
+      changed = false;
+      if (hState && (hState === '待指派' || hState === '尚未標注')) {
+        if (String(sheet.getRange(rowNumber, headerMap.H_State).getDisplayValue() || '') !== hState) {
+          sheet.getRange(rowNumber, headerMap.H_State).setValue(hState);
+          changed = true;
+        }
+        if (String(sheet.getRange(rowNumber, headerMap.H_Annotator).getDisplayValue() || '') !== hAnnotator) {
+          sheet.getRange(rowNumber, headerMap.H_Annotator).setValue(hAnnotator);
+          changed = true;
+        }
+        if (changed) sheet.getRange(rowNumber, headerMap.H_UpdatedAt).setValue('APP語種指派|' + syncTime);
+      }
+
+      if (
+        (tState && (tState === '待指派' || tState === '尚未標注')) ||
+        (hState && (hState === '待指派' || hState === '尚未標注'))
+      ) {
         updated++;
       }
     });
 
-    var message = '✅ 已回寫 APP 指派狀態至工作表：更新 ' + updated + ' 筆。';
+    var message = '✅ 已回寫 APP 語種指派至工作表：檢查/更新 ' + updated + ' 筆。';
     if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
     return notify_(message, options);
   } catch (e) {
-    return handleSyncError_('APP 指派狀態回寫', e, options);
+    return handleSyncError_('APP 語種指派回寫', e, options);
   }
 }
 
