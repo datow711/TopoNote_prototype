@@ -183,6 +183,17 @@ button:disabled {
     font-size: 13px;
 }
 
+.btn-feedback {
+    width: auto;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 12px;
+    background: #dff6e8;
+    color: var(--ink);
+    border: 0;
+    font-size: 13px;
+}
+
 .btn-record {
     background: var(--canvas-dark);
 }
@@ -1334,6 +1345,66 @@ button:disabled {
     font-size: 13px;
 }
 
+.feedback-dialog-panel {
+    width: min(520px, 100%);
+}
+
+.feedback-admin-card {
+    display: grid;
+    gap: 3px;
+    margin: 2px 0 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #f3fbf7;
+    color: var(--ink);
+}
+
+.feedback-admin-card span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.feedback-admin-card strong {
+    font-size: 14px;
+}
+
+.feedback-admin-card a {
+    color: var(--ink);
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.feedback-field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.feedback-field span {
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.feedback-field input,
+.feedback-field textarea {
+    width: 100%;
+    margin: 0;
+}
+
+.feedback-field textarea {
+    min-height: 150px;
+    resize: vertical;
+}
+
+.feedback-status {
+    min-height: 20px;
+    margin: 0 0 10px;
+    color: var(--danger);
+    font-size: 13px;
+}
+
 .hidden {
     display: none !important;
 }
@@ -1400,6 +1471,7 @@ button:disabled {
     }
 
     .btn-download-tasks,
+    .btn-feedback,
     .btn-logout {
         width: 100%;
         margin: 0;

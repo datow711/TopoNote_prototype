@@ -680,6 +680,9 @@ function renderUserInfo() {
     const taskDownloadButton = state.userRole === 'admin'
         ? ''
         : '<button class="btn-download-tasks" type="button" onclick="openTaskDownloadDialog()">下載任務清單</button>';
+    const feedbackButton = state.userRole === 'admin'
+        ? ''
+        : '<button class="btn-feedback" type="button" onclick="openFeedbackDialog()">問題回報</button>';
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
@@ -687,6 +690,7 @@ function renderUserInfo() {
         </div>
         <div class="user-action-group">
             ${taskDownloadButton}
+            ${feedbackButton}
             <button class="btn-logout" onclick="logout()">登出</button>
         </div>
     `;
@@ -751,6 +755,98 @@ function openTaskDownloadDialog() {
 
 function closeTaskDownloadDialog() {
     document.getElementById('task-download-dialog')?.remove();
+}
+
+function openFeedbackDialog() {
+    closeFeedbackDialog();
+    const dialog = document.createElement('div');
+    dialog.id = 'feedback-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel feedback-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="feedback-dialog-title">
+            <h3 id="feedback-dialog-title">問題回報</h3>
+            <div class="feedback-admin-card">
+                <span>管理者</span>
+                <strong>專案助理 - 藍君偉 Nâ Kun-uí</strong>
+                <a href="mailto:kunui711@mail.naer.edu.tw">kunui711@mail.naer.edu.tw</a>
+            </div>
+            <label class="feedback-field">
+                <span>主旨</span>
+                <input id="feedback-subject" type="text" maxlength="120" autocomplete="off">
+            </label>
+            <label class="feedback-field">
+                <span>意見內容</span>
+                <textarea id="feedback-message" rows="7"></textarea>
+            </label>
+            <div id="feedback-status" class="feedback-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" onclick="closeFeedbackDialog()">取消</button>
+                <button class="btn-primary" id="feedback-submit-btn" type="button" onclick="submitFeedback()">送出回報</button>
+            </div>
+        </div>
+    `;
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeFeedbackDialog();
+    });
+    document.body.appendChild(dialog);
+    document.getElementById('feedback-subject')?.focus();
+}
+
+function closeFeedbackDialog() {
+    document.getElementById('feedback-dialog')?.remove();
+}
+
+async function submitFeedback() {
+    const subjectInput = document.getElementById('feedback-subject');
+    const messageInput = document.getElementById('feedback-message');
+    const submitButton = document.getElementById('feedback-submit-btn');
+    const status = document.getElementById('feedback-status');
+    const subject = subjectInput ? subjectInput.value : '';
+    const message = messageInput ? messageInput.value : '';
+
+    if (!subject.trim()) {
+        if (status) status.textContent = '請填寫問題主旨。';
+        subjectInput?.focus();
+        return;
+    }
+    if (!message.trim()) {
+        if (status) status.textContent = '請填寫意見內容。';
+        messageInput?.focus();
+        return;
+    }
+
+    const originalText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '送出中...';
+    }
+    if (status) status.textContent = '';
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'submitFeedback',
+                investigatorName: state.userName || state.userId,
+                investigatorEmail: state.userEmail || state.userId,
+                subject: subject,
+                message: message
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || '送出失敗');
+
+        alert(`問題回報已送出，編號：${result.feedbackId}`);
+        closeFeedbackDialog();
+    } catch (error) {
+        if (status) status.textContent = `送出失敗：${error.message}`;
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalText || '送出回報';
+        }
+    }
 }
 
 async function downloadAssignedTaskList(format) {

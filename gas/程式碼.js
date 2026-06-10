@@ -1,6 +1,11 @@
 // 從系統環境變數取得 ID
 var FOLDER_ID = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
 var SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+var FEEDBACK_SPREADSHEET_ID_PROPERTY = 'FEEDBACK_SPREADSHEET_ID';
+var FEEDBACK_CHAT_WEBHOOK_URL_PROPERTY = 'FEEDBACK_CHAT_WEBHOOK_URL';
+var FEEDBACK_SPREADSHEET_NAME = 'TopoNote_問題回報';
+var FEEDBACK_SHEET_NAME = '問題回報';
+var FEEDBACK_HEADERS = ['意見ID', '調查員姓名', 'Email', '寄件時間', '意見主旨', '意見內容', '是否已回復'];
 
 // ==========================================
 // 🚀 進階快取系統
@@ -92,6 +97,7 @@ function doPost(e) {
     if (action === 'login') return handleLogin(requestData);
     if (action === 'upload') return handleUpload(requestData);
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
+    if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
 
     throw new Error("未知的操作");
   } catch (error) {
@@ -219,6 +225,122 @@ function handleGetAudio(data) {
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
                          .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function handleSubmitFeedback(data) {
+  var subject = data.subject == null ? '' : String(data.subject);
+  var message = data.message == null ? '' : String(data.message);
+  if (!subject.trim()) throw new Error('請填寫問題主旨');
+  if (!message.trim()) throw new Error('請填寫問題內容');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = getFeedbackSheet_();
+    var feedbackId = getNextFeedbackId_(sheet);
+    var submittedAt = new Date();
+    var investigatorName = data.investigatorName == null ? '' : String(data.investigatorName);
+    var investigatorEmail = data.investigatorEmail == null ? '' : String(data.investigatorEmail);
+
+    sheet.appendRow([feedbackId, investigatorName, investigatorEmail, submittedAt, subject, message, false]);
+    var rowIndex = sheet.getLastRow();
+    sheet.getRange(rowIndex, FEEDBACK_HEADERS.length).insertCheckboxes();
+    sheet.getRange(rowIndex, FEEDBACK_HEADERS.length).setValue(false);
+
+    notifyFeedbackChat_({
+      id: feedbackId,
+      investigatorName: investigatorName,
+      subject: subject,
+      submittedAt: submittedAt,
+      spreadsheetUrl: sheet.getParent().getUrl()
+    });
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      feedbackId: feedbackId,
+      spreadsheetUrl: sheet.getParent().getUrl()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getFeedbackSheet_() {
+  var props = PropertiesService.getScriptProperties();
+  var spreadsheetId = props.getProperty(FEEDBACK_SPREADSHEET_ID_PROPERTY);
+  var spreadsheet = spreadsheetId
+    ? SpreadsheetApp.openById(spreadsheetId)
+    : SpreadsheetApp.create(FEEDBACK_SPREADSHEET_NAME);
+
+  if (!spreadsheetId) {
+    props.setProperty(FEEDBACK_SPREADSHEET_ID_PROPERTY, spreadsheet.getId());
+  }
+
+  var sheet = spreadsheet.getSheetByName(FEEDBACK_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.getSheets()[0];
+    sheet.setName(FEEDBACK_SHEET_NAME);
+  }
+
+  ensureFeedbackSheetHeaders_(sheet);
+  return sheet;
+}
+
+function ensureFeedbackSheetHeaders_(sheet) {
+  var currentHeaders = sheet.getRange(1, 1, 1, FEEDBACK_HEADERS.length).getValues()[0];
+  var emptyHeaders = currentHeaders.every(function(value) { return value === ''; });
+  var headersMismatch = FEEDBACK_HEADERS.some(function(header, index) {
+    return String(currentHeaders[index] || '') !== header;
+  });
+
+  if (emptyHeaders || headersMismatch) {
+    sheet.getRange(1, 1, 1, FEEDBACK_HEADERS.length).setValues([FEEDBACK_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, FEEDBACK_HEADERS.length).setFontWeight('bold');
+  }
+
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, FEEDBACK_HEADERS.length, sheet.getLastRow() - 1, 1).insertCheckboxes();
+  }
+}
+
+function getNextFeedbackId_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return '001';
+
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var maxId = 0;
+  ids.forEach(function(row) {
+    var parsed = parseInt(String(row[0] || '').replace(/\D/g, ''), 10);
+    if (!isNaN(parsed) && parsed > maxId) maxId = parsed;
+  });
+  return ('000' + (maxId + 1)).slice(-3);
+}
+
+function notifyFeedbackChat_(feedback) {
+  var webhookUrl = PropertiesService.getScriptProperties().getProperty(FEEDBACK_CHAT_WEBHOOK_URL_PROPERTY);
+  if (!webhookUrl) return;
+
+  var submittedAtText = Utilities.formatDate(feedback.submittedAt, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  var text = [
+    'TopoNote 有新的問題回報',
+    'ID：' + feedback.id,
+    '調查員：' + (feedback.investigatorName || '未填'),
+    '主旨：' + feedback.subject,
+    '時間：' + submittedAtText,
+    '請至問題回報 Sheet 查看完整內容：' + feedback.spreadsheetUrl
+  ].join('\n');
+
+  try {
+    UrlFetchApp.fetch(webhookUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ text: text }),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    Logger.log('Feedback Chat notification failed: ' + err.message);
   }
 }
 

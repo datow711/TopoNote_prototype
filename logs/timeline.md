@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-10] [FEATURE]
+新增調查員「問題回報」流程：按鈕位於下載任務清單與登出之間，dialog 顯示管理者職稱與 email，收集主旨與意見內容後送到既有 GAS Web App。GAS 會首次自動建立 `TopoNote_問題回報` 試算表，append 意見ID、調查員姓名、email、寄件時間、主旨、內容與預設未勾選的已回復 checkbox；Chat webhook 通知已預留 `FEEDBACK_CHAT_WEBHOOK_URL` script property，未設定時只寫入 Sheet，不寄 email。
+
 [2026-06-10] [FIX]
 調整調查員任務清單匯出格式：待填欄位縮減為台語/客語各「漢字、羅馬字、備註」共 6 欄；Excel 匯出由舊的 HTML table `.xls` 改為真正的 Office Open XML `.xlsx` workbook，避免副檔名與檔案類型不符警告。
 
