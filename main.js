@@ -690,16 +690,15 @@ function renderUserInfo() {
             <div>${roleText}：${state.userId}</div>
             <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
         </div>
-        <button class="btn-logout" onclick="logout()">登出</button>
+        <div class="user-action-group">
+            ${taskDownloadButton}
+            <button class="btn-logout" onclick="logout()">登出</button>
+        </div>
     `;
     const identityLine = userInfoDiv.querySelector('div > div');
     if (identityLine) {
         identityLine.textContent = `${roleText}: ${displayName}`;
         identityLine.title = hoverTitle;
-    }
-    const logoutButton = userInfoDiv.querySelector('.btn-logout');
-    if (logoutButton && state.userRole !== 'admin' && !userInfoDiv.querySelector('.btn-download-tasks')) {
-        logoutButton.insertAdjacentHTML('beforebegin', taskDownloadButton);
     }
 }
 

@@ -179,7 +179,7 @@ button:disabled {
     padding: 7px 12px;
     background: var(--accent);
     color: var(--ink);
-    border: 1px solid var(--accent-pressed);
+    border: 0;
     font-size: 13px;
 }
 
@@ -1086,6 +1086,18 @@ button:disabled {
     font-weight: 500;
 }
 
+.user-action-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.user-action-group .btn-download-tasks {
+    margin: 0;
+}
+
 #admin-user-manager {
     padding: 12px;
     margin-bottom: 8px;
@@ -1382,14 +1394,15 @@ button:disabled {
         flex-direction: column;
     }
 
+    .user-action-group {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
     .btn-download-tasks,
     .btn-logout {
         width: 100%;
         margin: 0;
-    }
-
-    .btn-download-tasks {
-        margin-bottom: 8px;
     }
 
     .language-assignment-row {
