@@ -1,0 +1,43 @@
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { extname, join, normalize, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const port = Number(process.env.PORT || 5173);
+
+const contentTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json; charset=utf-8'
+};
+
+function resolveRequestPath(urlPath) {
+  const decodedPath = decodeURIComponent(urlPath.split('?')[0]);
+  const safePath = normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
+  const filePath = resolve(join(root, safePath === '/' ? 'index.html' : safePath));
+  return filePath.startsWith(root + sep) || filePath === root ? filePath : null;
+}
+
+const server = createServer((req, res) => {
+  const filePath = resolveRequestPath(req.url || '/');
+  if (!filePath || !existsSync(filePath) || statSync(filePath).isDirectory()) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': contentTypes[extname(filePath).toLowerCase()] || 'application/octet-stream',
+    'Cache-Control': 'no-store'
+  });
+  createReadStream(filePath).pipe(res);
+});
+
+server.listen(port, () => {
+  console.log(`TopoNote local server: http://localhost:${port}`);
+});
