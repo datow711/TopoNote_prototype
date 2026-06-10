@@ -86,14 +86,9 @@ const TASK_EXPORT_BASE_COLUMNS = [
 const TASK_EXPORT_FIELD_COLUMNS = [
     { key: 'taihan', label: '台語漢字' },
     { key: 'tl1', label: '台語羅馬字' },
-    { key: 'tl2', label: '台語優勢腔副音讀' },
-    { key: 'tl3', label: '台語又念作' },
     { key: 'tainote', label: '台語備註' },
     { key: 'honzii', label: '客語漢字' },
     { key: 'hp1', label: '客語羅馬字' },
-    { key: 'hp2', label: '客語優勢腔副音讀' },
-    { key: 'hp3', label: '客語又念作' },
-    { key: 'hdialect', label: '客語腔調別' },
     { key: 'haknote', label: '客語備註' }
 ];
 
@@ -743,7 +738,7 @@ function openTaskDownloadDialog() {
             <p>將 ${rows.length} 筆已指派任務依縣市排序匯出。</p>
             <div class="dialog-actions">
                 <button class="btn-secondary" type="button" onclick="downloadAssignedTaskList('pdf')">下載 PDF</button>
-                <button class="btn-primary" type="button" onclick="downloadAssignedTaskList('xls')">下載 XLS</button>
+                <button class="btn-primary" type="button" onclick="downloadAssignedTaskList('xlsx')">下載 XLSX</button>
             </div>
             <button class="dialog-close" type="button" onclick="closeTaskDownloadDialog()" aria-label="關閉">關閉</button>
         </div>
@@ -766,43 +761,227 @@ async function downloadAssignedTaskList(format) {
         return;
     }
 
-    if (format === 'xls') {
-        downloadTaskListXls(rows);
+    if (format === 'xlsx') {
+        downloadTaskListXlsx(rows);
     } else {
         await downloadTaskListPdf(rows);
     }
     closeTaskDownloadDialog();
 }
 
-function downloadTaskListXls(rows) {
-    const headerHtml = TASK_EXPORT_COLUMNS
-        .map(column => `<th>${escapeHtml(column.label)}</th>`)
+function downloadTaskListXlsx(rows) {
+    const sheetRows = [
+        TASK_EXPORT_COLUMNS.map(column => column.label),
+        ...rows.map(place => TASK_EXPORT_COLUMNS.map(column => getTaskExportCell(place, column)))
+    ];
+    const xlsxBlob = createXlsxBlob(sheetRows);
+    downloadBlob(
+        xlsxBlob,
+        `${getTaskExportFileBaseName()}.xlsx`
+    );
+}
+
+function createXlsxBlob(rows) {
+    const files = [
+        {
+            name: '[Content_Types].xml',
+            data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`
+        },
+        {
+            name: '_rels/.rels',
+            data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+        },
+        {
+            name: 'xl/workbook.xml',
+            data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="任務清單" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`
+        },
+        {
+            name: 'xl/_rels/workbook.xml.rels',
+            data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
+        },
+        {
+            name: 'xl/styles.xml',
+            data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`
+        },
+        {
+            name: 'xl/worksheets/sheet1.xml',
+            data: buildWorksheetXml(rows)
+        }
+    ];
+    return createZipBlob(files, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+function buildWorksheetXml(rows) {
+    const columnWidths = [14, 14, 16, 20, 16, 18, 22, 16, 18, 22];
+    const colsXml = columnWidths
+        .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
         .join('');
-    const bodyHtml = rows.map(place => `
-        <tr>
-            ${TASK_EXPORT_COLUMNS.map(column => `<td>${escapeHtml(getTaskExportCell(place, column))}</td>`).join('')}
-        </tr>
-    `).join('');
-    const html = `
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                table { border-collapse: collapse; font-family: "Noto Sans TC", Arial, sans-serif; }
-                th, td { border: 1px solid #777; padding: 6px 8px; mso-number-format: "\\@"; }
-                th { background: #e7f6ef; font-weight: 700; }
-                td { min-width: 96px; height: 26px; }
-            </style>
-        </head>
-        <body>
-            <table>
-                <thead><tr>${headerHtml}</tr></thead>
-                <tbody>${bodyHtml}</tbody>
-            </table>
-        </body>
-        </html>
-    `;
-    downloadBlob(new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8' }), `${getTaskExportFileBaseName()}.xls`);
+    const sheetData = rows.map((row, rowIndex) => {
+        const rowNumber = rowIndex + 1;
+        const cells = row.map((value, columnIndex) => {
+            const cellRef = `${getXlsxColumnName(columnIndex + 1)}${rowNumber}`;
+            const style = rowIndex === 0 ? ' s="1"' : '';
+            const text = String(value ?? '');
+            if (!text) return `<c r="${cellRef}"${style}/>`;
+            return `<c r="${cellRef}" t="inlineStr"${style}><is><t>${escapeXml(text)}</t></is></c>`;
+        }).join('');
+        return `<row r="${rowNumber}">${cells}</row>`;
+    }).join('');
+
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cols>${colsXml}</cols>
+  <sheetData>${sheetData}</sheetData>
+</worksheet>`;
+}
+
+function getXlsxColumnName(index) {
+    let name = '';
+    let current = index;
+    while (current > 0) {
+        const remainder = (current - 1) % 26;
+        name = String.fromCharCode(65 + remainder) + name;
+        current = Math.floor((current - 1) / 26);
+    }
+    return name;
+}
+
+function escapeXml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+}
+
+function createZipBlob(files, type) {
+    const encoder = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    const now = new Date();
+    const dosTime = ((now.getHours() & 0x1f) << 11) | ((now.getMinutes() & 0x3f) << 5) | ((Math.floor(now.getSeconds() / 2)) & 0x1f);
+    const dosDate = (((now.getFullYear() - 1980) & 0x7f) << 9) | (((now.getMonth() + 1) & 0x0f) << 5) | (now.getDate() & 0x1f);
+
+    files.forEach(file => {
+        const nameBytes = encoder.encode(file.name);
+        const dataBytes = encoder.encode(file.data);
+        const crc = getCrc32(dataBytes);
+        const localHeader = createZipHeader(30);
+        writeUint32(localHeader, 0, 0x04034b50);
+        writeUint16(localHeader, 4, 20);
+        writeUint16(localHeader, 6, 0);
+        writeUint16(localHeader, 8, 0);
+        writeUint16(localHeader, 10, dosTime);
+        writeUint16(localHeader, 12, dosDate);
+        writeUint32(localHeader, 14, crc);
+        writeUint32(localHeader, 18, dataBytes.length);
+        writeUint32(localHeader, 22, dataBytes.length);
+        writeUint16(localHeader, 26, nameBytes.length);
+        writeUint16(localHeader, 28, 0);
+        localParts.push(localHeader, nameBytes, dataBytes);
+
+        const centralHeader = createZipHeader(46);
+        writeUint32(centralHeader, 0, 0x02014b50);
+        writeUint16(centralHeader, 4, 20);
+        writeUint16(centralHeader, 6, 20);
+        writeUint16(centralHeader, 8, 0);
+        writeUint16(centralHeader, 10, 0);
+        writeUint16(centralHeader, 12, dosTime);
+        writeUint16(centralHeader, 14, dosDate);
+        writeUint32(centralHeader, 16, crc);
+        writeUint32(centralHeader, 20, dataBytes.length);
+        writeUint32(centralHeader, 24, dataBytes.length);
+        writeUint16(centralHeader, 28, nameBytes.length);
+        writeUint16(centralHeader, 30, 0);
+        writeUint16(centralHeader, 32, 0);
+        writeUint16(centralHeader, 34, 0);
+        writeUint16(centralHeader, 36, 0);
+        writeUint32(centralHeader, 38, 0);
+        writeUint32(centralHeader, 42, offset);
+        centralParts.push(centralHeader, nameBytes);
+
+        offset += localHeader.length + nameBytes.length + dataBytes.length;
+    });
+
+    const centralOffset = offset;
+    const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+    const endHeader = createZipHeader(22);
+    writeUint32(endHeader, 0, 0x06054b50);
+    writeUint16(endHeader, 4, 0);
+    writeUint16(endHeader, 6, 0);
+    writeUint16(endHeader, 8, files.length);
+    writeUint16(endHeader, 10, files.length);
+    writeUint32(endHeader, 12, centralSize);
+    writeUint32(endHeader, 16, centralOffset);
+    writeUint16(endHeader, 20, 0);
+
+    return new Blob([...localParts, ...centralParts, endHeader], { type });
+}
+
+function createZipHeader(length) {
+    return new Uint8Array(length);
+}
+
+function writeUint16(bytes, offset, value) {
+    bytes[offset] = value & 0xff;
+    bytes[offset + 1] = (value >>> 8) & 0xff;
+}
+
+function writeUint32(bytes, offset, value) {
+    bytes[offset] = value & 0xff;
+    bytes[offset + 1] = (value >>> 8) & 0xff;
+    bytes[offset + 2] = (value >>> 16) & 0xff;
+    bytes[offset + 3] = (value >>> 24) & 0xff;
+}
+
+function getCrc32(bytes) {
+    const table = getCrc32.table || (getCrc32.table = buildCrc32Table());
+    let crc = 0xffffffff;
+    for (const byte of bytes) {
+        crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildCrc32Table() {
+    const table = new Uint32Array(256);
+    for (let index = 0; index < 256; index += 1) {
+        let value = index;
+        for (let bit = 0; bit < 8; bit += 1) {
+            value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+        }
+        table[index] = value >>> 0;
+    }
+    return table;
 }
 
 async function downloadTaskListPdf(rows) {
@@ -822,7 +1001,7 @@ function renderTaskExportPdfPages(rows) {
     const rowHeight = 48;
     const footerHeight = 42;
     const rowsPerPage = Math.floor((canvas.height - tableTop - headerHeight - footerHeight - margin) / rowHeight);
-    const widths = [92, 104, 130, 160, 112, 112, 126, 104, 116, 112, 112, 126, 104, 112, 116];
+    const widths = [118, 132, 150, 198, 150, 170, 190, 150, 170, 190];
     const pages = [];
     const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
 
