@@ -1,6 +1,6 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -17,9 +17,12 @@ const contentTypes = {
 };
 
 function resolveRequestPath(urlPath) {
-  const decodedPath = decodeURIComponent(urlPath.split('?')[0]);
-  const safePath = normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
-  const filePath = resolve(join(root, safePath === '/' ? 'index.html' : safePath));
+  const pathname = new URL(urlPath, 'http://localhost').pathname;
+  const requestedPath = decodeURIComponent(pathname).replace(/^\/+/, '') || 'index.html';
+  const safeSegments = requestedPath
+    .split('/')
+    .filter(segment => segment && segment !== '.' && segment !== '..');
+  const filePath = resolve(root, ...safeSegments);
   return filePath.startsWith(root + sep) || filePath === root ? filePath : null;
 }
 
