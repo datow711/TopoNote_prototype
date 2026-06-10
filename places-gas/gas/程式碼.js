@@ -743,6 +743,22 @@ function findRowByUuid_(sheet, headerMap, uuid) {
   return null;
 }
 
+function buildUuidRowMap_(sheet, headerMap) {
+  var uuidCol = headerMap.UUID;
+  if (!uuidCol) throw new Error(sheet.getName() + ' 缺少 UUID 欄位。');
+
+  var lastRow = sheet.getLastRow();
+  var map = {};
+  if (lastRow < 2) return map;
+
+  var values = sheet.getRange(2, uuidCol, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    var uuid = String(values[i][0] || '').trim();
+    if (uuid) map[uuid] = i + 2;
+  }
+  return map;
+}
+
 function appendBaseReviewRow_(sheet, headerMap, review) {
   var row = new Array(sheet.getLastColumn()).fill('');
   var valuesByHeader = {
@@ -912,7 +928,7 @@ function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
 
 function fetchTaskAssignmentSheetRows_() {
   var supabase = getSupabaseConfig_();
-  var url = supabase.url + '/rest/v1/app_language_assignment_sheet_view?select=source_id,source_table,t_state,t_annotator,h_state,h_annotator&order=source_table.asc,source_id.asc';
+  var url = supabase.url + '/rest/v1/app_language_assignment_sheet_view?select=source_id,source_table,t_review_id,h_review_id,t_state,t_annotator,h_state,h_annotator&order=source_table.asc,source_id.asc';
   var options = {
     method: 'get',
     headers: getSupabaseHeaders_(supabase),
@@ -934,44 +950,60 @@ function syncTaskAssignmentsToSheets(options) {
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetCache = {};
-    var headerCache = {};
+    var contextCache = {};
     var updated = 0;
+    var changedCells = 0;
     var skipped = [];
+    var syncedReviewIds = [];
     var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
 
     rows.forEach(function(row) {
       var sheetName = row.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
-      var sheet = sheetCache[sheetName];
+      var context = contextCache[sheetName];
 
-      if (!sheet) {
-        sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+      if (!context) {
+        var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
           ? getOrCreateTestEntriesSheet_()
           : ss.getSheetByName(sheetName);
         if (!sheet) {
           skipped.push(row.source_id + '：找不到工作表 ' + sheetName);
           return;
         }
-        sheetCache[sheetName] = sheet;
-        headerCache[sheetName] = getSheetHeaderMap_(sheet);
+        var headerMap = getSheetHeaderMap_(sheet);
+        var requiredHeaders = ['UUID', 'T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
+        var missingHeaders = requiredHeaders.filter(function(header) {
+          return !headerMap[header];
+        });
+        if (missingHeaders.length > 0) {
+          skipped.push(sheetName + ' 缺少欄位 ' + missingHeaders.join(', '));
+          return;
+        }
+
         ensureSheetCheckpoint_(sheet, 'assignment_writeback', options);
+        var lastRow = sheet.getLastRow();
+        var rowCount = Math.max(lastRow - 1, 0);
+        context = {
+          sheet: sheet,
+          headerMap: headerMap,
+          uuidRows: buildUuidRowMap_(sheet, headerMap),
+          rowCount: rowCount,
+          columns: {},
+          dirtyColumns: {}
+        };
+        ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'].forEach(function(header) {
+          context.columns[header] = rowCount > 0
+            ? sheet.getRange(2, headerMap[header], rowCount, 1).getValues()
+            : [];
+        });
+        contextCache[sheetName] = context;
       }
 
-      var headerMap = headerCache[sheetName];
-      var requiredHeaders = ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
-      var missingHeaders = requiredHeaders.filter(function(header) {
-        return !headerMap[header];
-      });
-      if (missingHeaders.length > 0) {
-        skipped.push(row.source_id + '：' + sheetName + ' 缺少欄位 ' + missingHeaders.join(', '));
-        return;
-      }
-
-      var rowNumber = findRowByUuid_(sheet, headerMap, row.source_id);
+      var rowNumber = context.uuidRows[String(row.source_id || '').trim()];
       if (!rowNumber) {
         skipped.push(row.source_id + '：' + sheetName + ' 找不到 UUID');
         return;
       }
+      var rowIndex = rowNumber - 2;
 
       var tState = String(row.t_state || '');
       var tAnnotator = String(row.t_annotator || '');
@@ -980,28 +1012,46 @@ function syncTaskAssignmentsToSheets(options) {
       var changed = false;
 
       if (tState && (tState === '待指派' || tState === '尚未標注')) {
-        if (String(sheet.getRange(rowNumber, headerMap.T_State).getDisplayValue() || '') !== tState) {
-          sheet.getRange(rowNumber, headerMap.T_State).setValue(tState);
+        if (String(context.columns.T_State[rowIndex][0] || '') !== tState) {
+          context.columns.T_State[rowIndex][0] = tState;
+          context.dirtyColumns.T_State = true;
           changed = true;
+          changedCells++;
         }
-        if (String(sheet.getRange(rowNumber, headerMap.T_Annotator).getDisplayValue() || '') !== tAnnotator) {
-          sheet.getRange(rowNumber, headerMap.T_Annotator).setValue(tAnnotator);
+        if (String(context.columns.T_Annotator[rowIndex][0] || '') !== tAnnotator) {
+          context.columns.T_Annotator[rowIndex][0] = tAnnotator;
+          context.dirtyColumns.T_Annotator = true;
           changed = true;
+          changedCells++;
         }
-        if (changed) sheet.getRange(rowNumber, headerMap.T_UpdatedAt).setValue('APP語種指派|' + syncTime);
+        if (changed) {
+          context.columns.T_UpdatedAt[rowIndex][0] = 'APP語種指派|' + syncTime;
+          context.dirtyColumns.T_UpdatedAt = true;
+          changedCells++;
+        }
+        if (row.t_review_id) syncedReviewIds.push(Number(row.t_review_id));
       }
 
       changed = false;
       if (hState && (hState === '待指派' || hState === '尚未標注')) {
-        if (String(sheet.getRange(rowNumber, headerMap.H_State).getDisplayValue() || '') !== hState) {
-          sheet.getRange(rowNumber, headerMap.H_State).setValue(hState);
+        if (String(context.columns.H_State[rowIndex][0] || '') !== hState) {
+          context.columns.H_State[rowIndex][0] = hState;
+          context.dirtyColumns.H_State = true;
           changed = true;
+          changedCells++;
         }
-        if (String(sheet.getRange(rowNumber, headerMap.H_Annotator).getDisplayValue() || '') !== hAnnotator) {
-          sheet.getRange(rowNumber, headerMap.H_Annotator).setValue(hAnnotator);
+        if (String(context.columns.H_Annotator[rowIndex][0] || '') !== hAnnotator) {
+          context.columns.H_Annotator[rowIndex][0] = hAnnotator;
+          context.dirtyColumns.H_Annotator = true;
           changed = true;
+          changedCells++;
         }
-        if (changed) sheet.getRange(rowNumber, headerMap.H_UpdatedAt).setValue('APP語種指派|' + syncTime);
+        if (changed) {
+          context.columns.H_UpdatedAt[rowIndex][0] = 'APP語種指派|' + syncTime;
+          context.dirtyColumns.H_UpdatedAt = true;
+          changedCells++;
+        }
+        if (row.h_review_id) syncedReviewIds.push(Number(row.h_review_id));
       }
 
       if (
@@ -1012,7 +1062,21 @@ function syncTaskAssignmentsToSheets(options) {
       }
     });
 
-    var message = '✅ 已回寫 APP 語種指派至工作表：檢查/更新 ' + updated + ' 筆。';
+    Object.keys(contextCache).forEach(function(sheetName) {
+      var context = contextCache[sheetName];
+      Object.keys(context.dirtyColumns).forEach(function(header) {
+        context.sheet.getRange(2, context.headerMap[header], context.rowCount, 1).setValues(context.columns[header]);
+      });
+    });
+
+    var uniqueReviewIds = {};
+    syncedReviewIds.forEach(function(id) {
+      if (id) uniqueReviewIds[String(id)] = Number(id);
+    });
+    var marked = markReviewsSheetSynced_(Object.keys(uniqueReviewIds).map(function(key) {
+      return uniqueReviewIds[key];
+    }));
+    var message = '✅ 已回寫 APP 語種指派至工作表：檢查 ' + updated + ' 筆，更新儲存格 ' + changedCells + ' 格，標記已同步 ' + marked + ' 筆。';
     if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
     return notify_(message, options);
   } catch (e) {
