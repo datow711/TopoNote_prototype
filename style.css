@@ -172,6 +172,17 @@ button:disabled {
     font-size: 13px;
 }
 
+.btn-download-tasks {
+    width: auto;
+    min-height: 34px;
+    margin: 0 8px 0 0;
+    padding: 7px 12px;
+    background: var(--accent);
+    color: var(--ink);
+    border: 1px solid var(--accent-pressed);
+    font-size: 13px;
+}
+
 .btn-record {
     background: var(--canvas-dark);
 }
@@ -1257,6 +1268,60 @@ button:disabled {
     text-align: center;
 }
 
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 30, 43, 0.34);
+}
+
+.dialog-panel {
+    position: relative;
+    width: min(420px, 100%);
+    padding: 20px;
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    background: var(--canvas);
+    box-shadow: 0 24px 60px rgba(0, 30, 43, 0.24);
+}
+
+.dialog-panel h3 {
+    margin: 0 0 8px;
+    color: var(--ink);
+    font-size: 20px;
+}
+
+.dialog-panel p {
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.dialog-actions button {
+    margin: 0;
+}
+
+.dialog-close {
+    width: auto;
+    min-height: 30px;
+    margin: 12px 0 0;
+    padding: 5px 10px;
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    font-size: 13px;
+}
+
 .hidden {
     display: none !important;
 }
@@ -1312,6 +1377,21 @@ button:disabled {
         align-items: flex-start;
     }
 
+    #user-info-badge {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .btn-download-tasks,
+    .btn-logout {
+        width: 100%;
+        margin: 0;
+    }
+
+    .btn-download-tasks {
+        margin-bottom: 8px;
+    }
+
     .language-assignment-row {
         grid-template-columns: 1fr;
     }
@@ -1341,6 +1421,10 @@ button:disabled {
     .review-approve-btn,
     .review-revoke-btn {
         width: 100%;
+    }
+
+    .dialog-actions {
+        grid-template-columns: 1fr;
     }
 
     .admin-user-manager-header,

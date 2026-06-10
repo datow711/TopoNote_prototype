@@ -76,6 +76,29 @@ const REVIEW_FIELD_CONFIG = {
     }
 };
 
+const TASK_EXPORT_BASE_COLUMNS = [
+    { key: 'county', label: '縣市' },
+    { key: 'town', label: '鄉鎮' },
+    { key: 'type', label: '分類' },
+    { key: 'placeName', label: '地名' }
+];
+
+const TASK_EXPORT_FIELD_COLUMNS = [
+    { key: 'taihan', label: '台語漢字' },
+    { key: 'tl1', label: '台語羅馬字' },
+    { key: 'tl2', label: '台語優勢腔副音讀' },
+    { key: 'tl3', label: '台語又念作' },
+    { key: 'tainote', label: '台語備註' },
+    { key: 'honzii', label: '客語漢字' },
+    { key: 'hp1', label: '客語羅馬字' },
+    { key: 'hp2', label: '客語優勢腔副音讀' },
+    { key: 'hp3', label: '客語又念作' },
+    { key: 'hdialect', label: '客語腔調別' },
+    { key: 'haknote', label: '客語備註' }
+];
+
+const TASK_EXPORT_COLUMNS = TASK_EXPORT_BASE_COLUMNS.concat(TASK_EXPORT_FIELD_COLUMNS);
+
 function parseRecordNote(note) {
     if (!note) return {};
     try {
@@ -659,6 +682,9 @@ function renderUserInfo() {
     const roleText = state.userRole === 'admin' ? '👑 管理員' : '👤 調查員';
     const displayName = state.userName || state.userId;
     const hoverTitle = state.userEmail || state.userId;
+    const taskDownloadButton = state.userRole === 'admin'
+        ? ''
+        : '<button class="btn-download-tasks" type="button" onclick="openTaskDownloadDialog()">下載任務清單</button>';
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
@@ -671,6 +697,295 @@ function renderUserInfo() {
         identityLine.textContent = `${roleText}: ${displayName}`;
         identityLine.title = hoverTitle;
     }
+    const logoutButton = userInfoDiv.querySelector('.btn-logout');
+    if (logoutButton && state.userRole !== 'admin' && !userInfoDiv.querySelector('.btn-download-tasks')) {
+        logoutButton.insertAdjacentHTML('beforebegin', taskDownloadButton);
+    }
+}
+
+function getAssignedTaskExportRows() {
+    return [...state.assignedPlaces].sort((a, b) => {
+        const countyCompare = String(a.county || '').localeCompare(String(b.county || ''), 'zh-Hant');
+        if (countyCompare !== 0) return countyCompare;
+        const townCompare = String(a.town || '').localeCompare(String(b.town || ''), 'zh-Hant');
+        if (townCompare !== 0) return townCompare;
+        return String(a.placeName || '').localeCompare(String(b.placeName || ''), 'zh-Hant');
+    });
+}
+
+function getTaskExportCell(place, column) {
+    if (TASK_EXPORT_FIELD_COLUMNS.some(field => field.key === column.key)) return '';
+    if (column.key === 'type') return place.type || place.Type || '';
+    return place[column.key] || '';
+}
+
+function getTaskExportFileBaseName() {
+    const userPart = (state.userName || state.userId || 'investigator')
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, '-');
+    const datePart = new Date().toISOString().slice(0, 10);
+    return `task-list-${userPart}-${datePart}`;
+}
+
+function openTaskDownloadDialog() {
+    const rows = getAssignedTaskExportRows();
+    if (rows.length === 0) {
+        alert('目前沒有可下載的指派任務。');
+        return;
+    }
+
+    closeTaskDownloadDialog();
+    const dialog = document.createElement('div');
+    dialog.id = 'task-download-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="task-download-title">
+            <h3 id="task-download-title">下載任務清單</h3>
+            <p>將 ${rows.length} 筆已指派任務依縣市排序匯出。</p>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" onclick="downloadAssignedTaskList('pdf')">下載 PDF</button>
+                <button class="btn-primary" type="button" onclick="downloadAssignedTaskList('xls')">下載 XLS</button>
+            </div>
+            <button class="dialog-close" type="button" onclick="closeTaskDownloadDialog()" aria-label="關閉">關閉</button>
+        </div>
+    `;
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeTaskDownloadDialog();
+    });
+    document.body.appendChild(dialog);
+}
+
+function closeTaskDownloadDialog() {
+    document.getElementById('task-download-dialog')?.remove();
+}
+
+async function downloadAssignedTaskList(format) {
+    const rows = getAssignedTaskExportRows();
+    if (rows.length === 0) {
+        alert('目前沒有可下載的指派任務。');
+        closeTaskDownloadDialog();
+        return;
+    }
+
+    if (format === 'xls') {
+        downloadTaskListXls(rows);
+    } else {
+        await downloadTaskListPdf(rows);
+    }
+    closeTaskDownloadDialog();
+}
+
+function downloadTaskListXls(rows) {
+    const headerHtml = TASK_EXPORT_COLUMNS
+        .map(column => `<th>${escapeHtml(column.label)}</th>`)
+        .join('');
+    const bodyHtml = rows.map(place => `
+        <tr>
+            ${TASK_EXPORT_COLUMNS.map(column => `<td>${escapeHtml(getTaskExportCell(place, column))}</td>`).join('')}
+        </tr>
+    `).join('');
+    const html = `
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                table { border-collapse: collapse; font-family: "Noto Sans TC", Arial, sans-serif; }
+                th, td { border: 1px solid #777; padding: 6px 8px; mso-number-format: "\\@"; }
+                th { background: #e7f6ef; font-weight: 700; }
+                td { min-width: 96px; height: 26px; }
+            </style>
+        </head>
+        <body>
+            <table>
+                <thead><tr>${headerHtml}</tr></thead>
+                <tbody>${bodyHtml}</tbody>
+            </table>
+        </body>
+        </html>
+    `;
+    downloadBlob(new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8' }), `${getTaskExportFileBaseName()}.xls`);
+}
+
+async function downloadTaskListPdf(rows) {
+    const pageImages = renderTaskExportPdfPages(rows);
+    const pdfBlob = createPdfFromJpegPages(pageImages);
+    downloadBlob(pdfBlob, `${getTaskExportFileBaseName()}.pdf`);
+}
+
+function renderTaskExportPdfPages(rows) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1754;
+    canvas.height = 1240;
+    const ctx = canvas.getContext('2d');
+    const margin = 44;
+    const tableTop = 132;
+    const headerHeight = 44;
+    const rowHeight = 48;
+    const footerHeight = 42;
+    const rowsPerPage = Math.floor((canvas.height - tableTop - headerHeight - footerHeight - margin) / rowHeight);
+    const widths = [92, 104, 130, 160, 112, 112, 126, 104, 116, 112, 112, 126, 104, 112, 116];
+    const pages = [];
+    const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#001e2b';
+        ctx.font = '700 34px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+        ctx.fillText('任務清單', margin, 62);
+        ctx.font = '24px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+        ctx.fillText(`${state.userName || state.userId || ''}｜${rows.length} 筆`, margin, 100);
+
+        drawTaskExportTableHeader(ctx, margin, tableTop, widths, headerHeight);
+        const start = pageIndex * rowsPerPage;
+        const pageRows = rows.slice(start, start + rowsPerPage);
+        pageRows.forEach((place, rowIndex) => {
+            drawTaskExportTableRow(ctx, place, margin, tableTop + headerHeight + rowIndex * rowHeight, widths, rowHeight, rowIndex);
+        });
+
+        ctx.fillStyle = '#56616b';
+        ctx.font = '20px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+        ctx.fillText(`第 ${pageIndex + 1} / ${pageCount} 頁`, canvas.width - margin - 120, canvas.height - 24);
+        pages.push({ dataUrl: canvas.toDataURL('image/jpeg', 0.92), width: canvas.width, height: canvas.height });
+    }
+
+    return pages;
+}
+
+function drawTaskExportTableHeader(ctx, x, y, widths, height) {
+    ctx.fillStyle = '#e7f6ef';
+    ctx.fillRect(x, y, widths.reduce((sum, width) => sum + width, 0), height);
+    ctx.strokeStyle = '#6b777f';
+    ctx.lineWidth = 1;
+    ctx.font = '700 18px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#001e2b';
+    let currentX = x;
+    TASK_EXPORT_COLUMNS.forEach((column, index) => {
+        ctx.strokeRect(currentX, y, widths[index], height);
+        drawFittedText(ctx, column.label, currentX + 7, y + 28, widths[index] - 14);
+        currentX += widths[index];
+    });
+}
+
+function drawTaskExportTableRow(ctx, place, x, y, widths, height, rowIndex) {
+    ctx.fillStyle = rowIndex % 2 === 0 ? '#ffffff' : '#f8fbfa';
+    ctx.fillRect(x, y, widths.reduce((sum, width) => sum + width, 0), height);
+    ctx.strokeStyle = '#a9b2b8';
+    ctx.lineWidth = 1;
+    ctx.font = '18px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#001e2b';
+    let currentX = x;
+    TASK_EXPORT_COLUMNS.forEach((column, index) => {
+        ctx.strokeRect(currentX, y, widths[index], height);
+        drawFittedText(ctx, getTaskExportCell(place, column), currentX + 7, y + 30, widths[index] - 14);
+        currentX += widths[index];
+    });
+}
+
+function drawFittedText(ctx, value, x, y, maxWidth) {
+    const text = String(value || '');
+    if (!text) return;
+    if (ctx.measureText(text).width <= maxWidth) {
+        ctx.fillText(text, x, y);
+        return;
+    }
+
+    let clipped = text;
+    while (clipped.length > 1 && ctx.measureText(`${clipped}…`).width > maxWidth) {
+        clipped = clipped.slice(0, -1);
+    }
+    ctx.fillText(`${clipped}…`, x, y);
+}
+
+function createPdfFromJpegPages(pages) {
+    const encoder = new TextEncoder();
+    const chunks = [];
+    const offsets = [0];
+    let length = 0;
+    const pageWidth = 841.89;
+    const pageHeight = 595.28;
+
+    function pushString(value) {
+        const bytes = encoder.encode(value);
+        chunks.push(bytes);
+        length += bytes.length;
+    }
+
+    function pushBytes(bytes) {
+        chunks.push(bytes);
+        length += bytes.length;
+    }
+
+    function addObject(id, bodyParts) {
+        offsets[id] = length;
+        pushString(`${id} 0 obj\n`);
+        bodyParts.forEach(part => {
+            if (typeof part === 'string') pushString(part);
+            else pushBytes(part);
+        });
+        pushString('\nendobj\n');
+    }
+
+    pushString('%PDF-1.4\n');
+    const kids = pages.map((_, index) => `${5 + index * 3} 0 R`).join(' ');
+    addObject(1, [`<< /Type /Catalog /Pages 2 0 R >>`]);
+    addObject(2, [`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`]);
+
+    pages.forEach((page, index) => {
+        const imageId = 3 + index * 3;
+        const contentId = 4 + index * 3;
+        const pageId = 5 + index * 3;
+        const imageBytes = dataUrlToBytes(page.dataUrl);
+        const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im${index + 1} Do\nQ`;
+
+        addObject(imageId, [
+            `<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+            imageBytes,
+            `\nendstream`
+        ]);
+        addObject(contentId, [
+            `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`
+        ]);
+        addObject(pageId, [
+            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im${index + 1} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
+        ]);
+    });
+
+    const xrefOffset = length;
+    pushString(`xref\n0 ${offsets.length}\n`);
+    pushString('0000000000 65535 f \n');
+    for (let id = 1; id < offsets.length; id += 1) {
+        pushString(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`);
+    }
+    pushString(`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+    const pdfBytes = new Uint8Array(length);
+    let offset = 0;
+    chunks.forEach(chunk => {
+        pdfBytes.set(chunk, offset);
+        offset += chunk.length;
+    });
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+}
+
+function dataUrlToBytes(dataUrl) {
+    const binary = atob(dataUrl.split(',')[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function configureRoleUI() {

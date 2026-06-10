@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-10] [UI]
+調查員個人任務頁新增「下載任務清單」按鈕，位於登出左側；點擊後可選 PDF 或 XLS。匯出資料使用目前登入調查員的指派任務，依縣市、鄉鎮、地名排序，表格欄位包含縣市、鄉鎮、分類、地名，以及台語/客語標注欄位空格。PDF 由前端 canvas 產生並下載，XLS 由 Excel 可開啟的 HTML table 產生，不新增後端或套件依賴。
+
 [2026-06-09] [DATA]
 Mapped existing legacy place assignments into 台語 language assignment and left 客語 unassigned for manual reset. Live Supabase now has 184 台語 assignees and 0 客語 assignees; `app_language_assignment_sheet_view` was narrowed to only `needs_sheet_sync` rows so GAS writeback does not sweep unrelated Sheet language columns. Places GAS was pushed to Apps Script at 上午8:49:37.
 
