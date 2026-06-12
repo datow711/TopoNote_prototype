@@ -439,6 +439,9 @@ button:disabled {
 .type-chip,
 .hak-area-chip,
 .status-chip {
+    width: auto;
+    min-height: 0;
+    margin: 0;
     padding: 5px 10px;
     border: 1px solid var(--hairline);
     border-radius: 9999px;

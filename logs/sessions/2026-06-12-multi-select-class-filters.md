@@ -19,3 +19,21 @@
   - TaiClass and HakClass render as chip groups.
   - Same-group matching behaves as union and cross-group filtering behaves as intersection.
   - Existing admin assignee selection is preserved while toggling chips.
+
+## Follow-up Fix
+
+- Fixed oversized filter chips caused by the shared `button` rule applying `width: 100%`, `min-height: 44px`, and bottom margin to chip buttons.
+- Cached available category, TaiClass, and HakClass values during filter initialization so chip rerenders do not rescan all place arrays.
+- Switched multi-select membership checks in `applyFilters()` to `Set` lookups.
+- Added a no-op guard for already-selected "select all" actions.
+
+## Follow-up Verification
+
+- `node --check main.js`
+- `git diff --check`
+- Playwright headless check with 1500 generated rows confirmed:
+  - Filter chip size stayed compact at 70 x 30 px.
+  - Single category toggle completed in about 61 ms.
+  - Select-all completed in about 150 ms.
+  - Repeated select-all returned in about 1 ms without rerendering.
+  - Filter counts matched the expected union behavior.

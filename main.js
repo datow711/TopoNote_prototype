@@ -18,6 +18,9 @@ let state = {
     selectedTypes: [],
     selectedTaiClasses: [],
     selectedHakClasses: [],
+    availableTypes: [],
+    availableTaiClasses: [],
+    availableHakClasses: [],
     selectedHakArea: "all",
     selectedStatus: "all", 
     userSpecialty: "",
@@ -630,6 +633,9 @@ function logout() {
     state.selectedTypes = [];
     state.selectedTaiClasses = [];
     state.selectedHakClasses = [];
+    state.availableTypes = [];
+    state.availableTaiClasses = [];
+    state.availableHakClasses = [];
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
@@ -1555,8 +1561,9 @@ function initFilters() {
     countySelect.innerHTML = '<option value="">所有縣市</option>'; 
     counties.forEach(c => countySelect.add(new Option(c, c)));
     
-    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
-    renderMultiFilterChips('type-container', 'types', '全部類別', types, state.selectedTypes, getTypeDisplayText);
+    state.availableTypes = types;
+    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, state.availableTypes);
+    renderMultiFilterChips('type-container', 'types', '全部類別', state.availableTypes, state.selectedTypes, getTypeDisplayText);
 
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
@@ -1589,8 +1596,10 @@ function initClassFilters() {
     const hakClasses = [...new Set(data.map(place => place.hakClass).filter(Boolean))].sort();
     let classRow = document.getElementById('class-filter-row');
 
-    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses);
-    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses);
+    state.availableTaiClasses = taiClasses;
+    state.availableHakClasses = hakClasses;
+    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, state.availableTaiClasses);
+    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, state.availableHakClasses);
 
     if (!classRow) {
         classRow = document.createElement('div');
@@ -1609,8 +1618,8 @@ function initClassFilters() {
         searchBox.parentNode.insertBefore(classRow, searchBox.nextSibling);
     }
 
-    renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', taiClasses, state.selectedTaiClasses);
-    renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', hakClasses, state.selectedHakClasses);
+    renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', state.availableTaiClasses, state.selectedTaiClasses);
+    renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', state.availableHakClasses, state.selectedHakClasses);
 }
 
 function updateTowns() {
@@ -1663,6 +1672,8 @@ function selectAllMultiFilter(filterKey) {
     const stateKey = getMultiFilterStateKey(filterKey);
     if (!stateKey) return;
     const values = getAvailableMultiFilterValues(filterKey);
+    const current = Array.isArray(state[stateKey]) ? state[stateKey] : [];
+    if (current.length === values.length && values.every(value => current.includes(value))) return;
     state[stateKey] = [...values];
     renderAllMultiFilterChips();
     handleFilterChange();
@@ -1682,23 +1693,22 @@ function toggleMultiFilterValue(filterKey, value) {
 }
 
 function getAvailableMultiFilterValues(filterKey) {
-    const allFilterPlaces = state.allPlaces.concat(state.assignedPlaces, state.reviewQueue);
     if (filterKey === 'types') {
-        return [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))].sort();
+        return state.availableTypes || [];
     }
     if (filterKey === 'taiClasses') {
-        return [...new Set(allFilterPlaces.map(place => place.taiClass).filter(Boolean))].sort();
+        return state.availableTaiClasses || [];
     }
     if (filterKey === 'hakClasses') {
-        return [...new Set(allFilterPlaces.map(place => place.hakClass).filter(Boolean))].sort();
+        return state.availableHakClasses || [];
     }
     return [];
 }
 
 function renderAllMultiFilterChips() {
-    const types = getAvailableMultiFilterValues('types');
-    const taiClasses = getAvailableMultiFilterValues('taiClasses');
-    const hakClasses = getAvailableMultiFilterValues('hakClasses');
+    const types = state.availableTypes || [];
+    const taiClasses = state.availableTaiClasses || [];
+    const hakClasses = state.availableHakClasses || [];
 
     state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
     state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses);
@@ -1739,7 +1749,10 @@ function applyFilters() {
     const selectedTypes = Array.isArray(state.selectedTypes) ? state.selectedTypes : [];
     const selectedTaiClasses = Array.isArray(state.selectedTaiClasses) ? state.selectedTaiClasses : [];
     const selectedHakClasses = Array.isArray(state.selectedHakClasses) ? state.selectedHakClasses : [];
-    const availableTypes = getAvailableMultiFilterValues('types');
+    const typeSet = new Set(selectedTypes);
+    const taiClassSet = new Set(selectedTaiClasses);
+    const hakClassSet = new Set(selectedHakClasses);
+    const hasTypeOptions = (state.availableTypes || []).length > 0;
     const hakArea = state.selectedHakArea;
     const status = state.selectedStatus; 
     
@@ -1759,9 +1772,9 @@ function applyFilters() {
             || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
-        const matchTy = availableTypes.length > 0 ? selectedTypes.includes(place.type || place.Type) : true;
-        const matchTaiClass = selectedTaiClasses.length > 0 ? selectedTaiClasses.includes(place.taiClass) : true;
-        const matchHakClass = selectedHakClasses.length > 0 ? selectedHakClasses.includes(place.hakClass) : true;
+        const matchTy = hasTypeOptions ? typeSet.has(place.type || place.Type) : true;
+        const matchTaiClass = selectedTaiClasses.length > 0 ? taiClassSet.has(place.taiClass) : true;
+        const matchHakClass = selectedHakClasses.length > 0 ? hakClassSet.has(place.hakClass) : true;
         const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';
         const matchHakArea = hakArea === 'all' || (hakArea === 'hak' ? isHakArea : !isHakArea);
         
