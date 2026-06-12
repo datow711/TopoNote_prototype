@@ -38,7 +38,6 @@
         </div>
 
         <div class="filter-section">
-            <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
             <div class="filter-row">
                 <select id="county-filter" onchange="updateTowns(); handleFilterChange()">
                     <option value="">所有縣市</option>
@@ -48,7 +47,7 @@
                 </select>
             </div>
             
-            <div class="type-chips" id="type-container"></div>
+            <div class="type-chips category-filter-group" id="type-container"></div>
 
             <div class="hak-area-chips" id="hak-area-container">
                 <div class="hak-area-chip selected" onclick="selectHakArea('all', this)">全部分區</div>
@@ -63,6 +62,7 @@
                 <div class="status-chip" onclick="selectStatus('客語完成', this)">客語完成</div>
                 <div class="status-chip" onclick="selectStatus('全部完成', this)">全部完成</div>
             </div>
+            <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
         </div>
 
         <div class="place-list" id="place-list-container"></div>

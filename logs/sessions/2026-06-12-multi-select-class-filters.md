@@ -56,3 +56,18 @@
 - Playwright headless check with 75 generated rows confirmed:
   - All 75 rows render at once.
   - The load-more button is hidden when the result count is at or below 100.
+
+## Filter Layout And Color Follow-up
+
+- Reordered the filter section so county/town appears first, followed by TaiClass/HakClass, category, Hakka-area, and recording status.
+- Moved the text search field after the main filter groups so it does not interrupt the requested filter order.
+- Added subtle differentiated chip palettes:
+  - Category: green.
+  - TaiClass: warm gold.
+  - HakClass: muted blue-green.
+
+## Filter Layout Verification
+
+- `node --check main.js`
+- `git diff --check`
+- Playwright headless check confirmed the filter DOM order and that batched rendering still shows the first 100 rows with load-more available.

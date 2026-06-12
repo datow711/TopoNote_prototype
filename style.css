@@ -17,6 +17,15 @@
     --accent-purple: #7b3ff2;
     --accent-orange: #fa6e39;
     --accent-blue: #3d4f9f;
+    --filter-type-bg: #edf8f1;
+    --filter-type-border: #b7dfc6;
+    --filter-type-selected: #00684a;
+    --filter-tai-bg: #fff7df;
+    --filter-tai-border: #e7c46b;
+    --filter-tai-selected: #8a641f;
+    --filter-hak-bg: #eaf6f8;
+    --filter-hak-border: #9fcfd7;
+    --filter-hak-selected: #276b78;
     --danger: #dc3d43;
     --danger-soft: #fff1f2;
     --warning: #946f3f;
@@ -476,6 +485,62 @@ button:disabled {
     background: var(--accent);
     color: var(--ink);
     border-color: var(--accent);
+}
+
+.category-filter-group .filter-chip {
+    background: var(--filter-type-bg);
+    border-color: var(--filter-type-border);
+    color: var(--accent-deep);
+}
+
+.category-filter-group .filter-chip:hover {
+    border-color: var(--filter-type-selected);
+}
+
+.category-filter-group .filter-chip.selected {
+    background: var(--filter-type-selected);
+    color: var(--canvas);
+    border-color: var(--filter-type-selected);
+}
+
+.tai-filter-group .filter-chip-label {
+    color: var(--filter-tai-selected);
+}
+
+.tai-filter-group .filter-chip {
+    background: var(--filter-tai-bg);
+    border-color: var(--filter-tai-border);
+    color: var(--filter-tai-selected);
+}
+
+.tai-filter-group .filter-chip:hover {
+    border-color: var(--filter-tai-selected);
+}
+
+.tai-filter-group .filter-chip.selected {
+    background: var(--filter-tai-selected);
+    color: var(--canvas);
+    border-color: var(--filter-tai-selected);
+}
+
+.hak-filter-group .filter-chip-label {
+    color: var(--filter-hak-selected);
+}
+
+.hak-filter-group .filter-chip {
+    background: var(--filter-hak-bg);
+    border-color: var(--filter-hak-border);
+    color: var(--filter-hak-selected);
+}
+
+.hak-filter-group .filter-chip:hover {
+    border-color: var(--filter-hak-selected);
+}
+
+.hak-filter-group .filter-chip.selected {
+    background: var(--filter-hak-selected);
+    color: var(--canvas);
+    border-color: var(--filter-hak-selected);
 }
 
 .place-list {

@@ -1595,7 +1595,7 @@ function initFilters() {
 }
 
 function initClassFilters() {
-    const searchBox = document.getElementById('search-box');
+    const typeContainer = document.getElementById('type-container');
     const data = state.allPlaces.concat(state.assignedPlaces, state.reviewQueue);
     const taiClasses = [...new Set(data.map(place => place.taiClass).filter(Boolean))].sort();
     const hakClasses = [...new Set(data.map(place => place.hakClass).filter(Boolean))].sort();
@@ -1611,16 +1611,16 @@ function initClassFilters() {
         classRow.id = 'class-filter-row';
         classRow.className = 'admin-class-filter-row';
         classRow.innerHTML = `
-            <div class="class-chip-group">
+            <div class="class-chip-group tai-filter-group">
                 <div class="filter-chip-label">台語分級</div>
                 <div class="class-chips" id="tai-class-container"></div>
             </div>
-            <div class="class-chip-group">
+            <div class="class-chip-group hak-filter-group">
                 <div class="filter-chip-label">客語分級</div>
                 <div class="class-chips" id="hak-class-container"></div>
             </div>
         `;
-        searchBox.parentNode.insertBefore(classRow, searchBox.nextSibling);
+        typeContainer.parentNode.insertBefore(classRow, typeContainer);
     }
 
     renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', state.availableTaiClasses, state.selectedTaiClasses);
