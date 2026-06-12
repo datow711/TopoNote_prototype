@@ -25,6 +25,9 @@ let state = {
     selectedStatus: "all", 
     userSpecialty: "",
     lastSelectedPlaceIndex: null,
+    filteredPlaces: [],
+    renderedPlaceCount: 0,
+    placeRenderBatchSize: 100,
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
     allUserRecords: [],
 };
@@ -639,6 +642,8 @@ function logout() {
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
+    state.filteredPlaces = [];
+    state.renderedPlaceCount = 0;
     state.allUsers = [];
     state.allUserRecords = [];
 
@@ -2230,10 +2235,28 @@ async function unassignTaskLanguageFromCard(event, taskId, language) {
 function renderPlaceList(places) {
     const container = document.getElementById('place-list-container');
     container.innerHTML = "";
+    state.filteredPlaces = Array.isArray(places) ? places : [];
+    state.renderedPlaceCount = 0;
     state.lastSelectedPlaceIndex = null;
-    if (places.length === 0) return container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
+    if (state.filteredPlaces.length === 0) return container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
 
-    places.forEach((place, index) => {
+    appendPlaceListBatch();
+}
+
+function appendPlaceListBatch() {
+    const container = document.getElementById('place-list-container');
+    if (!container) return;
+
+    const places = state.filteredPlaces || [];
+    const start = state.renderedPlaceCount || 0;
+    const batchSize = state.placeRenderBatchSize || 100;
+    const end = Math.min(start + batchSize, places.length);
+    const oldLoadMore = document.getElementById('place-list-load-more');
+    if (oldLoadMore) oldLoadMore.remove();
+
+    const fragment = document.createDocumentFragment();
+    places.slice(start, end).forEach((place, offset) => {
+        const index = start + offset;
         const item = document.createElement('div');
         item.className = 'place-item';
         if (state.selectedPlace && state.selectedPlace.id === place.id) item.classList.add('active');
@@ -2280,9 +2303,33 @@ function renderPlaceList(places) {
             </div>
         `;
         item.onclick = () => openRecordingUI(place, item);
-        container.appendChild(item);
+        fragment.appendChild(item);
     });
+
+    container.appendChild(fragment);
+    state.renderedPlaceCount = end;
+    renderPlaceListLoadMore();
     updateSelectedAssignCount();
+}
+
+function renderPlaceListLoadMore() {
+    const container = document.getElementById('place-list-container');
+    if (!container) return;
+
+    const total = (state.filteredPlaces || []).length;
+    const shown = state.renderedPlaceCount || 0;
+    if (shown >= total) return;
+
+    const button = document.createElement('button');
+    button.id = 'place-list-load-more';
+    button.type = 'button';
+    button.className = 'place-list-load-more';
+    button.textContent = `載入更多（已顯示 ${shown} / ${total} 筆）`;
+    button.onclick = event => {
+        event.stopPropagation();
+        appendPlaceListBatch();
+    };
+    container.appendChild(button);
 }
 
 function toggleAdminPlaceSelection(event, index) {

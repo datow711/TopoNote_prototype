@@ -483,6 +483,28 @@ button:disabled {
     overflow-y: auto;
 }
 
+.place-list-load-more {
+    display: block;
+    width: calc(100% - 24px);
+    min-height: 38px;
+    margin: 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.place-list-load-more:hover {
+    background: var(--surface-feature);
+    color: var(--ink);
+    transform: none;
+    box-shadow: none;
+}
+
 .place-item {
     display: block;
     padding: 14px 16px;

@@ -37,3 +37,22 @@
   - Select-all completed in about 150 ms.
   - Repeated select-all returned in about 1 ms without rerendering.
   - Filter counts matched the expected union behavior.
+
+## Batched List Rendering
+
+- Changed the place list to render the first 100 filtered rows immediately.
+- Added a "load more" button that appends the next 100 rows only when needed.
+- Kept the full filtered result in state so filtering semantics remain unchanged while DOM work is capped per interaction.
+
+## Batched Rendering Verification
+
+- `node --check main.js`
+- `git diff --check`
+- Playwright headless check with 6000 generated rows confirmed:
+  - Initial list render showed 100 rows in about 10 ms.
+  - Loading the next batch appended rows 101-200 in about 11 ms.
+  - Reapplying a broad filter reset the visible list to 100 rows in about 11 ms.
+  - The load-more button showed the expected 100 / 6000 count.
+- Playwright headless check with 75 generated rows confirmed:
+  - All 75 rows render at once.
+  - The load-more button is hidden when the result count is at or below 100.
