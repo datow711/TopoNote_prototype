@@ -396,7 +396,10 @@ button:disabled {
 }
 
 .admin-class-filter-row {
-    margin-bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 
 .filter-row {
@@ -407,6 +410,7 @@ button:disabled {
 }
 
 .type-chips,
+.class-chips,
 .hak-area-chips,
 .status-chips {
     display: flex;
@@ -420,6 +424,18 @@ button:disabled {
     scrollbar-width: thin;
 }
 
+.class-chip-group {
+    min-width: 0;
+}
+
+.filter-chip-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.filter-chip,
 .type-chip,
 .hak-area-chip,
 .status-chip {
@@ -436,6 +452,7 @@ button:disabled {
     white-space: nowrap;
 }
 
+.filter-chip:hover,
 .type-chip:hover,
 .hak-area-chip:hover,
 .status-chip:hover {
@@ -444,6 +461,7 @@ button:disabled {
     transform: translateY(-1px);
 }
 
+.filter-chip.selected,
 .type-chip.selected {
     background: var(--canvas-dark);
     color: var(--canvas);
@@ -1419,6 +1437,10 @@ button:disabled {
     }
 
     .filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-class-filter-row {
         grid-template-columns: 1fr;
     }
 

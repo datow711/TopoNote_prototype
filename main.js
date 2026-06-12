@@ -15,9 +15,9 @@ let state = {
     userPhone: "",
     currentTab: 'assigned', 
     selectedPlace: null, 
-    selectedType: "",
-    selectedTaiClass: "",
-    selectedHakClass: "",
+    selectedTypes: [],
+    selectedTaiClasses: [],
+    selectedHakClasses: [],
     selectedHakArea: "all",
     selectedStatus: "all", 
     userSpecialty: "",
@@ -627,9 +627,9 @@ function logout() {
     state.reviewQueue = [];
     state.selectedPlace = null;
     state.currentTab = 'assigned';
-    state.selectedType = '';
-    state.selectedTaiClass = '';
-    state.selectedHakClass = '';
+    state.selectedTypes = [];
+    state.selectedTaiClasses = [];
+    state.selectedHakClasses = [];
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
@@ -1549,18 +1549,14 @@ function switchTab(tab) {
 // 🌟 更新版：初始化篩選器
 function initFilters() {
     const counties = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.county).filter(Boolean))];
-    const types = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))];
+    const types = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))].sort();
     
     const countySelect = document.getElementById('county-filter');
     countySelect.innerHTML = '<option value="">所有縣市</option>'; 
     counties.forEach(c => countySelect.add(new Option(c, c)));
     
-    const typeContainer = document.getElementById('type-container');
-    typeContainer.innerHTML = `<div class="type-chip selected" onclick="selectType('', this)">全部類別</div>`;
-    types.forEach(t => { 
-        let displayText = t === "具有地標意義公共設施" ? "公共設施" : t;
-        typeContainer.innerHTML += `<div class="type-chip" onclick="selectType('${t}', this)">${displayText}</div>`; 
-    });
+    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
+    renderMultiFilterChips('type-container', 'types', '全部類別', types, state.selectedTypes, getTypeDisplayText);
 
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
@@ -1593,30 +1589,28 @@ function initClassFilters() {
     const hakClasses = [...new Set(data.map(place => place.hakClass).filter(Boolean))].sort();
     let classRow = document.getElementById('class-filter-row');
 
-    if (state.selectedTaiClass && !taiClasses.includes(state.selectedTaiClass)) state.selectedTaiClass = '';
-    if (state.selectedHakClass && !hakClasses.includes(state.selectedHakClass)) state.selectedHakClass = '';
+    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses);
+    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses);
 
     if (!classRow) {
         classRow = document.createElement('div');
         classRow.id = 'class-filter-row';
-        classRow.className = 'filter-row admin-class-filter-row';
+        classRow.className = 'admin-class-filter-row';
         classRow.innerHTML = `
-            <select id="tai-class-filter" onchange="selectClassFilter('tai', this.value)">
-                <option value="">所有台語分級</option>
-            </select>
-            <select id="hak-class-filter" onchange="selectClassFilter('hak', this.value)">
-                <option value="">所有客語分級</option>
-            </select>
+            <div class="class-chip-group">
+                <div class="filter-chip-label">台語分級</div>
+                <div class="class-chips" id="tai-class-container"></div>
+            </div>
+            <div class="class-chip-group">
+                <div class="filter-chip-label">客語分級</div>
+                <div class="class-chips" id="hak-class-container"></div>
+            </div>
         `;
         searchBox.parentNode.insertBefore(classRow, searchBox.nextSibling);
     }
 
-    const taiSelect = document.getElementById('tai-class-filter');
-    const hakSelect = document.getElementById('hak-class-filter');
-    taiSelect.innerHTML = '<option value="">所有台語分級</option>' + taiClasses.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
-    hakSelect.innerHTML = '<option value="">所有客語分級</option>' + hakClasses.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
-    taiSelect.value = state.selectedTaiClass;
-    hakSelect.value = state.selectedHakClass;
+    renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', taiClasses, state.selectedTaiClasses);
+    renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', hakClasses, state.selectedHakClasses);
 }
 
 function updateTowns() {
@@ -1628,11 +1622,91 @@ function updateTowns() {
         towns.forEach(t => townSelect.add(new Option(t, t)));
     }
 }
-function selectType(type, element) {
-    state.selectedType = type;
-    document.querySelectorAll('.type-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected');
+
+function getTypeDisplayText(value) {
+    return value === "具有地標意義公共設施" ? "公共設施" : value;
+}
+
+function getMultiFilterStateKey(filterKey) {
+    return {
+        types: 'selectedTypes',
+        taiClasses: 'selectedTaiClasses',
+        hakClasses: 'selectedHakClasses'
+    }[filterKey];
+}
+
+function reconcileMultiFilterSelection(selectedValues, availableValues) {
+    const selected = Array.isArray(selectedValues) ? selectedValues : [];
+    if (availableValues.length === 0) return [];
+    if (selected.length === 0) return [...availableValues];
+    const availableSet = new Set(availableValues);
+    const validSelected = selected.filter(value => availableSet.has(value));
+    return validSelected.length > 0 ? validSelected : [...availableValues];
+}
+
+function renderMultiFilterChips(containerId, filterKey, allLabel, values, selectedValues, displayFormatter = value => value) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const selectedSet = new Set(selectedValues);
+    const isAllSelected = values.length === 0 || selectedSet.size === values.length;
+    const allChip = `<button type="button" class="filter-chip ${isAllSelected ? 'selected' : ''}" onclick="selectAllMultiFilter('${filterKey}')">${escapeHtml(allLabel)}</button>`;
+    const chips = values.map(value => {
+        const selected = selectedSet.has(value);
+        return `<button type="button" class="filter-chip ${selected ? 'selected' : ''}" onclick="toggleMultiFilterValue('${filterKey}', '${escapeJsString(value)}')">${escapeHtml(displayFormatter(value))}</button>`;
+    }).join('');
+
+    container.innerHTML = allChip + chips;
+}
+
+function selectAllMultiFilter(filterKey) {
+    const stateKey = getMultiFilterStateKey(filterKey);
+    if (!stateKey) return;
+    const values = getAvailableMultiFilterValues(filterKey);
+    state[stateKey] = [...values];
+    renderAllMultiFilterChips();
     handleFilterChange();
+}
+
+function toggleMultiFilterValue(filterKey, value) {
+    const stateKey = getMultiFilterStateKey(filterKey);
+    if (!stateKey) return;
+
+    const current = Array.isArray(state[stateKey]) ? state[stateKey] : [];
+    state[stateKey] = current.includes(value)
+        ? current.filter(item => item !== value)
+        : current.concat(value);
+
+    renderAllMultiFilterChips();
+    handleFilterChange();
+}
+
+function getAvailableMultiFilterValues(filterKey) {
+    const allFilterPlaces = state.allPlaces.concat(state.assignedPlaces, state.reviewQueue);
+    if (filterKey === 'types') {
+        return [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))].sort();
+    }
+    if (filterKey === 'taiClasses') {
+        return [...new Set(allFilterPlaces.map(place => place.taiClass).filter(Boolean))].sort();
+    }
+    if (filterKey === 'hakClasses') {
+        return [...new Set(allFilterPlaces.map(place => place.hakClass).filter(Boolean))].sort();
+    }
+    return [];
+}
+
+function renderAllMultiFilterChips() {
+    const types = getAvailableMultiFilterValues('types');
+    const taiClasses = getAvailableMultiFilterValues('taiClasses');
+    const hakClasses = getAvailableMultiFilterValues('hakClasses');
+
+    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
+    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses);
+    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses);
+
+    renderMultiFilterChips('type-container', 'types', '全部類別', types, state.selectedTypes, getTypeDisplayText);
+    renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', taiClasses, state.selectedTaiClasses);
+    renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', hakClasses, state.selectedHakClasses);
 }
 function selectHakArea(hakArea, element) {
     state.selectedHakArea = hakArea;
@@ -1644,14 +1718,6 @@ function selectStatus(status, element) {
     state.selectedStatus = status;
     document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected');
-    handleFilterChange();
-}
-function selectClassFilter(language, value) {
-    if (language === 'hak') {
-        state.selectedHakClass = value;
-    } else {
-        state.selectedTaiClass = value;
-    }
     handleFilterChange();
 }
 
@@ -1670,9 +1736,10 @@ function applyFilters() {
     const keyword = document.getElementById('search-box').value.toLowerCase();
     const county = document.getElementById('county-filter').value;
     const town = document.getElementById('town-filter').value;
-    const type = state.selectedType;
-    const taiClass = state.selectedTaiClass;
-    const hakClass = state.selectedHakClass;
+    const selectedTypes = Array.isArray(state.selectedTypes) ? state.selectedTypes : [];
+    const selectedTaiClasses = Array.isArray(state.selectedTaiClasses) ? state.selectedTaiClasses : [];
+    const selectedHakClasses = Array.isArray(state.selectedHakClasses) ? state.selectedHakClasses : [];
+    const availableTypes = getAvailableMultiFilterValues('types');
     const hakArea = state.selectedHakArea;
     const status = state.selectedStatus; 
     
@@ -1692,9 +1759,9 @@ function applyFilters() {
             || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
-        const matchTy = type ? (place.type || place.Type) === type : true;
-        const matchTaiClass = taiClass ? place.taiClass === taiClass : true;
-        const matchHakClass = hakClass ? place.hakClass === hakClass : true;
+        const matchTy = availableTypes.length > 0 ? selectedTypes.includes(place.type || place.Type) : true;
+        const matchTaiClass = selectedTaiClasses.length > 0 ? selectedTaiClasses.includes(place.taiClass) : true;
+        const matchHakClass = selectedHakClasses.length > 0 ? selectedHakClasses.includes(place.hakClass) : true;
         const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';
         const matchHakArea = hakArea === 'all' || (hakArea === 'hak' ? isHakArea : !isHakArea);
         
