@@ -16,6 +16,7 @@ let state = {
     currentTab: 'assigned', 
     selectedPlace: null, 
     selectedTypes: [],
+    typeFiltersInitialized: false,
     selectedTaiClasses: [],
     selectedHakClasses: [],
     classFiltersInitialized: false,
@@ -824,6 +825,7 @@ function logout() {
     state.selectedPlace = null;
     state.currentTab = 'assigned';
     state.selectedTypes = [];
+    state.typeFiltersInitialized = false;
     state.selectedTaiClasses = [];
     state.selectedHakClasses = [];
     state.classFiltersInitialized = false;
@@ -1766,7 +1768,12 @@ function initFilters() {
     updateTowns(previousTown);
     
     state.availableTypes = types;
-    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, state.availableTypes);
+    if (!state.typeFiltersInitialized) {
+        state.selectedTypes = [...state.availableTypes];
+        state.typeFiltersInitialized = true;
+    } else {
+        state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, state.availableTypes, { emptySelectsAll: false });
+    }
     renderMultiFilterChips('type-container', 'types', '全部類別', state.availableTypes, state.selectedTypes, getTypeDisplayText);
 
     if (state.userRole === 'admin') {
@@ -1893,7 +1900,6 @@ function selectAllMultiFilter(filterKey) {
     const values = getAvailableMultiFilterValues(filterKey);
     const current = Array.isArray(state[stateKey]) ? state[stateKey] : [];
     const isAllSelected = current.length === values.length && values.every(value => current.includes(value));
-    if (filterKey === 'types' && isAllSelected) return;
     state[stateKey] = isAllSelected ? [] : [...values];
     renderAllMultiFilterChips();
     handleFilterChange();
@@ -1930,7 +1936,7 @@ function renderAllMultiFilterChips() {
     const taiClasses = state.availableTaiClasses || [];
     const hakClasses = state.availableHakClasses || [];
 
-    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
+    state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types, { emptySelectsAll: false });
     state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses, { emptySelectsAll: false });
     state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses, { emptySelectsAll: false });
 
@@ -1992,7 +1998,7 @@ function applyFilters() {
             || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
         const matchTw = town ? place.town === town : true;
-        const matchTy = hasTypeOptions ? typeSet.has(place.type || place.Type) : true;
+        const matchTy = hasTypeOptions && selectedTypes.length > 0 ? typeSet.has(place.type || place.Type) : true;
         const matchTaiClass = selectedTaiClasses.length > 0 ? taiClassSet.has(place.taiClass) : true;
         const matchHakClass = selectedHakClasses.length > 0 ? hakClassSet.has(place.hakClass) : true;
         const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';

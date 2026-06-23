@@ -3,6 +3,7 @@
 ## Summary
 
 - Preserved the admin county and town filter selections after language assignment refreshes.
+- Changed the place type filter chips to default to all selected and use the same all/none toggle behavior as class filters.
 - Changed TaiClass and HakClass filter chips to default to all selected.
 - Kept the TaiClass and HakClass "all" chips as a toggle between all selected and all unselected.
 - Defaulted investigator recording tabs from per-language assignment, preferring Taiwanese when both languages are assigned to the same investigator.
