@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-23] [UX]
+Adjusted admin and investigator workflow details: language assignment refresh now preserves county/town filters, TaiClass/HakClass chips default to all unselected with an all/none toggle, investigator recording tabs open to the assigned language with Taiwanese preferred when both apply, and upload confirmation warns when a recording is outside the assigned language or task list. Added Playwright coverage for these behaviors.
+
 [2026-06-12] [UI]
 地名篩選改為多選 chip 模式：類別篩選可多選，台語分級與客語分級由下拉選單改成與類別一致的 chip 群組；同一篩選區內以聯集比對，點「全部」會選入該區全部值，跨篩選區仍與既有關鍵字、縣市、鄉鎮、調查員、客語區與錄音狀態篩選取交集。
 

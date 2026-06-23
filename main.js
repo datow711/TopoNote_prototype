@@ -156,8 +156,55 @@ function switchAnnotationLanguage(language) {
     });
 }
 
-function getDefaultAnnotationLanguage() {
+function getCurrentUserIdentifiers() {
+    return [state.userId, state.userName, state.userEmail].filter(Boolean);
+}
+
+function isCurrentUserIdentifier(identifier) {
+    return getCurrentUserIdentifiers().some(current => isSameUserIdentifier(identifier, current));
+}
+
+function getAssignedLanguagesForCurrentUser(place) {
+    if (!place || state.userRole === 'admin') return [];
+    const languages = [];
+    if (isCurrentUserIdentifier(place.tAssignee)) languages.push('台語');
+    if (isCurrentUserIdentifier(place.hAssignee)) languages.push('客語');
+    return languages;
+}
+
+function isPlaceInCurrentTaskList(place) {
+    if (!place || state.userRole === 'admin') return true;
+    const samePlace = candidate => String(candidate.id) === String(place.id);
+    if (state.assignedPlaces.some(samePlace)) return true;
+    return getCurrentUserIdentifiers().some(identifier => assignedUsersInclude(place.assignedUsers, identifier));
+}
+
+function getDefaultAnnotationLanguage(place = state.selectedPlace) {
+    const assignedLanguages = getAssignedLanguagesForCurrentUser(place);
+    if (assignedLanguages.includes('台語')) return '台語';
+    if (assignedLanguages.includes('客語')) return '客語';
     return state.userSpecialty && state.userSpecialty.includes('客') ? '客語' : '台語';
+}
+
+function getUploadScopeWarning(place, language) {
+    if (state.userRole === 'admin' || !place) return '';
+
+    const assignedLanguages = getAssignedLanguagesForCurrentUser(place);
+    if (assignedLanguages.length > 0 && !assignedLanguages.includes(language)) {
+        return [
+            '提醒：這筆上傳結果不在你受委託的語種範圍內。',
+            `原因：語種不符合。你受委託的是「${assignedLanguages.join('、')}」，目前選擇的是「${language}」。`
+        ].join('\n');
+    }
+
+    if (!isPlaceInCurrentTaskList(place)) {
+        return [
+            '提醒：這筆上傳結果不在你受委託的範圍內。',
+            '原因：這個地名不在你的任務清單中。'
+        ].join('\n');
+    }
+
+    return '';
 }
 
 function escapeHtml(value) {
@@ -1707,8 +1754,14 @@ function initFilters() {
     const types = [...new Set(state.assignedPlaces.concat(state.allPlaces).map(p => p.type || p.Type).filter(Boolean))].sort();
     
     const countySelect = document.getElementById('county-filter');
+    const previousCounty = countySelect.value;
+    const previousTown = document.getElementById('town-filter').value;
     countySelect.innerHTML = '<option value="">所有縣市</option>'; 
     counties.forEach(c => countySelect.add(new Option(c, c)));
+    if (previousCounty && counties.includes(previousCounty)) {
+        countySelect.value = previousCounty;
+    }
+    updateTowns(previousTown);
     
     state.availableTypes = types;
     state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, state.availableTypes);
@@ -1716,6 +1769,7 @@ function initFilters() {
 
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
+        const previousAssignee = assigneeSelect ? assigneeSelect.value : '';
         if (!assigneeSelect) {
             assigneeSelect = document.createElement('select');
             assigneeSelect.id = 'assignee-filter';
@@ -1729,6 +1783,9 @@ function initFilters() {
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
                                    state.allUsers.map(u => `<option value="${escapeHtml(getUserAnnotatorName(u))}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
+        if (previousAssignee && Array.from(assigneeSelect.options).some(option => option.value === previousAssignee)) {
+            assigneeSelect.value = previousAssignee;
+        }
 
         initClassFilters();
                                    
@@ -1747,8 +1804,8 @@ function initClassFilters() {
 
     state.availableTaiClasses = taiClasses;
     state.availableHakClasses = hakClasses;
-    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, state.availableTaiClasses);
-    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, state.availableHakClasses);
+    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, state.availableTaiClasses, { emptySelectsAll: false });
+    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, state.availableHakClasses, { emptySelectsAll: false });
 
     if (!classRow) {
         classRow = document.createElement('div');
@@ -1771,13 +1828,16 @@ function initClassFilters() {
     renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', state.availableHakClasses, state.selectedHakClasses);
 }
 
-function updateTowns() {
+function updateTowns(selectedTown = '') {
     const county = document.getElementById('county-filter').value;
     const townSelect = document.getElementById('town-filter');
     townSelect.innerHTML = '<option value="">所有鄉鎮</option>';
     if (county) {
-        const towns = [...new Set(state.allPlaces.concat(state.assignedPlaces).filter(p => p.county === county).map(p => p.town).filter(Boolean))];
+        const towns = [...new Set(state.allPlaces.concat(state.assignedPlaces, state.reviewQueue).filter(p => p.county === county).map(p => p.town).filter(Boolean))];
         towns.forEach(t => townSelect.add(new Option(t, t)));
+        if (selectedTown && towns.includes(selectedTown)) {
+            townSelect.value = selectedTown;
+        }
     }
 }
 
@@ -1793,13 +1853,15 @@ function getMultiFilterStateKey(filterKey) {
     }[filterKey];
 }
 
-function reconcileMultiFilterSelection(selectedValues, availableValues) {
+function reconcileMultiFilterSelection(selectedValues, availableValues, options = {}) {
+    const emptySelectsAll = options.emptySelectsAll !== false;
     const selected = Array.isArray(selectedValues) ? selectedValues : [];
     if (availableValues.length === 0) return [];
-    if (selected.length === 0) return [...availableValues];
+    if (selected.length === 0) return emptySelectsAll ? [...availableValues] : [];
     const availableSet = new Set(availableValues);
     const validSelected = selected.filter(value => availableSet.has(value));
-    return validSelected.length > 0 ? validSelected : [...availableValues];
+    if (validSelected.length > 0) return validSelected;
+    return emptySelectsAll ? [...availableValues] : [];
 }
 
 function renderMultiFilterChips(containerId, filterKey, allLabel, values, selectedValues, displayFormatter = value => value) {
@@ -1822,8 +1884,9 @@ function selectAllMultiFilter(filterKey) {
     if (!stateKey) return;
     const values = getAvailableMultiFilterValues(filterKey);
     const current = Array.isArray(state[stateKey]) ? state[stateKey] : [];
-    if (current.length === values.length && values.every(value => current.includes(value))) return;
-    state[stateKey] = [...values];
+    const isAllSelected = current.length === values.length && values.every(value => current.includes(value));
+    if (filterKey === 'types' && isAllSelected) return;
+    state[stateKey] = isAllSelected ? [] : [...values];
     renderAllMultiFilterChips();
     handleFilterChange();
 }
@@ -1860,8 +1923,8 @@ function renderAllMultiFilterChips() {
     const hakClasses = state.availableHakClasses || [];
 
     state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, types);
-    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses);
-    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses);
+    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, taiClasses, { emptySelectsAll: false });
+    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, hakClasses, { emptySelectsAll: false });
 
     renderMultiFilterChips('type-container', 'types', '全部類別', types, state.selectedTypes, getTypeDisplayText);
     renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', taiClasses, state.selectedTaiClasses);
@@ -2515,7 +2578,7 @@ function openRecordingUI(place, element) {
     recSection.style.display = 'block';
     document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName}`;
     
-    resetRecordingState(); renderHistoryList(place.id); 
+    resetRecordingState(getDefaultAnnotationLanguage(place)); renderHistoryList(place.id);
     recSection.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -2565,9 +2628,9 @@ async function fetchAndPlayAudio(driveUrl, recordId) {
 // ==========================================
 // 錄音介面狀態控制 (保持原樣)
 // ==========================================
-function resetRecordingState() {
+function resetRecordingState(preferredLanguage = getDefaultAnnotationLanguage()) {
     resetAnnotationInputs();
-    switchAnnotationLanguage(getDefaultAnnotationLanguage());
+    switchAnnotationLanguage(preferredLanguage);
     const confirmPanel = document.getElementById('audio-confirm-panel');
     const summary = document.getElementById('audio-file-summary');
     document.querySelector('.audio-source-panel')?.classList.remove('hidden');
@@ -2699,9 +2762,13 @@ function uploadAudio() {
     const annotations = collectAnnotationInputs();
     const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
     const hasAnnotation = Object.values(annotations).some(value => value);
-    const confirmText = hasAnnotation
+    const uploadScopeWarning = getUploadScopeWarning(state.selectedPlace, lang);
+    const baseConfirmText = hasAnnotation
         ? `你正在上傳「${state.selectedPlace.placeName}」的${lang}音檔，確定送出嗎？`
         : `這筆「${state.selectedPlace.placeName}」的${lang}音檔還沒有填文字註記，要直接送出錄音嗎？`;
+    const confirmText = uploadScopeWarning
+        ? `${uploadScopeWarning}\n\n${baseConfirmText}`
+        : baseConfirmText;
     if (!confirm(confirmText)) return;
 
     uploadBtn.innerText = "⏳ 轉碼與上傳 Drive 中..."; uploadBtn.disabled = true;
@@ -2841,10 +2908,7 @@ async function batchAssignTasks() {
 
         alert(`🎉 ${language}指派成功！`);
         
-        // 重新載入最新資料並刷新畫面
-        await loadDataFromSupabase(state.userId);
-        initFilters();
-        applyFilters();
+        await refreshAfterAssignmentChange();
 
     } catch (err) {
         console.error("指派失敗:", err);

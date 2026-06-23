@@ -93,3 +93,144 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
     }
   ]);
 });
+
+test('admin filter state survives assignment refresh and class chips toggle all or none', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.allUsers = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' }
+    ];
+    state.allUserRecords = state.allUsers;
+    state.assignedPlaces = [
+      {
+        id: 1,
+        sourceId: 'uuid-1',
+        placeName: '苗栗地名',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 2,
+        sourceId: 'uuid-2',
+        placeName: '新竹地名',
+        county: '新竹縣',
+        town: '竹北市',
+        type: '聚落',
+        taiClass: '現場調查',
+        hakClass: '現場調查',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+  });
+
+  await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(0);
+  await page.locator('#tai-class-container .filter-chip').first().click();
+  await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(3);
+  await page.locator('#tai-class-container .filter-chip').first().click();
+  await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(0);
+
+  await page.selectOption('#county-filter', '苗栗縣');
+  await page.evaluate(() => updateTowns('頭份市'));
+  await page.selectOption('#town-filter', '頭份市');
+
+  await page.evaluate(async () => {
+    loadDataFromSupabase = async () => {
+      state.assignedPlaces = state.assignedPlaces.map(place => (
+        place.id === 1 ? { ...place, tAssignee: 'Lin Investigator' } : place
+      ));
+    };
+    await refreshAfterAssignmentChange();
+  });
+
+  await expect(page.locator('#county-filter')).toHaveValue('苗栗縣');
+  await expect(page.locator('#town-filter')).toHaveValue('頭份市');
+});
+
+test('investigator recording language defaults to assigned language and warns out of scope uploads', async ({ page }) => {
+  await page.goto(appUrl);
+  const result = await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'user';
+    state.userId = 'lin@example.com';
+    state.userName = 'Lin Investigator';
+    state.userEmail = 'lin@example.com';
+    state.allUserRecords = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', role: 'user', is_active: true }
+    ];
+
+    const hakOnlyPlace = {
+      id: 10,
+      sourceId: 'uuid-10',
+      placeName: '客語任務',
+      county: '苗栗縣',
+      town: '頭份市',
+      type: '聚落',
+      tAssignee: 'other@example.com',
+      hAssignee: 'Lin Investigator',
+      assignedUsers: ['Lin Investigator'],
+      taiAudioCount: 0,
+      hakAudioCount: 0,
+      recordingStatus: '未錄音'
+    };
+    const bothLanguagePlace = {
+      ...hakOnlyPlace,
+      id: 11,
+      placeName: '雙語任務',
+      tAssignee: 'lin@example.com',
+      hAssignee: 'Lin Investigator'
+    };
+    const otherPlace = {
+      ...hakOnlyPlace,
+      id: 12,
+      placeName: '非任務地名',
+      tAssignee: '',
+      hAssignee: '',
+      assignedUsers: []
+    };
+
+    state.assignedPlaces = [hakOnlyPlace, bothLanguagePlace];
+    state.allPlaces = [otherPlace];
+    document.getElementById('app-section').classList.remove('hidden');
+
+    openRecordingUI(hakOnlyPlace, null);
+    const hakDefault = document.querySelector('input[name="lang"]:checked')?.value;
+
+    openRecordingUI(bothLanguagePlace, null);
+    const bothDefault = document.querySelector('input[name="lang"]:checked')?.value;
+
+    return {
+      hakDefault,
+      bothDefault,
+      languageWarning: getUploadScopeWarning(hakOnlyPlace, '台語'),
+      placeWarning: getUploadScopeWarning(otherPlace, '台語')
+    };
+  });
+
+  expect(result.hakDefault).toBe('客語');
+  expect(result.bothDefault).toBe('台語');
+  expect(result.languageWarning).toContain('語種不符合');
+  expect(result.placeWarning).toContain('地名不在你的任務清單');
+});
