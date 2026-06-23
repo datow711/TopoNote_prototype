@@ -6,6 +6,22 @@ var FEEDBACK_CHAT_WEBHOOK_URL_PROPERTY = 'FEEDBACK_CHAT_WEBHOOK_URL';
 var FEEDBACK_SPREADSHEET_NAME = 'TopoNote_問題回報';
 var FEEDBACK_SHEET_NAME = '問題回報';
 var FEEDBACK_HEADERS = ['意見ID', '調查員姓名', 'Email', '寄件時間', '意見主旨', '意見內容', '是否已回復'];
+var USER_SHEET_NAME = 'Users';
+var USER_PROFILE_HEADERS = [
+  'email',
+  'name',
+  'phone',
+  'languages',
+  'hakka_dialect',
+  'life_area_1',
+  'survey_area_1',
+  'life_area_2',
+  'survey_area_2',
+  'life_area_3',
+  'survey_area_3'
+];
+var SUPABASE_URL_DEFAULT = 'https://sikconjhtomqdkicbjal.supabase.co';
+var SUPABASE_ANON_KEY_DEFAULT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpa2NvbmpodG9tcWRraWNiamFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1ODk4NzAsImV4cCI6MjA5MDE2NTg3MH0.CR4zasAgXSogTsoSvLonTRwYlBkBPAyAj6jh-TKqViM';
 
 // ==========================================
 // 🚀 進階快取系統
@@ -98,6 +114,7 @@ function doPost(e) {
     if (action === 'upload') return handleUpload(requestData);
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
+    if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
 
     throw new Error("未知的操作");
   } catch (error) {
@@ -109,6 +126,168 @@ function doPost(e) {
 // ==========================================
 // 處理登入與撈取指派清單
 // ==========================================
+function normalizeEmail_(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getHeaderMap_(headers) {
+  var map = {};
+  headers.forEach(function(header, index) {
+    map[String(header).trim()] = index;
+  });
+  return map;
+}
+
+function getSupabaseConfig_() {
+  var props = PropertiesService.getScriptProperties();
+  return {
+    url: props.getProperty('SUPABASE_URL') || SUPABASE_URL_DEFAULT,
+    anonKey: props.getProperty('SUPABASE_ANON_KEY') || SUPABASE_ANON_KEY_DEFAULT,
+    serviceRoleKey: props.getProperty('SUPABASE_SERVICE_ROLE_KEY')
+  };
+}
+
+function callSupabaseRpc_(rpcName, body, bearerKey) {
+  var config = getSupabaseConfig_();
+  if (!bearerKey) throw new Error('Missing Supabase API key for RPC: ' + rpcName);
+
+  var response = UrlFetchApp.fetch(config.url + '/rest/v1/rpc/' + rpcName, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      apikey: bearerKey,
+      Authorization: 'Bearer ' + bearerKey
+    },
+    payload: JSON.stringify(body || {}),
+    muteHttpExceptions: true
+  });
+
+  var status = response.getResponseCode();
+  var text = response.getContentText();
+  if (status < 200 || status >= 300) {
+    throw new Error('Supabase RPC ' + rpcName + ' failed (' + status + '): ' + text);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+function verifyAdminPassword_(actorAccount, adminPassword) {
+  var config = getSupabaseConfig_();
+  var users = callSupabaseRpc_('login_admin', {
+    p_email: actorAccount,
+    p_password: adminPassword
+  }, config.anonKey);
+
+  if (!users || users.length < 1) {
+    throw new Error('Admin password verification failed');
+  }
+  return users[0];
+}
+
+function updateInvestigatorProfileInSupabase_(data, profile) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('update_investigator_profile', {
+    p_user_id: data.userId,
+    p_actor_account: data.actorAccount,
+    p_email: profile.email,
+    p_name: profile.name,
+    p_phone: profile.phone || '',
+    p_languages: profile.languages || '',
+    p_hakka_dialect: profile.hakka_dialect || '',
+    p_life_area_1: profile.life_area_1 || '',
+    p_survey_area_1: profile.survey_area_1 || '',
+    p_life_area_2: profile.life_area_2 || '',
+    p_survey_area_2: profile.survey_area_2 || '',
+    p_life_area_3: profile.life_area_3 || '',
+    p_survey_area_3: profile.survey_area_3 || ''
+  }, config.serviceRoleKey);
+}
+
+function updateUserProfileInSheet_(data, profile) {
+  if (!SHEET_ID) throw new Error('Missing script property: SHEET_ID');
+
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = ss.getSheetByName(USER_SHEET_NAME);
+  if (!sheet) throw new Error('Users sheet not found');
+
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 1) throw new Error('Users sheet has no header row');
+
+  var headers = values[0].map(function(header) {
+    return String(header).trim();
+  });
+  var colMap = getHeaderMap_(headers);
+  var missingHeaders = USER_PROFILE_HEADERS.filter(function(header) {
+    return colMap[header] === undefined;
+  });
+  if (missingHeaders.length > 0) {
+    throw new Error('Users sheet missing columns: ' + missingHeaders.join(', '));
+  }
+
+  var previousEmails = [
+    data.previousEmail,
+    data.previousAccount,
+    profile.email
+  ].map(normalizeEmail_).filter(Boolean);
+
+  var rowIndex = -1;
+  for (var r = 1; r < values.length; r++) {
+    var rowEmail = normalizeEmail_(values[r][colMap.email]);
+    if (previousEmails.indexOf(rowEmail) !== -1) {
+      rowIndex = r;
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    throw new Error('User not found in Users sheet: ' + previousEmails.join(' / '));
+  }
+
+  USER_PROFILE_HEADERS.forEach(function(header) {
+    var value = profile[header] == null ? '' : String(profile[header]).trim();
+    sheet.getRange(rowIndex + 1, colMap[header] + 1).setValue(value);
+  });
+
+  return rowIndex + 1;
+}
+
+function handleUpdateUserProfile(data) {
+  var profile = data.profile || {};
+  var email = normalizeEmail_(profile.email);
+  var name = String(profile.name || '').trim();
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var adminPassword = String(data.adminPassword || '');
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Valid email is required');
+  }
+  if (!name) {
+    throw new Error('Name is required');
+  }
+  if (!actorAccount || !adminPassword) {
+    throw new Error('Admin account and password are required');
+  }
+
+  var normalizedProfile = Object.assign({}, profile, {
+    email: email,
+    name: name
+  });
+
+  verifyAdminPassword_(actorAccount, adminPassword);
+  var supabaseResult = updateInvestigatorProfileInSupabase_(data, normalizedProfile);
+  var rowNumber = updateUserProfileInSheet_(data, normalizedProfile);
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    row: rowNumber,
+    email: email,
+    supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 function handleLogin(data) {
   var account = data.account;
   var password = data.password;

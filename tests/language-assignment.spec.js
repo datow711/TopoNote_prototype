@@ -34,8 +34,8 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
     state.userId = 'admin@example.com';
     state.currentTab = 'assigned';
     state.allUsers = [
-      { account: 'lin@example.com', name: '林調查員', email: 'lin@example.com', phone: '0912' },
-      { account: 'chen@example.com', name: '陳調查員', email: 'chen@example.com', phone: '0922' }
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' },
+      { account: 'chen@example.com', name: 'Chen Investigator', email: 'chen@example.com', phone: '0922' }
     ];
     state.allUserRecords = state.allUsers;
     state.assignedPlaces = [
@@ -50,7 +50,7 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
         hakClass: '',
         tAssignee: '',
         hAssignee: 'chen@example.com',
-        assignedUsers: ['chen@example.com'],
+        assignedUsers: ['Chen Investigator'],
         taiAudioCount: 0,
         hakAudioCount: 0,
         recordingStatus: '未錄音'
@@ -66,7 +66,7 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
   await expect(page.locator('#assignment-language-input')).toHaveValue('台語');
   await expect(page.locator('#unassign-submit-btn')).toBeVisible();
 
-  await page.selectOption('#language-assignee-123-tai', 'lin@example.com');
+  await page.selectOption('#language-assignee-123-tai', 'Lin Investigator');
   await page.locator('.language-assignment-row').filter({ hasText: '台語' }).getByRole('button', { name: '設定' }).click();
 
   await page.locator('.assign-checkbox').check();
@@ -79,7 +79,7 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
       body: {
         p_task_ids: [123],
         p_language: '台語',
-        p_user_name: 'lin@example.com',
+        p_user_name: 'Lin Investigator',
         p_assigned_by: 'admin@example.com'
       }
     },

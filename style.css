@@ -1251,7 +1251,7 @@ button:disabled {
 .user-status-header,
 .user-status-row {
     display: grid;
-    grid-template-columns: 52px minmax(110px, 1fr) minmax(210px, 1.4fr) minmax(120px, 0.8fr) auto auto auto;
+    grid-template-columns: 52px minmax(110px, 1fr) minmax(210px, 1.4fr) minmax(120px, 0.8fr) auto auto auto auto;
     align-items: center;
     gap: 10px;
 }
@@ -1320,15 +1320,30 @@ button:disabled {
     accent-color: var(--accent);
 }
 
+.edit-user-btn,
 .delete-user-btn {
     width: auto;
     min-height: 30px;
     margin: 0;
     padding: 5px 10px;
+    font-size: 12px;
+}
+
+.edit-user-btn {
+    border: 1px solid #cfe7ff;
+    background: #f3f9ff;
+    color: #17639a;
+}
+
+.edit-user-btn:hover {
+    border-color: #3498db;
+    background: #e9f5ff;
+}
+
+.delete-user-btn {
     border: 1px solid #ffd0d0;
     background: #fff5f5;
     color: var(--danger);
-    font-size: 12px;
 }
 
 .delete-user-btn:hover {
@@ -1344,6 +1359,38 @@ button:disabled {
     padding: 10px;
     border-top: 1px solid var(--hairline);
     background: #fbfdff;
+}
+
+.user-edit-dialog-panel {
+    width: min(720px, 100%);
+}
+
+.user-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.user-edit-field {
+    display: grid;
+    gap: 5px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.user-edit-field input {
+    margin: 0;
+    font-size: 14px;
+}
+
+.user-edit-status {
+    min-height: 20px;
+    margin-bottom: 10px;
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 800;
 }
 
 .user-detail-panel[hidden] {
@@ -1650,6 +1697,10 @@ button:disabled {
     .user-email,
     .user-phone {
         font-size: 11px;
+    }
+
+    .user-edit-grid {
+        grid-template-columns: 1fr;
     }
 
     .user-detail-panel {

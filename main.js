@@ -51,6 +51,19 @@ const USER_PROFILE_SELECT = [
     'life_area_3',
     'survey_area_3'
 ].join(',');
+const USER_EDIT_FIELDS = [
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'name', label: '姓名', required: true },
+    { key: 'phone', label: '手機' },
+    { key: 'languages', label: '語言' },
+    { key: 'hakka_dialect', label: '客語腔調' },
+    { key: 'life_area_1', label: '生活區域 1' },
+    { key: 'survey_area_1', label: '調查區域 1' },
+    { key: 'life_area_2', label: '生活區域 2' },
+    { key: 'survey_area_2', label: '調查區域 2' },
+    { key: 'life_area_3', label: '生活區域 3' },
+    { key: 'survey_area_3', label: '調查區域 3' }
+];
 
 const ANNOTATION_FIELDS = [
     'taihan', 'tl1', 'tainote',
@@ -208,6 +221,135 @@ function renderUserDetailFields(user) {
     ];
 
     return detailRows.map(([label, value]) => renderUserDetailField(label, value)).join('');
+}
+
+function getUserEditInputId(fieldKey) {
+    return `user-edit-${fieldKey}`;
+}
+
+function openInvestigatorEditDialog(userId) {
+    const user = state.allUserRecords.find(record => record.id === userId);
+    if (!user) {
+        alert('找不到這位調查員資料。');
+        return;
+    }
+
+    closeInvestigatorEditDialog();
+    const dialog = document.createElement('div');
+    dialog.id = 'user-edit-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel user-edit-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="user-edit-title">
+            <h3 id="user-edit-title">編輯調查員資料</h3>
+            <p>${escapeHtml(user.name || user.account)} 的資料會同步更新 Supabase 與 Places Users 表。</p>
+            <div class="user-edit-grid">
+                ${USER_EDIT_FIELDS.map(field => `
+                    <label class="user-edit-field">
+                        <span>${escapeHtml(field.label)}${field.required ? ' *' : ''}</span>
+                        <input
+                            id="${escapeHtml(getUserEditInputId(field.key))}"
+                            type="${field.type || 'text'}"
+                            value="${escapeHtml(user[field.key] || '')}"
+                            ${field.required ? 'required' : ''}
+                        >
+                    </label>
+                `).join('')}
+                <label class="user-edit-field user-edit-password-field">
+                    <span>管理員密碼 *</span>
+                    <input id="user-edit-admin-password" type="password" autocomplete="current-password" required>
+                </label>
+            </div>
+            <div id="user-edit-status" class="user-edit-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" onclick="closeInvestigatorEditDialog()">取消</button>
+                <button class="btn-primary" id="user-edit-submit-btn" type="button" onclick="saveInvestigatorProfile('${escapeJsString(user.id)}')">儲存</button>
+            </div>
+        </div>
+    `;
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeInvestigatorEditDialog();
+    });
+    document.body.appendChild(dialog);
+    document.getElementById(getUserEditInputId('email'))?.focus();
+}
+
+function closeInvestigatorEditDialog() {
+    document.getElementById('user-edit-dialog')?.remove();
+}
+
+function collectInvestigatorProfileForm() {
+    return USER_EDIT_FIELDS.reduce((profile, field) => {
+        const input = document.getElementById(getUserEditInputId(field.key));
+        profile[field.key] = input ? input.value.trim() : '';
+        return profile;
+    }, {});
+}
+
+function validateInvestigatorProfile(profile, status) {
+    if (!profile.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
+        if (status) status.textContent = '請填寫正確的 Email。';
+        document.getElementById(getUserEditInputId('email'))?.focus();
+        return false;
+    }
+    if (!profile.name) {
+        if (status) status.textContent = '請填寫姓名。';
+        document.getElementById(getUserEditInputId('name'))?.focus();
+        return false;
+    }
+    const adminPasswordInput = document.getElementById('user-edit-admin-password');
+    if (!adminPasswordInput || !adminPasswordInput.value) {
+        if (status) status.textContent = '請輸入管理員密碼。';
+        adminPasswordInput?.focus();
+        return false;
+    }
+    return true;
+}
+
+async function writeInvestigatorProfileToPlacesSheet(user, profile, adminPassword) {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+            action: 'updateUserProfile',
+            actorAccount: state.userId,
+            adminPassword,
+            userId: user.id,
+            previousEmail: user.email || user.account,
+            previousAccount: user.account,
+            profile
+        })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Places Users 表更新失敗');
+    return result;
+}
+
+async function saveInvestigatorProfile(userId) {
+    const user = state.allUserRecords.find(record => record.id === userId);
+    const status = document.getElementById('user-edit-status');
+    const submitButton = document.getElementById('user-edit-submit-btn');
+    if (!user) {
+        if (status) status.textContent = '找不到這位調查員資料。';
+        return;
+    }
+
+    const profile = collectInvestigatorProfileForm();
+    if (!validateInvestigatorProfile(profile, status)) return;
+    const adminPassword = document.getElementById('user-edit-admin-password')?.value || '';
+
+    if (status) status.textContent = '正在更新資料...';
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+        await writeInvestigatorProfileToPlacesSheet(user, profile, adminPassword);
+        closeInvestigatorEditDialog();
+        alert('調查員資料已更新，並已回寫 Places Users 表。');
+        await refreshAdminUsers();
+    } catch (err) {
+        console.error('更新調查員資料失敗:', err);
+        if (status) status.textContent = `更新失敗：${err.message}`;
+        if (submitButton) submitButton.disabled = false;
+    }
 }
 
 function toggleUserDetails(userKey, button) {
@@ -1343,6 +1485,7 @@ function renderAdminUserManager() {
                 <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
+                <button class="edit-user-btn" type="button" onclick="openInvestigatorEditDialog('${escapeJsString(user.id)}')">編輯</button>
                 <button class="delete-user-btn" type="button" onclick="deleteInvestigatorUser('${user.id}', this)">刪除</button>
                 <div class="user-detail-panel" id="${escapeHtml(detailId)}" hidden>
                     ${renderUserDetailFields(user)}
@@ -1363,6 +1506,7 @@ function renderAdminUserManager() {
                     <span>姓名</span>
                     <span>登入 ID (email)</span>
                     <span>手機</span>
+                    <span></span>
                     <span></span>
                     <span></span>
                     <span></span>
