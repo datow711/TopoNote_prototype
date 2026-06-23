@@ -242,3 +242,93 @@ test('investigator recording language defaults to assigned language and warns ou
   expect(result.languageWarning).toContain('語種不符合');
   expect(result.placeWarning).toContain('地名不在你的任務清單');
 });
+
+test('original uploader can edit record text fields without reuploading audio', async ({ page }) => {
+  const patchCalls = [];
+
+  await page.route('**/rest/v1/audio_records?id=eq.*', route => {
+    const request = route.request();
+    patchCalls.push({
+      method: request.method(),
+      url: request.url(),
+      body: JSON.parse(request.postData() || '{}')
+    });
+    return route.fulfill({ status: 204, body: '' });
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__alerts = [];
+    window.alert = message => window.__alerts.push(String(message));
+
+    state.userRole = 'user';
+    state.userId = 'lin@example.com';
+    state.userName = 'Lin Investigator';
+    state.userEmail = 'lin@example.com';
+    state.allUserRecords = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', role: 'user', is_active: true },
+      { account: 'chen@example.com', name: 'Chen Investigator', email: 'chen@example.com', role: 'user', is_active: true }
+    ];
+    state.selectedPlace = {
+      id: 10,
+      placeName: '測試地名'
+    };
+    document.getElementById('app-section').classList.remove('hidden');
+    document.getElementById('recording-section').style.display = 'block';
+    state.uploadedRecords = [
+      {
+        recordId: 501,
+        placeId: 10,
+        language: '台語',
+        uploaderId: 'Lin Investigator',
+        phonetic: 'tsu7',
+        url: 'drive-url',
+        annotations: {
+          taihan: '舊漢字',
+          tl1: 'tsu7',
+          tainote: '舊備註'
+        }
+      },
+      {
+        recordId: 502,
+        placeId: 10,
+        language: '客語',
+        uploaderId: 'Chen Investigator',
+        phonetic: 'gu',
+        url: 'drive-url-2',
+        annotations: {
+          honzii: '舊客字',
+          hp1: 'gu'
+        }
+      }
+    ];
+    renderHistoryList(10);
+  });
+
+  await expect(page.getByRole('button', { name: '編輯文字' })).toHaveCount(1);
+  await page.getByRole('button', { name: '編輯文字' }).click();
+  await page.locator('#record-edit-501-TaiHan1').fill('新漢字');
+  await page.locator('#record-edit-501-TL1').fill('sin1');
+  await page.locator('#record-edit-501-TaiNote').fill('新備註');
+  await page.getByRole('button', { name: '儲存文字' }).click();
+
+  expect(patchCalls).toHaveLength(1);
+  expect(patchCalls[0].method).toBe('PATCH');
+  expect(patchCalls[0].url).toContain('/rest/v1/audio_records?id=eq.501');
+  expect(patchCalls[0].url).toContain('recorder_name=eq.Lin%20Investigator');
+  expect(patchCalls[0].body.phonetic_reading).toBe('sin1');
+  expect(JSON.parse(patchCalls[0].body.note)).toEqual({
+    annotations: {
+      taihan: '新漢字',
+      tl1: 'sin1',
+      tainote: '新備註',
+      tl2: '',
+      tl3: ''
+    }
+  });
+
+  const updatedSummary = page.locator('.annotation-summary').filter({ hasText: '新漢字' });
+  await expect(updatedSummary).toContainText('新漢字');
+  await expect(updatedSummary).toContainText('sin1');
+  await expect(updatedSummary).toContainText('新備註');
+});

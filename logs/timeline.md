@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-23] [FEATURE]
+Added original-uploader editing for uploaded recording text fields. History records now show an edit action only to the recorder, update the existing `audio_records` row via PATCH for `note` and `phonetic_reading`, and keep the audio file unchanged. New uploads now keep the real inserted record ID so they can be edited immediately.
+
 [2026-06-23] [UX]
 Adjusted admin and investigator workflow details: language assignment refresh now preserves county/town filters; place type, TaiClass, and HakClass chips default to all selected with an all/none toggle; investigator recording tabs open to the assigned language with Taiwanese preferred when both apply; and upload confirmation warns when a recording is outside the assigned language or task list. Added Playwright coverage for these behaviors.
 

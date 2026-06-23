@@ -361,6 +361,78 @@ button:disabled {
     margin: 0;
 }
 
+.record-edit-btn {
+    width: auto;
+    min-height: 32px;
+    margin: 8px 0 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: var(--canvas);
+    color: var(--secondary);
+    border-color: var(--accent-soft);
+}
+
+.record-edit-panel {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.record-edit-title {
+    font-weight: 800;
+    color: var(--ink);
+}
+
+.record-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.record-edit-field {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.record-edit-field span {
+    color: var(--subtle);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.record-edit-field input,
+.record-edit-field textarea {
+    width: 100%;
+    margin: 0;
+    min-height: 36px;
+    font-size: 14px;
+}
+
+.record-edit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.record-edit-actions button {
+    width: auto;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 12px;
+}
+
+.record-save-btn {
+    background: var(--secondary);
+}
+
+.record-cancel-btn {
+    background: var(--canvas-dark);
+}
+
 .tab-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1597,6 +1669,7 @@ button:disabled {
     .audio-source-panel,
     .line-help-grid,
     .audio-file-summary,
+    .record-edit-grid,
     .audio-confirm-actions {
         grid-template-columns: 1fr;
     }

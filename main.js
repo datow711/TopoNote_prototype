@@ -144,6 +144,17 @@ function resetAnnotationInputs() {
     });
 }
 
+function getPrimaryAnnotationKey(field) {
+    return (field.annotationKeys && field.annotationKeys[0]) || String(field.key || '').toLowerCase();
+}
+
+function getRecordLanguageKey(recordOrLanguage) {
+    const language = typeof recordOrLanguage === 'string'
+        ? recordOrLanguage
+        : (recordOrLanguage && recordOrLanguage.language);
+    return language === '客語' ? 'hak' : 'tai';
+}
+
 function switchAnnotationLanguage(language) {
     document.querySelectorAll('input[name="lang"]').forEach(input => {
         input.checked = input.value === language;
@@ -2609,15 +2620,132 @@ function renderHistoryList(placeId) {
     
     if (records.length === 0) return historyList.innerHTML = "<div style='color:#999; text-align:center;'>尚未有任何錄音。</div>";
     
-    historyList.innerHTML = records.map(r => `
+    historyList.innerHTML = records.map(r => {
+        const canEdit = isCurrentUserIdentifier(r.uploaderId);
+        return `
         <div class="history-item">
             <div class="history-meta"><span>🏷️ ${r.language}</span><span title="${escapeHtml(getUserEmail(r.uploaderId))}">👤 ${escapeHtml(getUserDisplayName(r.uploaderId))}</span></div>
             ${renderAnnotationSummary(r.annotations)}
+            ${canEdit ? `<button class="record-edit-btn" type="button" onclick="openRecordAnnotationEditor('${escapeJsString(r.recordId)}')">編輯文字</button>` : ''}
+            <div id="${escapeHtml(getRecordEditorId(r.recordId))}" class="record-edit-panel hidden"></div>
             <div id="player-${r.recordId}" style="margin-top: 10px;">
                 <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
+}
+
+function getRecordEditorId(recordId) {
+    return `record-edit-${String(recordId || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function getRecordEditInputId(recordId, fieldKey) {
+    return `${getRecordEditorId(recordId)}-${String(fieldKey || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function findUploadedRecord(recordId) {
+    return state.uploadedRecords.find(record => String(record.recordId) === String(recordId)) || null;
+}
+
+function getRecordEditableFields(record) {
+    return REVIEW_FIELD_CONFIG[getRecordLanguageKey(record)].fields;
+}
+
+function openRecordAnnotationEditor(recordId) {
+    const record = findUploadedRecord(recordId);
+    if (!record) return alert('找不到這筆錄音紀錄。');
+    if (!isCurrentUserIdentifier(record.uploaderId)) return alert('只有原上傳者可以編輯這筆錄音的文字欄位。');
+
+    const panel = document.getElementById(getRecordEditorId(recordId));
+    if (!panel) return;
+    const fields = getRecordEditableFields(record);
+    const annotations = record.annotations || {};
+    panel.innerHTML = `
+        <div class="record-edit-title">${escapeHtml(record.language)}文字欄位</div>
+        <div class="record-edit-grid">
+            ${fields.map(field => {
+                const annotationKey = getPrimaryAnnotationKey(field);
+                const value = annotations[annotationKey] || '';
+                const inputId = getRecordEditInputId(recordId, field.key);
+                const input = field.multiline
+                    ? `<textarea id="${escapeHtml(inputId)}" rows="2">${escapeHtml(value)}</textarea>`
+                    : `<input id="${escapeHtml(inputId)}" type="text" value="${escapeHtml(value)}">`;
+                return `
+                    <label class="record-edit-field">
+                        <span>${escapeHtml(field.label)}</span>
+                        ${input}
+                    </label>
+                `;
+            }).join('')}
+        </div>
+        <div class="record-edit-actions">
+            <button class="record-save-btn" type="button" onclick="saveRecordAnnotationEdit('${escapeJsString(recordId)}', this)">儲存文字</button>
+            <button class="record-cancel-btn" type="button" onclick="closeRecordAnnotationEditor('${escapeJsString(recordId)}')">取消</button>
+        </div>
+    `;
+    panel.classList.remove('hidden');
+}
+
+function closeRecordAnnotationEditor(recordId) {
+    const panel = document.getElementById(getRecordEditorId(recordId));
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+}
+
+function collectRecordAnnotationEdit(record) {
+    const updated = { ...(record.annotations || {}) };
+    getRecordEditableFields(record).forEach(field => {
+        const input = document.getElementById(getRecordEditInputId(record.recordId, field.key));
+        updated[getPrimaryAnnotationKey(field)] = input ? input.value.trim() : '';
+    });
+    return updated;
+}
+
+async function saveRecordAnnotationEdit(recordId, button) {
+    const record = findUploadedRecord(recordId);
+    if (!record) return alert('找不到這筆錄音紀錄。');
+    if (!isCurrentUserIdentifier(record.uploaderId)) return alert('只有原上傳者可以編輯這筆錄音的文字欄位。');
+
+    const originalText = button ? button.innerText : '';
+    if (button) {
+        button.disabled = true;
+        button.innerText = '儲存中...';
+    }
+
+    const annotations = collectRecordAnnotationEdit(record);
+    const phonetic = record.language === '台語' ? annotations.tl1 : annotations.hp1;
+
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?id=eq.${encodeURIComponent(record.recordId)}&recorder_name=eq.${encodeURIComponent(record.uploaderId)}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+                phonetic_reading: phonetic || '',
+                note: JSON.stringify({ annotations })
+            })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        record.annotations = annotations;
+        record.phonetic = phonetic || '';
+        renderHistoryList(record.placeId);
+        alert('文字欄位已更新。');
+    } catch (err) {
+        console.error('更新錄音文字欄位失敗:', err);
+        alert(`更新失敗：${err.message}`);
+        if (button) {
+            button.disabled = false;
+            button.innerText = originalText || '儲存文字';
+        }
+    }
 }
 
 async function fetchAndPlayAudio(driveUrl, recordId) {
@@ -2825,23 +2953,25 @@ function uploadAudio() {
                     note: JSON.stringify({ annotations: annotations })
                 };
 
-                await fetch(supaUrl, {
+                const supaResponse = await fetch(supaUrl, {
                     method: 'POST',
                     headers: {
                         'apikey': CONFIG.SUPABASE_ANON_KEY,
                         'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
                         'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
+                        'Prefer': 'return=representation'
                     },
                     body: JSON.stringify(supaPayload)
                 });
+                if (!supaResponse.ok) throw new Error(await supaResponse.text());
+                const insertedRecord = await supaResponse.json();
 
                 statusDiv.innerText = `🎉 錄音與資料庫存檔完成！`; 
                 statusDiv.style.color = "blue";
                 
                 // 更新畫面狀態
                 state.uploadedRecords.push({
-                    recordId: new Date().getTime(), // 暫時給個隨機ID讓畫面好顯示
+                    recordId: insertedRecord && insertedRecord[0] ? insertedRecord[0].id : new Date().getTime(),
                     placeId: state.selectedPlace.id,
                     language: lang,
                     uploaderId: recorderName,
