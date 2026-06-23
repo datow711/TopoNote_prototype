@@ -18,6 +18,7 @@ let state = {
     selectedTypes: [],
     selectedTaiClasses: [],
     selectedHakClasses: [],
+    classFiltersInitialized: false,
     availableTypes: [],
     availableTaiClasses: [],
     availableHakClasses: [],
@@ -825,6 +826,7 @@ function logout() {
     state.selectedTypes = [];
     state.selectedTaiClasses = [];
     state.selectedHakClasses = [];
+    state.classFiltersInitialized = false;
     state.availableTypes = [];
     state.availableTaiClasses = [];
     state.availableHakClasses = [];
@@ -1804,8 +1806,14 @@ function initClassFilters() {
 
     state.availableTaiClasses = taiClasses;
     state.availableHakClasses = hakClasses;
-    state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, state.availableTaiClasses, { emptySelectsAll: false });
-    state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, state.availableHakClasses, { emptySelectsAll: false });
+    if (!state.classFiltersInitialized) {
+        state.selectedTaiClasses = [...state.availableTaiClasses];
+        state.selectedHakClasses = [...state.availableHakClasses];
+        state.classFiltersInitialized = true;
+    } else {
+        state.selectedTaiClasses = reconcileMultiFilterSelection(state.selectedTaiClasses, state.availableTaiClasses, { emptySelectsAll: false });
+        state.selectedHakClasses = reconcileMultiFilterSelection(state.selectedHakClasses, state.availableHakClasses, { emptySelectsAll: false });
+    }
 
     if (!classRow) {
         classRow = document.createElement('div');

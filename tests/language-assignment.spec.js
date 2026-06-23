@@ -94,7 +94,7 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
   ]);
 });
 
-test('admin filter state survives assignment refresh and class chips toggle all or none', async ({ page }) => {
+test('admin filter state survives assignment refresh and class chips default all selected with all or none toggle', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.alert = () => {};
@@ -144,11 +144,11 @@ test('admin filter state survives assignment refresh and class chips toggle all 
     initFilters();
   });
 
-  await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(0);
-  await page.locator('#tai-class-container .filter-chip').first().click();
   await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(3);
   await page.locator('#tai-class-container .filter-chip').first().click();
   await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(0);
+  await page.locator('#tai-class-container .filter-chip').first().click();
+  await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(3);
 
   await page.selectOption('#county-filter', '苗栗縣');
   await page.evaluate(() => updateTowns('頭份市'));
