@@ -18,6 +18,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `docs/architecture-audit-2026-06-24.md`
   - Main architecture audit.
   - Covers frontend, root GAS, Places GAS, Google Sheet tabs, Supabase objects, stale candidates, risky objects, and proposed cleanup batches.
+- `docs/architecture-inventory.md`
+  - Structured active/legacy/retention inventory for frontend, root GAS, Places GAS, Google Sheet tabs, and Supabase objects.
+  - Use this as the object-by-object deletion/refactor checklist.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.

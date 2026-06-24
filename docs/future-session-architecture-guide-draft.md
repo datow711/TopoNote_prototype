@@ -9,10 +9,11 @@ This is a quick-start guide for a future Codex session. It is not the final hand
 
 1. `NEXT_ARCHITECTURE_CLEANUP_HANDOFF.md`
 2. `docs/architecture-audit-2026-06-24.md`
-3. `docs/architecture-cleanup-roadmap.md`
-4. `docs/supabase-cleanup-batch-b-d-preview.sql`
-5. `logs/timeline.md`
-6. Recent `logs/sessions/` entries, especially:
+3. `docs/architecture-inventory.md`
+4. `docs/architecture-cleanup-roadmap.md`
+5. `docs/supabase-cleanup-batch-b-d-preview.sql`
+6. `logs/timeline.md`
+7. Recent `logs/sessions/` entries, especially:
    - `2026-06-23-record-text-editing.md`
    - `2026-06-23-ux-filter-upload-scope.md`
    - `2026-06-08-language-assignment-alignment.md`

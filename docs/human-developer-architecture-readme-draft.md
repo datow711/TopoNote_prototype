@@ -39,6 +39,7 @@ The system currently bridges four surfaces:
 - Operational docs:
   - `docs/current-operation-flow.md`
   - `docs/architecture-audit-2026-06-24.md`
+  - `docs/architecture-inventory.md`
   - `docs/architecture-cleanup-roadmap.md`
   - `NEXT_ARCHITECTURE_CLEANUP_HANDOFF.md`
 

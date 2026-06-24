@@ -4,6 +4,8 @@ This document is the approval checklist for cleanup and refactor work. It record
 
 No production code, Supabase schema/data, Google Sheet content, or Apps Script deployment was changed during this audit.
 
+For an object-by-object active/legacy/retention checklist, see `docs/architecture-inventory.md`.
+
 ## Current architecture snapshot
 
 ### Frontend
