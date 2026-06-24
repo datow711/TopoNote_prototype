@@ -9,9 +9,10 @@ This is a quick-start guide for a future Codex session. It is not the final hand
 
 1. `NEXT_ARCHITECTURE_CLEANUP_HANDOFF.md`
 2. `docs/architecture-audit-2026-06-24.md`
-3. `docs/supabase-cleanup-batch-b-d-preview.sql`
-4. `logs/timeline.md`
-5. Recent `logs/sessions/` entries, especially:
+3. `docs/architecture-cleanup-roadmap.md`
+4. `docs/supabase-cleanup-batch-b-d-preview.sql`
+5. `logs/timeline.md`
+6. Recent `logs/sessions/` entries, especially:
    - `2026-06-23-record-text-editing.md`
    - `2026-06-23-ux-filter-upload-scope.md`
    - `2026-06-08-language-assignment-alignment.md`
@@ -75,6 +76,7 @@ The first recommended approved live scope is:
 4. Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, unless the user approves dropping that backup table.
 
 Use `docs/supabase-cleanup-batch-b-d-preview.sql` as the execution checklist after explicit approval.
+Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond the first SQL batch.
 
 ## Approval boundary
 
@@ -107,4 +109,3 @@ After applying any approved cleanup:
 4. Update `docs/architecture-audit-2026-06-24.md` with what was applied.
 5. Replace this draft with the final future-session handoff requested by the user.
 6. Update the human developer README draft into the final README requested by the user.
-

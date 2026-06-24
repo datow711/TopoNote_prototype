@@ -22,6 +22,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
   - Has not been applied.
+- `docs/architecture-cleanup-roadmap.md`
+  - Staged cleanup plan with approval phrases, preflight checks, verification checks, and rollback notes.
+  - Use this as the execution map after the audit.
 
 ## Important findings
 
@@ -94,4 +97,3 @@ After approved cleanup/refactor work is completed, create two final Markdown doc
    - sync and conflict rules
    - what is legacy
    - common maintenance commands
-

@@ -218,6 +218,8 @@ No production code, Supabase schema/data, Google Sheet content, or Apps Script d
 
 ## Proposed cleanup batches
 
+Detailed approval gates, preflight checks, verification checks, and rollback notes are in `docs/architecture-cleanup-roadmap.md`.
+
 ### Batch A - low-risk documentation and local cleanup
 
 No live data/schema changes.

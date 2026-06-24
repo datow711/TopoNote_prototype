@@ -39,6 +39,7 @@ The system currently bridges four surfaces:
 - Operational docs:
   - `docs/current-operation-flow.md`
   - `docs/architecture-audit-2026-06-24.md`
+  - `docs/architecture-cleanup-roadmap.md`
   - `NEXT_ARCHITECTURE_CLEANUP_HANDOFF.md`
 
 ## Frontend responsibilities
@@ -178,6 +179,8 @@ Pending approval:
 - Revoke direct public execute on old `verify_login(text, text)`.
 - Add `audio_records(task_id)` index.
 - Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, or explicitly drop it if approved.
+
+Use `docs/architecture-cleanup-roadmap.md` for the staged cleanup order and approval phrases.
 
 Needs operational decision:
 
