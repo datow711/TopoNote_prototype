@@ -6,6 +6,8 @@ This inventory is a static local-code and prior read-only audit map. It is meant
 
 No live Supabase, Google Sheet, or Apps Script changes have been applied for this inventory.
 
+For the overall goal completion and approval matrix, see `docs/architecture-goal-status.md`.
+
 ## Status labels
 
 - Active: used by the current app or current operations.

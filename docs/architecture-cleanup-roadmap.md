@@ -4,6 +4,8 @@ Updated: 2026-06-24.
 
 This roadmap converts the architecture audit into staged work. It is intentionally conservative: live Supabase, Apps Script, and Google Sheet changes require explicit user approval for the exact batch.
 
+For requirement-by-requirement completion status, see `docs/architecture-goal-status.md`.
+
 ## Current state
 
 - Audit docs exist and are committed locally.

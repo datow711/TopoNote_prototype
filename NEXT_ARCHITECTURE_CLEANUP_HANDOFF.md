@@ -18,6 +18,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `docs/architecture-audit-2026-06-24.md`
   - Main architecture audit.
   - Covers frontend, root GAS, Places GAS, Google Sheet tabs, Supabase objects, stale candidates, risky objects, and proposed cleanup batches.
+- `docs/architecture-goal-status.md`
+  - Requirement-by-requirement completion matrix and approval matrix.
+  - Use this to decide whether the full user goal is actually complete.
 - `docs/architecture-inventory.md`
   - Structured active/legacy/retention inventory for frontend, root GAS, Places GAS, Google Sheet tabs, and Supabase objects.
   - Use this as the object-by-object deletion/refactor checklist.
