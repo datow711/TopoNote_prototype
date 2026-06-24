@@ -187,9 +187,9 @@ Supabase legacy candidates:
 | Object | Status | Suggested batch |
 | --- | --- | --- |
 | `verify_login(text, text)` | Legacy candidate | Batch B revoke direct execute. Current frontend uses `login_investigator`/`login_admin`. |
-| `app_assignment_sheet_view` | Legacy candidate | Batch C quarantine. Superseded by `app_language_assignment_sheet_view`. |
-| `assign_tasks_to_user(integer[], text, text)` | Legacy candidate | Batch C quarantine. Superseded by `assign_task_language`. |
-| `unassign_tasks_from_user(integer[], text, text)` | Legacy candidate | Batch C quarantine. Superseded by `unassign_task_language`. |
+| `app_assignment_sheet_view` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `app_language_assignment_sheet_view`. |
+| `assign_tasks_to_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `assign_task_language`. |
+| `unassign_tasks_from_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `unassign_task_language`. |
 
 ## Synchronization design issues
 
@@ -225,6 +225,8 @@ Do not delete all of these together. `task_assignments` and `final_tasks.assigne
 ### Old Sheet workflows still in menus
 
 The Places GAS menu still exposes old L1/L2/L3 operations. Some may be real human workflows, not dead code. Cleanup should start by removing or hiding menu entries after user approval, then waiting one operating cycle before deleting code.
+
+Batch E/F GAS cleanup previews are in `docs/gas-cleanup-batch-e-f-preview.md`.
 
 ## Safest next live change
 

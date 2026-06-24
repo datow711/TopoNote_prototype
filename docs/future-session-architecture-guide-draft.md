@@ -12,8 +12,10 @@ This is a quick-start guide for a future Codex session. It is not the final hand
 3. `docs/architecture-inventory.md`
 4. `docs/architecture-cleanup-roadmap.md`
 5. `docs/supabase-cleanup-batch-b-d-preview.sql`
-6. `logs/timeline.md`
-7. Recent `logs/sessions/` entries, especially:
+6. `docs/supabase-cleanup-batch-c-preview.sql`
+7. `docs/gas-cleanup-batch-e-f-preview.md`
+8. `logs/timeline.md`
+9. Recent `logs/sessions/` entries, especially:
    - `2026-06-23-record-text-editing.md`
    - `2026-06-23-ux-filter-upload-scope.md`
    - `2026-06-08-language-assignment-alignment.md`

@@ -41,6 +41,9 @@ The system currently bridges four surfaces:
   - `docs/architecture-audit-2026-06-24.md`
   - `docs/architecture-inventory.md`
   - `docs/architecture-cleanup-roadmap.md`
+  - `docs/supabase-cleanup-batch-b-d-preview.sql`
+  - `docs/supabase-cleanup-batch-c-preview.sql`
+  - `docs/gas-cleanup-batch-e-f-preview.md`
   - `NEXT_ARCHITECTURE_CLEANUP_HANDOFF.md`
 
 ## Frontend responsibilities

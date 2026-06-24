@@ -25,6 +25,12 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
   - Has not been applied.
+- `docs/supabase-cleanup-batch-c-preview.sql`
+  - Review-only SQL preview for quarantining old generic assignment Supabase objects.
+  - Has not been applied.
+- `docs/gas-cleanup-batch-e-f-preview.md`
+  - Review-only execution preview for root GAS legacy login route and Places GAS old L3 satellite menu cleanup.
+  - No local GAS code edit, push, or deploy has been done.
 - `docs/architecture-cleanup-roadmap.md`
   - Staged cleanup plan with approval phrases, preflight checks, verification checks, and rollback notes.
   - Use this as the execution map after the audit.

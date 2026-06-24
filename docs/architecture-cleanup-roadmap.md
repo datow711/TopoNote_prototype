@@ -115,6 +115,8 @@ Alternative:
 
 Requires explicit approval after Batch B.
 
+SQL preview: `docs/supabase-cleanup-batch-c-preview.sql`.
+
 Suggested approval phrase:
 
 ```text
@@ -154,6 +156,8 @@ Drop decision:
 
 Requires explicit approval because it changes a live Web App route.
 
+Execution preview: `docs/gas-cleanup-batch-e-f-preview.md`.
+
 Suggested approval phrase:
 
 ```text
@@ -188,6 +192,8 @@ Verification:
 ## Batch E - Places GAS old menu quarantine
 
 Requires explicit user decision because it affects spreadsheet operators.
+
+Execution preview: `docs/gas-cleanup-batch-e-f-preview.md`.
 
 Suggested approval phrase:
 
