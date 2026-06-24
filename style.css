@@ -620,6 +620,30 @@ button:disabled {
     overflow-y: auto;
 }
 
+.place-select-all-row {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.place-select-all-row input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
 .place-list-load-more {
     display: block;
     width: calc(100% - 24px);
@@ -1229,7 +1253,7 @@ button:disabled {
 }
 
 .assign-count {
-    min-width: 72px;
+    min-width: 156px;
     color: #a8b3bc;
     font-size: 13px;
 }

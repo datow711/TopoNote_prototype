@@ -30,6 +30,7 @@ let state = {
     filteredPlaces: [],
     renderedPlaceCount: 0,
     placeRenderBatchSize: 100,
+    selectedAssignTaskIds: new Set(),
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
     allUserRecords: [],
 };
@@ -847,6 +848,7 @@ function logout() {
     state.selectedStatus = 'all';
     state.lastSelectedPlaceIndex = null;
     state.filteredPlaces = [];
+    state.selectedAssignTaskIds = new Set();
     state.renderedPlaceCount = 0;
     state.allUsers = [];
     state.allUserRecords = [];
@@ -2470,9 +2472,28 @@ function renderPlaceList(places) {
     state.filteredPlaces = Array.isArray(places) ? places : [];
     state.renderedPlaceCount = 0;
     state.lastSelectedPlaceIndex = null;
-    if (state.filteredPlaces.length === 0) return container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
+    state.selectedAssignTaskIds = new Set();
+    if (state.filteredPlaces.length === 0) {
+        container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
+        updateSelectedAssignCount();
+        return;
+    }
 
+    renderAdminPlaceSelectionHeader(container);
     appendPlaceListBatch();
+}
+
+function renderAdminPlaceSelectionHeader(container) {
+    if (state.userRole !== 'admin') return;
+
+    const header = document.createElement('label');
+    header.className = 'place-select-all-row';
+    header.onclick = event => event.stopPropagation();
+    header.innerHTML = `
+        <input id="select-filtered-places" type="checkbox" onchange="toggleAllFilteredPlaceSelection(event)">
+        <span>全選目前篩選結果</span>
+    `;
+    container.appendChild(header);
 }
 
 function appendPlaceListBatch() {
@@ -2506,7 +2527,8 @@ function appendPlaceListBatch() {
         
         if (state.userRole === 'admin') {
             // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
-            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆">`;
+            const isChecked = state.selectedAssignTaskIds?.has(String(place.id)) ? 'checked' : '';
+            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-task-id="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆" ${isChecked}>`;
             languageAssignmentControls = renderLanguageAssignmentControls(place);
             
             if (place.tAssignee || place.hAssignee) {
@@ -2541,6 +2563,7 @@ function appendPlaceListBatch() {
     container.appendChild(fragment);
     state.renderedPlaceCount = end;
     renderPlaceListLoadMore();
+    syncRenderedAdminSelection();
     updateSelectedAssignCount();
 }
 
@@ -2568,6 +2591,7 @@ function toggleAdminPlaceSelection(event, index) {
     event.stopPropagation();
     const checkbox = event.currentTarget;
     const checkboxes = Array.from(document.querySelectorAll('.assign-checkbox'));
+    const shouldSelect = checkbox.checked;
 
     if (event.shiftKey && state.lastSelectedPlaceIndex !== null) {
         const start = Math.min(state.lastSelectedPlaceIndex, index);
@@ -2575,23 +2599,72 @@ function toggleAdminPlaceSelection(event, index) {
         checkboxes.forEach(box => {
             const boxIndex = Number(box.dataset.listIndex);
             if (boxIndex >= start && boxIndex <= end) {
-                box.checked = checkbox.checked;
-                box.closest('.place-item')?.classList.toggle('selected-for-assign', checkbox.checked);
+                box.checked = shouldSelect;
+                setAdminTaskSelection(box.value, shouldSelect);
+                box.closest('.place-item')?.classList.toggle('selected-for-assign', shouldSelect);
             }
         });
     } else {
-        checkbox.closest('.place-item')?.classList.toggle('selected-for-assign', checkbox.checked);
+        setAdminTaskSelection(checkbox.value, shouldSelect);
+        checkbox.closest('.place-item')?.classList.toggle('selected-for-assign', shouldSelect);
     }
 
     state.lastSelectedPlaceIndex = index;
     updateSelectedAssignCount();
 }
 
+function setAdminTaskSelection(taskId, selected) {
+    if (!state.selectedAssignTaskIds || !(state.selectedAssignTaskIds instanceof Set)) {
+        state.selectedAssignTaskIds = new Set();
+    }
+    const normalizedId = String(taskId);
+    if (selected) {
+        state.selectedAssignTaskIds.add(normalizedId);
+    } else {
+        state.selectedAssignTaskIds.delete(normalizedId);
+    }
+}
+
+function getFilteredAdminTaskIds() {
+    return (state.filteredPlaces || []).map(place => String(place.id));
+}
+
+function getSelectedAdminTaskIds() {
+    const filteredIds = getFilteredAdminTaskIds();
+    const selectedIds = state.selectedAssignTaskIds || new Set();
+    return filteredIds.filter(taskId => selectedIds.has(taskId));
+}
+
+function syncRenderedAdminSelection() {
+    document.querySelectorAll('.assign-checkbox').forEach(box => {
+        const selected = state.selectedAssignTaskIds?.has(String(box.value)) || false;
+        box.checked = selected;
+        box.closest('.place-item')?.classList.toggle('selected-for-assign', selected);
+    });
+}
+
+function toggleAllFilteredPlaceSelection(event) {
+    event.stopPropagation();
+    const checked = event.currentTarget.checked;
+    getFilteredAdminTaskIds().forEach(taskId => setAdminTaskSelection(taskId, checked));
+    syncRenderedAdminSelection();
+    updateSelectedAssignCount();
+}
+
+function updateAdminSelectAllControl(selectedCount, filteredCount) {
+    const selectAll = document.getElementById('select-filtered-places');
+    if (!selectAll) return;
+    selectAll.checked = filteredCount > 0 && selectedCount === filteredCount;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < filteredCount;
+}
+
 function updateSelectedAssignCount() {
     const countEl = document.getElementById('assign-count');
+    const filteredCount = (state.filteredPlaces || []).length;
+    const selectedCount = getSelectedAdminTaskIds().length;
+    updateAdminSelectAllControl(selectedCount, filteredCount);
     if (!countEl) return;
-    const count = document.querySelectorAll('.assign-checkbox:checked').length;
-    countEl.innerText = `${count} 筆已選`;
+    countEl.innerText = `篩選結果${filteredCount}筆，${selectedCount}筆已選`;
 }
 
 function openRecordingUI(place, element) {
@@ -3031,8 +3104,7 @@ function renderAdminBatchAssignUI() {
 // 🌟 新增：執行批次指派 (寫入 Supabase)
 async function batchAssignTasks() {
     // 找出所有被打勾的 checkbox
-    const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
-    const taskIds = Array.from(checkboxes).map(cb => cb.value);
+    const taskIds = getSelectedAdminTaskIds();
     const language = document.getElementById('assignment-language-input').value;
     const targetUser = document.getElementById('assignee-input').value.trim();
     const targetUserName = getUserDisplayName(targetUser);
@@ -3064,8 +3136,7 @@ async function batchAssignTasks() {
 
 // 🌟 新增：批次撤回指定調查員的指派
 async function batchUnassignTasks() {
-    const checkboxes = document.querySelectorAll('.assign-checkbox:checked');
-    const taskIds = Array.from(checkboxes).map(cb => Number(cb.value));
+    const taskIds = getSelectedAdminTaskIds().map(taskId => Number(taskId));
     const language = document.getElementById('assignment-language-input').value;
 
     if (taskIds.length === 0) return alert("請先在清單中勾選要撤回指派的地名！");

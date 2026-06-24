@@ -94,6 +94,76 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
   ]);
 });
 
+test('admin can select all filtered places without rendering every row', async ({ page }) => {
+  const rpcCalls = [];
+
+  await page.route('**/*', route => {
+    const request = route.request();
+    if (request.url().includes('/rest/v1/rpc/')) {
+      rpcCalls.push({
+        url: request.url(),
+        body: JSON.parse(request.postData() || '{}')
+      });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '3' });
+    }
+
+    return route.continue();
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+    refreshAfterAssignmentChange = async () => {};
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.placeRenderBatchSize = 1;
+    state.allUsers = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' }
+    ];
+    state.assignedPlaces = [1, 2, 3].map(id => ({
+      id,
+      sourceId: `uuid-${id}`,
+      placeName: `Place ${id}`,
+      county: 'County',
+      town: 'Town',
+      type: 'Type',
+      taiClass: '',
+      hakClass: '',
+      assignedUsers: [],
+      taiAudioCount: 0,
+      hakAudioCount: 0,
+      recordingStatus: 'No records'
+    }));
+
+    document.getElementById('app-section').classList.remove('hidden');
+    renderPlaceList(state.assignedPlaces);
+    renderAdminBatchAssignUI();
+  });
+
+  await expect(page.locator('.assign-checkbox')).toHaveCount(1);
+  await expect(page.locator('#assign-count')).toHaveText('篩選結果3筆，0筆已選');
+
+  await page.locator('#select-filtered-places').check();
+  await expect(page.locator('#assign-count')).toHaveText('篩選結果3筆，3筆已選');
+
+  await page.selectOption('#assignee-input', 'Lin Investigator');
+  await page.locator('#assign-submit-btn').click();
+  expect(rpcCalls).toEqual([
+    {
+      url: expect.stringContaining('/rest/v1/rpc/assign_task_language'),
+      body: {
+        p_task_ids: [1, 2, 3],
+        p_language: '台語',
+        p_user_name: 'Lin Investigator',
+        p_assigned_by: 'admin@example.com'
+      }
+    }
+  ]);
+});
+
 test('admin filter state survives assignment refresh and chip filters default all selected with all or none toggle', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
