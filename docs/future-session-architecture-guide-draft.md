@@ -70,7 +70,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -87,13 +87,13 @@ Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond 
 
 Do not execute live Supabase SQL until the user explicitly approves the exact batch.
 
-Batch C and Batch F are already complete. For the next live change, explain the candidate batch first, then wait for a fresh explicit approval.
+Batch C, Batch F, and Batch E documentation correction are already complete. For the next live change, explain the candidate batch first, then wait for a fresh explicit approval.
 
 Historical approval examples after Batch B + D interim:
 
 - `同意執行 Batch C quarantine`
 - `同意移除 root GAS legacy login route`
-- `同意先從 Places GAS 選單移除舊 L3 satellite push/pull`
+- `同意先從 Places GAS 選單移除舊 L3 satellite push/pull` (superseded by documentation correction: L3 satellite is active separate Sheet workflow)
 
 Batch B + Batch D interim, Batch C, and Batch F are already complete. Do not rerun them unless a rollback/replay need is explicit.
 

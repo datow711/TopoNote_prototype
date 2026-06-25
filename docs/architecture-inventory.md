@@ -119,8 +119,8 @@ Places GAS legacy or decision-gated functions:
 | --- | --- | --- |
 | `openExportDialog` / `processExport` | Retention decision | Old L1-to-L2 import flow still appears in menu. Ask whether source intake still uses it. |
 | `syncClassification` | Retention decision | Uses an external source spreadsheet and writes classification back to `第三期工作清單`. Confirm whether still operational. |
-| `pushTasksToSatelliteSheets` | Legacy candidate | Old L3 satellite annotator workflow; still exposed in menu. Remove menu first after approval, then remove code later. |
-| `pullResultsFromSatelliteSheets` | Legacy candidate | Same old L3 satellite workflow; writes back to `第三期工作清單`. Quarantine before deletion. |
+| `pushTasksToSatelliteSheets` | Active separate Sheet workflow | L3 satellite written/direct annotation workflow. Separate from APP audio upload flow; do not remove as dead code. |
+| `pullResultsFromSatelliteSheets` | Active separate Sheet workflow | Pulls written/direct annotation results back to `第三期工作清單`. Separate from APP workflow; do not remove as dead code. |
 | `exportCleanCSVForSupabase` | Legacy candidate | Reads old `Places` tab and tags rows as `moi_placename_raw`. Not current app-facing sync path. |
 | `keepSupabaseAwake` | Utility candidate | Pings `final_tasks`. Confirm whether any trigger uses it before removal. |
 
@@ -136,7 +136,7 @@ Places GAS legacy or decision-gated functions:
 | `Assignments` | Retention decision | Old `UserID`/`PlaceID` assignment model used by legacy login. |
 | `Records` | Active but awkward | Old audio upload log still written by root GAS upload. |
 | `Final_Tasks` | Retention decision | Historical staging tab; current Supabase `final_tasks` is maintained by Places GAS. |
-| `書面標注員名單` | Retention decision | Old satellite-sheet workflow support. |
+| `書面標注員名單` | Active separate Sheet workflow | Supports L3 satellite written/direct annotation. Keep unless the user explicitly redesigns this workflow. |
 | `梯次紀錄表` | Retention decision | Old L1-to-L2 import batch log. |
 | `查詢瀏覽用`, `客語區`, `已完成各區`, `台中` | Retention decision | Human-facing or historical tabs; not enough local code evidence to delete. |
 
@@ -224,9 +224,9 @@ The current assignment model is language-specific in `task_language_reviews`, bu
 
 Do not delete all of these together. `task_assignments` and `final_tasks.assigned_to` still support compatibility/profile preservation. The old generic view/RPCs can be quarantined first.
 
-### Old Sheet workflows still in menus
+### Separate Sheet workflows still in menus
 
-The Places GAS menu still exposes old L1/L2/L3 operations. Some may be real human workflows, not dead code. Cleanup should start by removing or hiding menu entries after user approval, then waiting one operating cycle before deleting code.
+The Places GAS menu includes workflows that are separate from the APP. In particular, L3 satellite push/pull supports written/direct annotation through Google Sheets and should not be treated as dead code. Menu organization can be revisited as a user-owned operations/design task, but architecture cleanup should not remove this path.
 
 Batch E/F GAS cleanup previews are in `docs/gas-cleanup-batch-e-f-preview.md`.
 
@@ -240,7 +240,7 @@ Historical next roadmap approval after observing Batch B + D interim was:
 同意執行 Batch C quarantine
 ```
 
-This has now been applied. No next live change is pre-approved; discuss Batch E, Batch G, or Batch H first, explain the exact scope, then wait for explicit approval.
+This has now been applied. No next live change is pre-approved; discuss Batch G or Batch H first, explain the exact scope, then wait for explicit approval.
 
 ## Previous first live change already applied
 

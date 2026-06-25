@@ -2,14 +2,14 @@
 
 Updated: 2026-06-24.
 
-Status: Batch F pushed, deployed, and smoke-tested on 2026-06-25 after user approval. Batch E remains review only.
+Status: Batch F pushed, deployed, and smoke-tested on 2026-06-25 after user approval. Batch E has been revised to documentation correction only; no Places GAS code/menu change is planned in this cleanup batch.
 
 ## Purpose
 
 This preview prepares two behavior-changing GAS cleanups:
 
 - Batch F: quarantine the root GAS legacy `login` route.
-- Batch E: remove old Places GAS L3 satellite push/pull menu entries first, while keeping the functions for one observation period.
+- Batch E: correct the L3 satellite push/pull classification. It is an active Sheet-only written annotation workflow, not dead code.
 
 These are separated because they affect different operators and rollback paths.
 
@@ -21,13 +21,13 @@ Batch F:
 同意移除 root GAS legacy login route
 ```
 
-Batch E:
+Batch E original menu-quarantine wording, now superseded by documentation correction:
 
 ```text
 同意先從 Places GAS 選單移除舊 L3 satellite push/pull
 ```
 
-Approving one batch does not approve the other.
+Batch E no longer approves menu removal. The corrected Batch E scope is documentation-only: classify L3 satellite push/pull as an active separate Sheet workflow.
 
 ## Batch F - root GAS legacy login route
 
@@ -138,7 +138,7 @@ After one operating cycle with no old-client failures:
 - Remove `getAllPlacesData` if no other route uses it.
 - Decide whether root GAS should still append to the old `Records` sheet during `upload`.
 
-## Batch E - Places GAS L3 satellite menu quarantine
+## Batch E - L3 satellite workflow documentation correction
 
 ### Current local evidence
 
@@ -150,29 +150,23 @@ Current Places GAS menu includes:
   .addItem('從各表單回填結果 (Pull)', 'pullResultsFromSatelliteSheets'))
 ```
 
-Current active app synchronization does not need these functions. It uses:
+Current APP synchronization does not need these functions. It uses:
 
 - `syncTaskAssignmentsToSheets`
 - `syncApprovedReviewsToSheets`
 - `app_language_assignment_sheet_view`
 - `app_sheet_sync_queue`
 
-The old satellite flow uses:
+The separate L3 satellite Sheet workflow uses:
 
 - `pushTasksToSatelliteSheets`
 - `pullResultsFromSatelliteSheets`
 - `書面標注員名單`
 - separate annotator spreadsheets
 
-### Recommended first implementation
+### Revised decision
 
-Remove only the L3 submenu entries from `onOpen()` and keep both functions in code:
-
-```javascript
-// Temporarily hidden while the APP/Supabase assignment flow is the source of truth.
-// pushTasksToSatelliteSheets and pullResultsFromSatelliteSheets remain in code
-// for rollback during the observation period.
-```
+Do not change Places GAS code or menu entries in this cleanup batch.
 
 Do not delete:
 
@@ -180,18 +174,14 @@ Do not delete:
 - `pullResultsFromSatelliteSheets`
 - `書面標注員名單`
 
-Why hide before deleting:
+Why:
 
-- Spreadsheet operators may still know the old menu.
-- A menu-only quarantine is easy to roll back.
-- It reduces accidental use while keeping recovery simple.
+- Some classification/annotation work is done directly in Google Sheets instead of through the APP.
+- L3 satellite push/pull supports that written/direct annotation workflow.
+- The workflow is parallel to the APP audio annotation flow, not superseded by it.
+- Future menu reorganization should be treated as an operations/design request.
 
-### Preflight checks
-
-Ask the user:
-
-- Is anyone still using L3 satellite Push/Pull from the Places spreadsheet menu?
-- Should `書面標注員名單` remain as historical reference?
+### Documentation-only checks
 
 Run locally:
 
@@ -220,12 +210,14 @@ node --check places-gas\gas\SideBar.js
 git diff --check
 ```
 
-### Manual Sheet checks after push/deploy
+### Manual Sheet checks
 
-Only after explicit approval to push/deploy:
+No manual Sheet check is required for this documentation-only correction because no Places GAS code is changed and no `clasp push` is run.
+
+If a future menu reorganization is requested:
 
 - Reload the Places spreadsheet.
-- Confirm the old L3 satellite Push/Pull submenu is gone.
+- Confirm the intended menu shape.
 - Confirm current menu items remain:
   - daily prework sync trigger controls
   - third-phase sync
@@ -238,24 +230,20 @@ Only after explicit approval to push/deploy:
 
 ### Deployment path
 
-1. Edit local `places-gas/gas/程式碼.js`.
-2. Run local checks.
-3. `npx.cmd clasp push` from `places-gas/`.
-4. Reload the bound spreadsheet.
-5. Confirm the menu shape.
+No deployment for this documentation-only correction.
 
 ### Rollback
 
-Restore the old submenu entries and push again.
+Revert the documentation commit if this classification is later found incorrect.
 
-### Later deletion step
+### Later menu design step
 
-After one operating cycle with no operator needing L3 satellite Push/Pull:
+If the user later wants to reorganize the Places GAS menu:
 
-- Delete `pushTasksToSatelliteSheets`.
-- Delete `pullResultsFromSatelliteSheets`.
-- Decide whether to archive/hide `書面標注員名單`.
-- Update `docs/architecture-inventory.md`.
+- Keep `pushTasksToSatelliteSheets`.
+- Keep `pullResultsFromSatelliteSheets`.
+- Keep the annotator list sheet.
+- Treat menu placement/naming as a UX/operations choice, not dead-code cleanup.
 
 ## Shared cautions
 

@@ -207,9 +207,9 @@ Verification:
 - Feedback still works through root GAS.
 - Admin profile write-through still works through root GAS.
 
-## Batch E - Places GAS old menu quarantine
+## Batch E - L3 satellite workflow documentation correction
 
-Requires explicit user decision because it affects spreadsheet operators.
+Status: approved as documentation correction only. No Places GAS code/menu change is planned in this cleanup batch.
 
 Execution preview: `docs/gas-cleanup-batch-e-f-preview.md`.
 
@@ -219,33 +219,27 @@ Suggested approval phrase:
 同意先從 Places GAS 選單移除舊 L3 satellite push/pull
 ```
 
-Changes:
+Corrected classification:
 
-- Remove menu entries for `pushTasksToSatelliteSheets` and `pullResultsFromSatelliteSheets`.
-- Keep the functions in code for one verification period.
-- Later remove the functions only if no operator needs the satellite-sheet workflow.
+- L3 satellite push/pull is an active Sheet-only written annotation workflow.
+- It is separate from APP audio upload and annotation.
+- Do not remove the menu, `pushTasksToSatelliteSheets`, `pullResultsFromSatelliteSheets`, or supporting sheet data as dead code.
 
 Why:
 
-- Current app assignment/review synchronization uses Supabase views and language-specific state.
-- The old satellite flow uses `書面標注員名單` and separate annotator spreadsheets.
-- Keeping unused menu entries makes the operational model look more complicated than it is.
+- Some place-name classification/annotation is done directly in Google Sheets without the APP.
+- The satellite flow supports that written/direct annotation path.
+- Future menu organization is an operations/design decision for the user, not a cleanup deletion step.
 
-Preflight:
+Future decision:
 
-- Ask whether any human operator still uses L3 satellite push/pull.
-- Confirm whether `書面標注員名單` should remain as historical reference.
+- The user may later reorganize the Places GAS menu manually or request a separate menu design pass.
+- If that happens, keep the underlying functions and data flow unless the user explicitly approves removal.
 
-Verification:
+Verification for this documentation correction:
 
-- Places GAS menu still includes current sync actions:
-  - daily prework sync trigger controls
-  - third-phase sync
-  - final task sync
-  - review writeback
-  - assignment writeback
-  - Users sync
-- No current sync route calls the removed menu items.
+- No GAS code or Google Sheet content changes are made.
+- Docs no longer describe L3 satellite push/pull as stale or deletion-ready.
 
 ## Batch G - Google Sheet retention decisions
 
@@ -297,11 +291,10 @@ Future options:
 
 ## Current recommended next approval
 
-Batch C and Batch F have now been applied and verified. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
+Batch C, Batch F, and Batch E documentation correction have now been applied or documented. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
 
 Likely next candidates:
 
-- Batch E: Places GAS old satellite sheet menu quarantine.
 - Batch G: Google Sheet retention decisions.
 - Batch H: app-facing Supabase view/RLS/security redesign.
 

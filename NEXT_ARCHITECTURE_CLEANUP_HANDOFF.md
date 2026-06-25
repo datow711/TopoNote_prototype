@@ -36,7 +36,7 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `db/2026-06-25_batch_c_assignment_quarantine.sql`
   - Applied SQL record for Batch C assignment quarantine.
 - `docs/gas-cleanup-batch-e-f-preview.md`
-  - Review-only execution preview for root GAS legacy login route and Places GAS old L3 satellite menu cleanup.
+  - GAS cleanup preview. Batch F is deployed; Batch E was revised to documentation-only L3 satellite workflow classification.
   - No local GAS code edit, push, or deploy has been done.
 - `docs/architecture-cleanup-roadmap.md`
   - Staged cleanup plan with approval phrases, preflight checks, verification checks, and rollback notes.
@@ -85,13 +85,13 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - `ensure_task_language_reviews`
    - `Places`, `Assignments`, `Records`, `TestEntries` sheet tabs
    - `AssignedUsers` / `AssignmentSyncedAt` columns
-   - old satellite sheet functions
+   - L3 satellite sheet functions, which support a separate written/direct annotation workflow
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, and Batch F are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, and Batch E documentation correction are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Likely next discussion candidates are Batch E Places GAS old satellite menu quarantine, Batch G Sheet retention decisions, or Batch H app-facing Supabase security redesign. Do not start any without a fresh approval.
+Likely next discussion candidates are Batch G Sheet retention decisions or Batch H app-facing Supabase security redesign. Do not start either without a fresh approval.
 
 Historical next staged approval phrase after Batch B + D interim was:
 

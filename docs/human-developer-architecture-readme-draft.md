@@ -5,7 +5,7 @@ Updated: 2026-06-25.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. This document is still a draft because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. This document is still a draft because later cleanup/refactor batches remain pending.
 
 ## What TopoNote is
 
@@ -93,7 +93,7 @@ Current active responsibilities:
 - Checkpoint creation before risky writebacks.
 - AuditLogger stamping of `T_UpdatedAt` and `H_UpdatedAt`.
 
-Older menu functions for L1 export, classification sync, and satellite sheet push/pull still exist. They need an operational decision before removal.
+Some Places GAS menu functions belong to workflows outside the APP. L3 satellite sheet push/pull supports written/direct annotation in Google Sheets and should not be removed as dead code. Future menu reorganization is an operations/design decision.
 
 ## Google Sheet model
 
@@ -115,7 +115,7 @@ Legacy or mixed-use tabs:
 - `Assignments`: older `UserID`/`PlaceID` assignment model.
 - `Records`: older audio upload log.
 - `Final_Tasks`: older task staging tab.
-- `書面標注員名單`: older satellite sheet workflow support.
+- `書面標注員名單`: active support for the L3 satellite written/direct annotation workflow.
 
 Checkpoint tabs named `__ckpt_*` are expected from sync safety behavior.
 
@@ -195,7 +195,7 @@ Use `docs/architecture-cleanup-roadmap.md` for the staged cleanup order and appr
 
 Needs operational decision:
 
-- Whether to keep or remove old satellite sheet push/pull.
+- Whether to reorganize the Places GAS menu around the separate L3 satellite sheet workflow.
 - Whether to hide/archive `AssignedUsers` and `AssignmentSyncedAt`.
 - Whether old Sheet tabs `Places`, `Assignments`, `Records`, and `Final_Tasks` are still needed.
 - Whether and when to drop `app_assignment_sheet_view`, `assign_tasks_to_user`, and `unassign_tasks_from_user`.

@@ -125,7 +125,8 @@ Live verification:
   - `Assignments`: old `UserID`/`PlaceID` assignment model.
   - `Records`: old audio upload log.
   - `Final_Tasks`: historical task staging tab.
-  - `書面標注員名單`: used by older satellite sheet push/pull workflow.
+- Active separate Sheet workflow tabs:
+  - `書面標注員名單`: active support for the L3 satellite written/direct annotation workflow.
 - Checkpoint tabs are actively accumulating with names like `__ckpt_*`. This is expected from `ensureSheetCheckpoint_`, but retention should be verified periodically.
 
 ### Supabase
@@ -240,7 +241,7 @@ Live verification:
   - Stop documenting them as current source of truth.
   - Hide or archive only after one full sync/review cycle confirms they are unused by humans.
 
-### 7. Old satellite sheet workflow
+### 7. L3 satellite sheet workflow
 
 - Functions:
   - `pushTasksToSatelliteSheets`
@@ -249,9 +250,11 @@ Live verification:
   - Still exposed under Places GAS menu `L3 分發與回填`.
   - Uses `書面標注員名單` and satellite spreadsheets.
   - Current app workflow assigns and reviews in the frontend/Supabase path.
-- Recommendation:
-  - Ask whether the old satellite workflow is still used operationally.
-  - If not used, move it to a legacy section or remove menu items first, then delete code later.
+- Correction:
+  - This workflow is still operational for written/direct annotation that does not go through the APP audio upload path.
+  - It is separate from the APP/Supabase recording and review workflow, not superseded by it.
+  - Do not delete `pushTasksToSatelliteSheets`, `pullResultsFromSatelliteSheets`, the related menu, or the annotator list sheet as stale code.
+  - Future menu reorganization should be treated as a user-owned operations/design task, not architecture cleanup.
 
 ### 8. Security-definer views and broad table privileges
 
@@ -326,14 +329,14 @@ Requires explicit approval because it touches live data.
 3. If unsure: enable RLS and revoke public access as interim protection.
 4. Re-run advisors.
 
-### Batch E - workflow simplification
+### Batch E - L3 satellite workflow documentation correction
 
-Requires user decision because it affects human operations.
+Approved as documentation correction only. No GAS code or Sheet content change.
 
-1. Decide whether `pushTasksToSatelliteSheets` / `pullResultsFromSatelliteSheets` are still used.
-2. If unused: remove menu entries first.
-3. After one cycle, remove code and update docs.
-4. Decide whether `AssignedUsers` / `AssignmentSyncedAt` should be hidden, archived, or preserved.
+1. Reclassify `pushTasksToSatelliteSheets` / `pullResultsFromSatelliteSheets` as active separate Sheet workflow.
+2. Document that written/direct annotation can happen outside the APP.
+3. Do not remove L3 satellite menu entries, functions, or supporting sheet data as dead code.
+4. Leave future menu reorganization to a separate user-owned operations/design pass.
 
 ## Suggested first approval
 

@@ -16,6 +16,7 @@ Completed so far:
 - Batch B + Batch D interim has been applied and verified on 2026-06-25.
 - Batch C assignment quarantine has been applied and verified on 2026-06-25.
 - Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested on 2026-06-25.
+- Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow; no Places GAS code/menu change was made.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
@@ -124,14 +125,14 @@ Execution checklist:
 | Original requirement | Current status | Evidence | What remains |
 | --- | --- | --- | --- |
 | Scan project architecture | Substantially done | `docs/architecture-audit-2026-06-24.md`, `docs/architecture-inventory.md` | Re-check live state before applying any approved live batch. |
-| Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview | Apply Batch E/F only after approval. |
+| Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview; Batch F deployed; Batch E corrected L3 satellite classification | Further GAS cleanup still needs approval. |
 | Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory | Human retention decisions still needed for old tabs/columns. |
 | Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
 | Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25 | Further batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
-| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25; Batch F pushed/deployed/smoke-tested | Further batches still need explicit approval. |
+| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25; Batch F pushed/deployed/smoke-tested; Batch E documentation correction applied | Further batches still need explicit approval. |
 | Produce final future-session MD after adjustment | Draft only | `docs/future-session-architecture-guide-draft.md` | Replace with final after approved cleanup is applied and verified. |
 | Produce final human developer README after adjustment | Draft only | `docs/human-developer-architecture-readme-draft.md` | Replace with final after approved cleanup is applied and verified. |
 
@@ -146,7 +147,7 @@ Status note: Batch B, Batch D interim, the combined Batch B + D interim scope, B
 | B + D interim | `同意執行 Batch B + Batch D interim` | Recommended first combined live change | Low; no active workflow deletion | Use preview rollback sections. |
 | C quarantine | `同意執行 Batch C quarantine` | Revoke access to old generic assignment view/RPCs | Applied and verified 2026-06-25 | Re-grant old view/RPC privileges if needed. |
 | F | `同意移除 root GAS legacy login route` | Disable root GAS Sheet-based login route | Pushed/deployed/smoke-tested 2026-06-25; user manual app checks still recommended | Restore old route and redeploy. |
-| E | `同意先從 Places GAS 選單移除舊 L3 satellite push/pull` | Hide old satellite Push/Pull menu entries | Medium; affects spreadsheet operators | Restore menu entries and push. |
+| E doc correction | `批准` after L3 satellite clarification | Document L3 satellite Push/Pull as active separate Sheet workflow; no GAS code/menu change | Documentation-only | Revert documentation commit if this classification changes. |
 | G | No single safe phrase yet | Sheet tab/column retention, hide/archive/delete decisions | Medium to high; human data retention | Restore from backup/checkpoint/export if available. |
 | H | No single safe phrase yet | App-facing Supabase view/RLS/security redesign | High; can break frontend if rushed | Requires separate design and staged migration. |
 
