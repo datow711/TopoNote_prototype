@@ -27,6 +27,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `docs/google-sheet-retention-matrix.md`
   - Batch G phase 1 Sheet retention matrix.
   - Use this before any Sheet hide/archive/delete decision.
+- `docs/supabase-app-facing-security-design.md`
+  - Batch H phase 0 design memo.
+  - Use this before any Supabase app-facing view/RPC/RLS implementation.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
@@ -92,9 +95,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, and Batch G phase 1 retention matrix are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, and Batch H phase 0 design memo are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Likely next discussion candidates are Batch G Sheet retention decisions or Batch H app-facing Supabase security redesign. Do not start either without a fresh approval.
+Likely next discussion candidates are Batch H1 live advisor snapshot/classification, Batch H2 backend-wrap one narrow admin write, or a Sheet retention action batch after human retention decisions. Do not start any without a fresh approval.
 
 Historical next staged approval phrase after Batch B + D interim was:
 

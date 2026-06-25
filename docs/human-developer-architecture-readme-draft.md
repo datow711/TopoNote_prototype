@@ -5,7 +5,7 @@ Updated: 2026-06-25.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. This document is still a draft because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. This document is still a draft because later cleanup/refactor batches remain pending.
 
 ## What TopoNote is
 
@@ -43,6 +43,7 @@ The system currently bridges four surfaces:
   - `docs/architecture-inventory.md`
   - `docs/architecture-cleanup-roadmap.md`
   - `docs/google-sheet-retention-matrix.md`
+  - `docs/supabase-app-facing-security-design.md`
   - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - `docs/supabase-cleanup-batch-c-preview.sql`
   - `docs/gas-cleanup-batch-e-f-preview.md`

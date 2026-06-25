@@ -18,6 +18,7 @@ Completed so far:
 - Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested on 2026-06-25.
 - Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow; no Places GAS code/menu change was made.
 - Batch G phase 1 created a Google Sheet retention matrix; no Sheet content was changed.
+- Batch H phase 0 created a Supabase app-facing security design memo; no Supabase SQL or app behavior was changed.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
@@ -129,7 +130,7 @@ Execution checklist:
 | Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview; Batch F deployed; Batch E corrected L3 satellite classification | Further GAS cleanup still needs approval. |
 | Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory; retention matrix added in `docs/google-sheet-retention-matrix.md` | Human approval still required before any hide/archive/delete action. |
 | Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
-| Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25 | Further batches still need approval. |
+| Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25; Batch H phase 0 design memo added | Further implementation batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
@@ -150,7 +151,8 @@ Status note: Batch B, Batch D interim, the combined Batch B + D interim scope, B
 | F | `同意移除 root GAS legacy login route` | Disable root GAS Sheet-based login route | Pushed/deployed/smoke-tested 2026-06-25; user manual app checks still recommended | Restore old route and redeploy. |
 | E doc correction | `批准` after L3 satellite clarification | Document L3 satellite Push/Pull as active separate Sheet workflow; no GAS code/menu change | Documentation-only | Revert documentation commit if this classification changes. |
 | G | No single safe phrase yet | Sheet tab/column retention, hide/archive/delete decisions | Medium to high; human data retention | Restore from backup/checkpoint/export if available. |
-| H | No single safe phrase yet | App-facing Supabase view/RLS/security redesign | High; can break frontend if rushed | Requires separate design and staged migration. |
+| H phase 0 | User-approved design memo | App-facing Supabase view/RLS/security design only | Documentation-only | Revert documentation commit if direction changes. |
+| H implementation | No single safe phrase yet | App-facing Supabase view/RLS/security implementation | High; can break frontend if rushed | Requires H1/H2 staged migration. |
 
 ## Non-removal rules
 

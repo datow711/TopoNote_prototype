@@ -10,6 +10,8 @@ For the overall goal completion and approval matrix, see `docs/architecture-goal
 
 For Sheet-specific retention decisions, see `docs/google-sheet-retention-matrix.md`.
 
+For Supabase app-facing security design, see `docs/supabase-app-facing-security-design.md`.
+
 ## Status labels
 
 - Active: used by the current app or current operations.

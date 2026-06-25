@@ -277,7 +277,13 @@ Do not archive yet:
 
 ## Batch H - app-facing Supabase view security refactor
 
-Requires a larger design decision.
+Status: phase 0 design memo approved. No Supabase SQL or app behavior change is included.
+
+Design memo:
+
+- `docs/supabase-app-facing-security-design.md`
+
+Requires a larger design decision before implementation.
 
 Issue:
 
@@ -295,14 +301,22 @@ Future options:
 2. Move sensitive reads/writes behind Apps Script or another backend and tighten direct frontend grants.
 3. Redesign RLS/view ownership so advisors stop flagging the app-facing reads without losing functionality.
 
+Recommended next implementation path:
+
+1. H1: capture live advisor snapshot and classify accepted vs migration-target findings.
+2. H2: backend-wrap one narrow admin write, likely `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern.
+3. H3: migrate remaining high-impact admin writes in staged batches.
+4. H4: only then consider app-facing view/RLS rewrites.
+
 ## Current recommended next approval
 
-Batch C, Batch F, and Batch E documentation correction have now been applied or documented. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
+Batch C, Batch F, Batch E documentation correction, Batch G phase 1, and Batch H phase 0 have now been applied or documented. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
 
 Likely next candidates:
 
-- Batch G: Google Sheet retention decisions.
-- Batch H: app-facing Supabase view/RLS/security redesign.
+- Batch H1: live Supabase advisor snapshot and finding classification.
+- Batch H2: backend-wrap one narrow admin write after H1.
+- Sheet retention action batch only after explicit human retention decisions.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.
 
