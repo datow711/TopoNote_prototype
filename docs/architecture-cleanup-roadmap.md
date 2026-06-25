@@ -12,8 +12,9 @@ For requirement-by-requirement completion status, see `docs/architecture-goal-st
 - Future-session and human-developer architecture docs exist only as drafts.
 - Batch B + Batch D interim live Supabase cleanup has been applied and verified.
 - Batch C assignment quarantine has been applied and verified.
+- Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested.
 - No Google Sheet content has been changed.
-- No Apps Script push or deployment has been run.
+- Root GAS Apps Script deployment was updated to version 19 for Batch F.
 
 ## How to use this roadmap
 
@@ -169,7 +170,9 @@ Drop decision:
 
 ## Batch F - root GAS legacy login quarantine
 
-Requires explicit approval because it changes a live Web App route.
+Status: pushed, deployed, and smoke-tested on 2026-06-25.
+
+Active root GAS Web App deployment was updated to version 19.
 
 Execution preview: `docs/gas-cleanup-batch-e-f-preview.md`.
 
@@ -294,12 +297,13 @@ Future options:
 
 ## Current recommended next approval
 
-Batch C has now been applied and verified. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
+Batch C and Batch F have now been applied and verified. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
 
 Likely next candidates:
 
-- Batch F: root GAS legacy `action === 'login'` route quarantine.
 - Batch E: Places GAS old satellite sheet menu quarantine.
+- Batch G: Google Sheet retention decisions.
+- Batch H: app-facing Supabase view/RLS/security redesign.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.
 

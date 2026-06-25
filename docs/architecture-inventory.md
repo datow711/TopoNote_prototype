@@ -4,7 +4,7 @@ Updated: 2026-06-24.
 
 This inventory is a static local-code and prior read-only audit map. It is meant to answer: "What is active, what is legacy, and what needs a retention decision before removal?"
 
-Batch B + Batch D interim Supabase cleanup and Batch C assignment quarantine were applied and verified on 2026-06-25. No Google Sheet or Apps Script changes have been applied for this inventory.
+Batch B + Batch D interim Supabase cleanup, Batch C assignment quarantine, and Batch F root GAS login route quarantine were applied and verified on 2026-06-25. No Google Sheet content has been changed for this inventory.
 
 For the overall goal completion and approval matrix, see `docs/architecture-goal-status.md`.
 
@@ -76,7 +76,7 @@ Root GAS route map:
 | `getAudio` -> `handleGetAudio` | Active | current frontend playback path | Keep. |
 | `submitFeedback` -> `handleSubmitFeedback` | Active | current frontend feedback path | Keep. |
 | `updateUserProfile` -> `handleUpdateUserProfile` | Active | current admin profile path | Keep; this protects service-role RPC from browser exposure. |
-| `login` -> `handleLogin` | Legacy candidate | current frontend does not call `action: 'login'`; it uses Supabase RPCs | Batch F should disable or remove route after approval. |
+| `login` -> `handleLogin` | Quarantined legacy candidate | current frontend does not call `action: 'login'`; it uses Supabase RPCs | Batch F pushed/deployed/smoke-tested 2026-06-25. Route returns `legacy_login_disabled`; `handleLogin` kept for observation/rollback. |
 | `doGet?action=clearCache` | Legacy/utility candidate | no current frontend reference | Keep unless user approves removing old cache support. |
 | `doOptions` | Active compatibility | CORS preflight support | Keep while GAS Web App receives browser requests. |
 
@@ -240,7 +240,7 @@ Historical next roadmap approval after observing Batch B + D interim was:
 同意執行 Batch C quarantine
 ```
 
-This has now been applied. No next live change is pre-approved; discuss Batch F or Batch E first, explain the exact scope, then wait for explicit approval.
+This has now been applied. No next live change is pre-approved; discuss Batch E, Batch G, or Batch H first, explain the exact scope, then wait for explicit approval.
 
 ## Previous first live change already applied
 

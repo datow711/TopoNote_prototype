@@ -2,7 +2,7 @@
 
 Updated: 2026-06-24.
 
-Status: review only. Do not edit, push, or deploy Apps Script until the user explicitly approves the exact batch.
+Status: Batch F pushed, deployed, and smoke-tested on 2026-06-25 after user approval. Batch E remains review only.
 
 ## Purpose
 

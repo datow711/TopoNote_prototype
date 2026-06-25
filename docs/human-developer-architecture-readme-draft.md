@@ -1,11 +1,11 @@
 # TopoNote architecture README draft
 
-Status: draft after approved live cleanup through Batch C; not final.
+Status: draft after approved cleanup through deployed Batch F; not final.
 Updated: 2026-06-25.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. This document is still a draft because later cleanup/refactor batches and the final-doc gate remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. This document is still a draft because later cleanup/refactor batches remain pending.
 
 ## What TopoNote is
 
@@ -76,7 +76,7 @@ Current active responsibilities:
 - Write user feedback to a feedback spreadsheet and optional Chat webhook.
 - Update investigator profile data in both Supabase and the Places `Users` sheet after admin verification.
 
-Root GAS also still contains a legacy `login` route that reads `Places`, `Assignments`, and `Records`. The current frontend does not use this route; it should be quarantined or removed only after confirming no old deployed frontend depends on it.
+Root GAS still contains the legacy `handleLogin` implementation that reads `Places`, `Assignments`, and `Records`, but the `action: 'login'` route has been quarantined in code to return `legacy_login_disabled`. The current frontend does not use this route.
 
 ## Places GAS responsibilities
 
@@ -185,6 +185,7 @@ Applied on 2026-06-25:
 - Add `audio_records(task_id)` index.
 - Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`.
 - Quarantine old generic assignment Supabase objects: `app_assignment_sheet_view`, `assign_tasks_to_user`, and `unassign_tasks_from_user`.
+- Quarantine root GAS legacy `action: 'login'` route in code while keeping `handleLogin` for observation and rollback.
 
 Pending approval:
 

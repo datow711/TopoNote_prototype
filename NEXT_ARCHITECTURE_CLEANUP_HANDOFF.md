@@ -2,12 +2,12 @@
 
 Updated: 2026-06-25
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited, and Batch B + Batch D interim plus Batch C assignment quarantine have been applied and verified.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested.
 
 ## Current status
 
-- Current cleanup branch: `codex/batch-c-assignment-quarantine`.
-- No production code was changed.
+- Current cleanup branch: `codex/batch-f-root-gas-login-quarantine`.
+- Root GAS code was changed for Batch F and deployed to the active Web App as version 19.
 - Supabase Batch B + Batch D interim was applied on 2026-06-25.
 - Supabase Batch C assignment quarantine was applied on 2026-06-25.
 - No Google Sheet content was changed.
@@ -70,7 +70,15 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - `service_role` access remains for the quarantined old objects.
    - Current language assignment surfaces were left unchanged: `app_language_assignment_sheet_view`, `assign_task_language`, and `unassign_task_language`.
 
-6. Do not delete these yet:
+6. Batch F code quarantine result:
+   - Root GAS `doPost` now rejects `action === 'login'` with `legacy_login_disabled`.
+   - `handleLogin` remains in code for one observation period and rollback.
+   - `upload`, `getAudio`, `submitFeedback`, and `updateUserProfile` were not changed.
+   - `npx.cmd clasp push` succeeded.
+   - Active deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` is now `@19`.
+   - Live POST smoke test for `action: "login"` returned `legacy_login_disabled`.
+
+7. Do not delete these yet:
    - `moi_placename_raw`
    - `final_tasks.assigned_to`
    - `task_assignments`
@@ -81,9 +89,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim and Batch C are complete. Before executing any next live cleanup, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, and Batch F are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Likely next discussion candidates are Batch F root GAS legacy login quarantine or Batch E Places GAS old satellite menu quarantine. Do not start either without a fresh approval.
+Likely next discussion candidates are Batch E Places GAS old satellite menu quarantine, Batch G Sheet retention decisions, or Batch H app-facing Supabase security redesign. Do not start any without a fresh approval.
 
 Historical next staged approval phrase after Batch B + D interim was:
 

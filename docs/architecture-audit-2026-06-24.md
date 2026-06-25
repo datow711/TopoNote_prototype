@@ -50,6 +50,30 @@ Advisor follow-up:
 - Security advisor no longer reports `assign_tasks_to_user` or `unassign_tasks_from_user` as anon/authenticated executable security-definer functions.
 - Performance advisor did not add a Batch C-specific finding.
 
+## Applied cleanup update - Batch F code quarantine - 2026-06-25
+
+Batch F root GAS legacy login route quarantine was approved by the user, implemented on branch `codex/batch-f-root-gas-login-quarantine`, pushed to Apps Script, and deployed to the active Web App deployment.
+
+Local code result:
+
+- Root GAS `doPost` now rejects `action === 'login'` with `legacy_login_disabled: current app login uses Supabase RPCs.`
+- `handleLogin` remains in `gas/程式碼.js` for one observation period and rollback.
+- Active root GAS actions were left unchanged: `upload`, `getAudio`, `submitFeedback`, and `updateUserProfile`.
+
+Local verification:
+
+- `node --check gas/程式碼.js` passed.
+- `node --check main.js` passed.
+- `git diff --check` passed.
+- Local search confirms current frontend login still uses `login_investigator` and `login_admin`, with no current `main.js` call sending `action: 'login'`.
+
+Live verification:
+
+- `npx.cmd clasp push` pushed `gas/程式碼.js` and `gas/appsscript.json`.
+- `npx.cmd clasp version "Batch F root GAS legacy login quarantine"` created version 19.
+- Active Web App deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` was updated to `@19`.
+- A live POST smoke test with `action: "login"` returned `success: false` and `legacy_login_disabled`.
+
 ## Current architecture snapshot
 
 ### Frontend

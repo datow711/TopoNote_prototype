@@ -110,7 +110,9 @@ function doPost(e) {
     var requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
 
-    if (action === 'login') return handleLogin(requestData);
+    if (action === 'login') {
+      throw new Error('legacy_login_disabled: current app login uses Supabase RPCs.');
+    }
     if (action === 'upload') return handleUpload(requestData);
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);

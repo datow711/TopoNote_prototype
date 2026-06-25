@@ -1,6 +1,6 @@
 # TopoNote future-session architecture guide draft
 
-Status: draft after approved live cleanup through Batch C; not final.
+Status: draft after approved cleanup through deployed Batch F; not final.
 Updated: 2026-06-25.
 
 This is a quick-start guide for a future Codex session. It is not the final handoff requested by the user because live cleanup/refactor work has not been approved or applied yet.
@@ -70,7 +70,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. This draft is still not final because later cleanup/refactor batches and the final-doc gate remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -87,7 +87,7 @@ Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond 
 
 Do not execute live Supabase SQL until the user explicitly approves the exact batch.
 
-Batch C is already complete. For the next live change, explain the candidate batch first, then wait for a fresh explicit approval.
+Batch C and Batch F are already complete. For the next live change, explain the candidate batch first, then wait for a fresh explicit approval.
 
 Historical approval examples after Batch B + D interim:
 
@@ -95,7 +95,7 @@ Historical approval examples after Batch B + D interim:
 - `同意移除 root GAS legacy login route`
 - `同意先從 Places GAS 選單移除舊 L3 satellite push/pull`
 
-Batch B + Batch D interim and Batch C are already complete. Do not rerun them unless a rollback/replay need is explicit.
+Batch B + Batch D interim, Batch C, and Batch F are already complete. Do not rerun them unless a rollback/replay need is explicit.
 
 Historical pre-Batch B+D approval examples:
 

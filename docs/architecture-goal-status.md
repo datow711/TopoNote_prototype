@@ -15,8 +15,9 @@ Completed so far:
 - Cleanup batches and review-only execution previews have been created.
 - Batch B + Batch D interim has been applied and verified on 2026-06-25.
 - Batch C assignment quarantine has been applied and verified on 2026-06-25.
+- Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested on 2026-06-25.
 - Two architecture docs requested by the user exist as drafts only.
-- No Google Sheet or Apps Script changes have been applied.
+- No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
 Still required:
 
@@ -130,13 +131,13 @@ Execution checklist:
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
-| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25 | Further batches still need explicit approval. |
+| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25; Batch F pushed/deployed/smoke-tested | Further batches still need explicit approval. |
 | Produce final future-session MD after adjustment | Draft only | `docs/future-session-architecture-guide-draft.md` | Replace with final after approved cleanup is applied and verified. |
 | Produce final human developer README after adjustment | Draft only | `docs/human-developer-architecture-readme-draft.md` | Replace with final after approved cleanup is applied and verified. |
 
 ## Approval matrix
 
-Status note: Batch B, Batch D interim, and the combined Batch B + D interim scope were approved, applied, and verified on 2026-06-25. The remaining approval phrases below are for future batches only.
+Status note: Batch B, Batch D interim, the combined Batch B + D interim scope, Batch C, and Batch F were approved, applied, and verified on 2026-06-25. The remaining approval phrases below are for future batches only.
 
 | Batch | Approval phrase | Scope | Risk | Rollback |
 | --- | --- | --- | --- | --- |
@@ -144,7 +145,7 @@ Status note: Batch B, Batch D interim, and the combined Batch B + D interim scop
 | D interim | `同意執行 Batch D interim` | Quarantine dated backup table with RLS/revokes | Low to medium; affects only direct access to a backup table | Re-grant old table privileges if a hidden dependency is proven. |
 | B + D interim | `同意執行 Batch B + Batch D interim` | Recommended first combined live change | Low; no active workflow deletion | Use preview rollback sections. |
 | C quarantine | `同意執行 Batch C quarantine` | Revoke access to old generic assignment view/RPCs | Applied and verified 2026-06-25 | Re-grant old view/RPC privileges if needed. |
-| F | `同意移除 root GAS legacy login route` | Disable root GAS Sheet-based login route | Medium; requires GAS push/deploy and manual app checks | Restore old route and redeploy. |
+| F | `同意移除 root GAS legacy login route` | Disable root GAS Sheet-based login route | Pushed/deployed/smoke-tested 2026-06-25; user manual app checks still recommended | Restore old route and redeploy. |
 | E | `同意先從 Places GAS 選單移除舊 L3 satellite push/pull` | Hide old satellite Push/Pull menu entries | Medium; affects spreadsheet operators | Restore menu entries and push. |
 | G | No single safe phrase yet | Sheet tab/column retention, hide/archive/delete decisions | Medium to high; human data retention | Restore from backup/checkpoint/export if available. |
 | H | No single safe phrase yet | App-facing Supabase view/RLS/security redesign | High; can break frontend if rushed | Requires separate design and staged migration. |
