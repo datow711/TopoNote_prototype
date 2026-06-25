@@ -4,7 +4,7 @@ Updated: 2026-06-24.
 
 This inventory is a static local-code and prior read-only audit map. It is meant to answer: "What is active, what is legacy, and what needs a retention decision before removal?"
 
-No live Supabase, Google Sheet, or Apps Script changes have been applied for this inventory.
+Batch B + Batch D interim Supabase cleanup was applied and verified on 2026-06-25. No Google Sheet or Apps Script changes have been applied for this inventory.
 
 For the overall goal completion and approval matrix, see `docs/architecture-goal-status.md`.
 
@@ -164,7 +164,7 @@ Active tables:
 | `task_language_reviews` | Active | Language-specific assignment and review state. |
 | `task_assignments` | Do not remove | Compatibility/history layer used by current functions and profile-preservation logic. |
 | `moi_placename_raw` | Retention decision | Legacy source data; not app-facing now, but `final_tasks` still contains rows from it. |
-| `codex_backup_phone_field_state_20260610` | Legacy candidate | Dated backup object; no local code reference; first quarantine with RLS/revokes or explicitly drop after confirmation. |
+| `codex_backup_phone_field_state_20260610` | Quarantined legacy candidate | Dated backup object; no local code reference. RLS/revokes applied 2026-06-25; explicit drop still needs separate confirmation. |
 
 Active RPCs/functions:
 
@@ -182,13 +182,13 @@ Active RPCs/functions:
 | `revoke_task_language_review` | Active | Current review revoke UI. |
 | `ensure_task_language_reviews` | Do not remove | Internal helper called by active assignment/review functions. |
 | `mark_reviews_sheet_synced` | Active service-role | Called by Places GAS after review writeback. |
-| `mark_audio_record_pending_review` | Do not remove | Trigger-used by `audio_records`; only direct public execute should be revoked. |
+| `mark_audio_record_pending_review` | Do not remove | Trigger-used by `audio_records`; direct anon/authenticated execute revoked 2026-06-25. |
 
 Supabase legacy candidates:
 
 | Object | Status | Suggested batch |
 | --- | --- | --- |
-| `verify_login(text, text)` | Legacy candidate | Batch B revoke direct execute. Current frontend uses `login_investigator`/`login_admin`. |
+| `verify_login(text, text)` | Quarantined legacy candidate | Direct anon/authenticated execute revoked 2026-06-25. Current frontend uses `login_investigator`/`login_admin`. |
 | `app_assignment_sheet_view` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `app_language_assignment_sheet_view`. |
 | `assign_tasks_to_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `assign_task_language`. |
 | `unassign_tasks_from_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `unassign_task_language`. |
@@ -231,6 +231,18 @@ The Places GAS menu still exposes old L1/L2/L3 operations. Some may be real huma
 Batch E/F GAS cleanup previews are in `docs/gas-cleanup-batch-e-f-preview.md`.
 
 ## Safest next live change
+
+Batch B + Batch D interim has already been applied and verified.
+
+Use the next roadmap approval after observing that cleanup:
+
+```text
+同意執行 Batch C quarantine
+```
+
+This quarantines old generic assignment Supabase objects without deleting them.
+
+## Previous first live change already applied
 
 Use the roadmap approval:
 

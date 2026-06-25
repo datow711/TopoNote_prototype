@@ -1,11 +1,11 @@
 # TopoNote architecture README draft
 
-Status: draft before approved live cleanup.
+Status: draft after first approved live cleanup; not final.
 Updated: 2026-06-24.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-No live cleanup has been applied as of this draft.
+Batch B + Batch D interim was applied and verified on 2026-06-25. This document is still a draft because later cleanup/refactor batches and the final-doc gate remain pending.
 
 ## What TopoNote is
 
@@ -178,12 +178,17 @@ If the current Sheet stamp differs from the Supabase source stamp, Places GAS sh
 
 ## Known cleanup queue
 
-Pending approval:
+Applied on 2026-06-25:
 
 - Revoke direct public execute on trigger-only `mark_audio_record_pending_review()`.
 - Revoke direct public execute on old `verify_login(text, text)`.
 - Add `audio_records(task_id)` index.
-- Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, or explicitly drop it if approved.
+- Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`.
+
+Pending approval:
+
+- Quarantine old generic assignment Supabase objects: `app_assignment_sheet_view`, `assign_tasks_to_user`, and `unassign_tasks_from_user`.
+- Decide later whether to drop `codex_backup_phone_field_state_20260610`.
 
 Use `docs/architecture-cleanup-roadmap.md` for the staged cleanup order and approval phrases.
 

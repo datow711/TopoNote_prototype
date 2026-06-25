@@ -1,6 +1,6 @@
 # TopoNote architecture cleanup roadmap
 
-Updated: 2026-06-24.
+Updated: 2026-06-25.
 
 This roadmap converts the architecture audit into staged work. It is intentionally conservative: live Supabase, Apps Script, and Google Sheet changes require explicit user approval for the exact batch.
 
@@ -10,7 +10,7 @@ For requirement-by-requirement completion status, see `docs/architecture-goal-st
 
 - Audit docs exist and are committed locally.
 - Future-session and human-developer architecture docs exist only as drafts.
-- No live Supabase schema/data change has been applied.
+- Batch B + Batch D interim live Supabase cleanup has been applied and verified.
 - No Google Sheet content has been changed.
 - No Apps Script push or deployment has been run.
 
@@ -44,7 +44,11 @@ Already produced:
 
 ## Batch B - low-risk Supabase hardening
 
-Requires explicit approval.
+Status: applied and verified on 2026-06-25.
+
+Applied SQL record:
+
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`
 
 Suggested approval phrase:
 
@@ -83,7 +87,11 @@ Rollback:
 
 ## Batch D interim - backup table quarantine
 
-Requires explicit approval.
+Status: applied and verified on 2026-06-25.
+
+Applied SQL record:
+
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`
 
 Suggested approval phrase:
 
@@ -280,6 +288,18 @@ Future options:
 3. Redesign RLS/view ownership so advisors stop flagging the app-facing reads without losing functionality.
 
 ## Current recommended next approval
+
+Batch B + Batch D interim was applied and verified on 2026-06-25.
+
+The next staged approval after observing Batch B + D interim is:
+
+```text
+同意執行 Batch C quarantine
+```
+
+This quarantines old generic assignment Supabase objects without deleting them.
+
+## Previous first-step approval already applied
 
 The safest first live step is:
 

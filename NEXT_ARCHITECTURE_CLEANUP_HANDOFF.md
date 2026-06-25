@@ -1,15 +1,14 @@
 # TopoNote architecture cleanup handoff
 
-Updated: 2026-06-24
+Updated: 2026-06-25
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited, but no live cleanup has been applied yet.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited, and Batch B + Batch D interim has been applied and verified.
 
 ## Current status
 
-- Current branch: `main`.
-- Repo status at handoff creation: `main...origin/main` with only new audit/preview docs pending.
+- Current cleanup branch: `codex/batch-b-d-interim-cleanup`.
 - No production code was changed.
-- No Supabase schema/data change was applied.
+- Supabase Batch B + Batch D interim was applied on 2026-06-25.
 - No Google Sheet content was changed.
 - No Apps Script push/deploy was run.
 
@@ -27,7 +26,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
-  - Has not been applied.
+  - Applied on 2026-06-25.
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`
+  - Applied SQL record for Batch B + Batch D interim.
 - `docs/supabase-cleanup-batch-c-preview.sql`
   - Review-only SQL preview for quarantining old generic assignment Supabase objects.
   - Has not been applied.
@@ -47,13 +48,20 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 2. `places-gas/` is the Places spreadsheet-bound sync backend.
    - It handles menu syncs, daily prework sync, review writeback, assignment writeback, Users sync, checkpoints, and AuditLogger.
 
-3. The first recommended live cleanup is Supabase-only.
+3. The first recommended live cleanup was Supabase-only and is now applied.
    - Revoke direct public execute on `mark_audio_record_pending_review()`.
    - Revoke direct public execute on old `verify_login(text, text)`.
    - Add `audio_records(task_id)` index.
    - Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, unless the user approves dropping that backup table.
 
-4. Do not delete these yet:
+4. Verified Batch B + D interim result:
+   - `mark_audio_record_pending_review()` and `verify_login(text, text)` are no longer executable by `anon` or `authenticated`.
+   - `service_role` execute remains true for both functions.
+   - `trg_audio_records_pending_review` still exists.
+   - `audio_records_task_id_idx` exists.
+   - `codex_backup_phone_field_state_20260610` has RLS enabled and no `anon`/`authenticated` grants.
+
+5. Do not delete these yet:
    - `moi_placename_raw`
    - `final_tasks.assigned_to`
    - `task_assignments`
@@ -62,7 +70,15 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - `AssignedUsers` / `AssignmentSyncedAt` columns
    - old satellite sheet functions
 
-## Approval boundary
+## Next approval boundary
+
+Batch B + Batch D interim is complete. Before executing the next live Supabase cleanup, get explicit user approval. The next staged approval phrase is:
+
+> 同意執行 Batch C quarantine
+
+That would quarantine old generic assignment Supabase objects using `docs/supabase-cleanup-batch-c-preview.sql`.
+
+## Previous approval boundary
 
 Before executing live Supabase SQL, get explicit user approval. A safe approval phrase would be:
 
@@ -72,7 +88,7 @@ If the user approves only Batch B, do not touch the backup table.
 
 If the user approves dropping the backup table, replace the Batch D interim quarantine with an explicit drop workflow after exporting or confirming the table is no longer needed.
 
-## Execution plan after approval
+## Previous Batch B + D execution plan
 
 1. Re-run preflight checks from `docs/supabase-cleanup-batch-b-d-preview.sql`.
 2. Apply only the approved SQL statements.

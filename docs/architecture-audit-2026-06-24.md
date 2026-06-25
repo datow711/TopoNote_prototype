@@ -6,6 +6,29 @@ No production code, Supabase schema/data, Google Sheet content, or Apps Script d
 
 For an object-by-object active/legacy/retention checklist, see `docs/architecture-inventory.md`.
 
+## Applied cleanup update - 2026-06-25
+
+Batch B + Batch D interim was approved by the user and applied on branch `codex/batch-b-d-interim-cleanup`.
+
+Applied SQL record:
+
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`
+
+Verified live Supabase results:
+
+- `mark_audio_record_pending_review()`: `anon_execute = false`, `authenticated_execute = false`, `service_role_execute = true`.
+- `verify_login(text, text)`: `anon_execute = false`, `authenticated_execute = false`, `service_role_execute = true`.
+- `trg_audio_records_pending_review` still exists on `audio_records`.
+- `audio_records_task_id_idx` exists on `public.audio_records(task_id)`.
+- `codex_backup_phone_field_state_20260610` has RLS enabled.
+- `codex_backup_phone_field_state_20260610` grants are removed from `anon` and `authenticated`; `service_role` access remains.
+
+Advisor follow-up:
+
+- Security advisor no longer reports `mark_audio_record_pending_review` or `verify_login` as anon/authenticated executable security-definer functions.
+- Performance advisor no longer reports the original missing `audio_records.task_id` FK index.
+- Expected residuals remain: `codex_backup_phone_field_state_20260610` has RLS enabled with no policy, still has no primary key, and the new `audio_records_task_id_idx` may show as unused until traffic uses it.
+
 ## Current architecture snapshot
 
 ### Frontend
@@ -277,7 +300,7 @@ Recommended first approved scope:
 
 This reduces live risk without changing the current user-facing workflow.
 
-SQL preview for this first scope: `docs/supabase-cleanup-batch-b-d-preview.sql`. This file is for review only and has not been applied.
+SQL record for this first scope: `db/2026-06-25_batch_b_d_interim_cleanup.sql`. The original review preview is `docs/supabase-cleanup-batch-b-d-preview.sql`.
 
 ## Verification already run
 

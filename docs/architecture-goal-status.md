@@ -1,6 +1,6 @@
 # TopoNote architecture goal status
 
-Updated: 2026-06-24.
+Updated: 2026-06-25.
 
 This document tracks the original architecture cleanup goal against current evidence. It is not a replacement for the audit; it is a completion and approval matrix so future work can tell what is done, what is still blocked by approval, and what evidence is required before the goal can be marked complete.
 
@@ -13,19 +13,65 @@ Completed so far:
 - Project architecture has been audited across frontend, root GAS, Places GAS, Google Sheet tabs, and Supabase.
 - Stale or awkward candidates have been identified and grouped.
 - Cleanup batches and review-only execution previews have been created.
+- Batch B + Batch D interim has been applied and verified on 2026-06-25.
 - Two architecture docs requested by the user exist as drafts only.
-- No live Supabase, Google Sheet, or Apps Script changes have been applied.
+- No Google Sheet or Apps Script changes have been applied.
 
 Still required:
 
-- Explicit user approval for one or more live cleanup batches.
-- Apply and verify the approved batches.
-- Update audit/inventory/roadmap with actual post-change evidence.
+- Explicit user approval for any further cleanup batch.
+- Apply and verify only the next approved batches.
 - Convert the two draft architecture docs into final docs after cleanup.
+
+## Latest applied cleanup
+
+Applied on branch `codex/batch-b-d-interim-cleanup` on 2026-06-25:
+
+- `mark_audio_record_pending_review()`: `anon` and `authenticated` execute are now false; `service_role` execute remains true.
+- `verify_login(text, text)`: `anon` and `authenticated` execute are now false; `service_role` execute remains true.
+- `audio_records_task_id_idx` now exists on `public.audio_records(task_id)`.
+- `codex_backup_phone_field_state_20260610` now has RLS enabled.
+- `codex_backup_phone_field_state_20260610` table grants are removed from `anon` and `authenticated`; `service_role` access remains.
+
+Live verification evidence:
+
+- `trg_audio_records_pending_review` still exists on `audio_records`.
+- Supabase security advisor no longer reports `mark_audio_record_pending_review` or `verify_login` as anon/authenticated executable security-definer functions.
+- Supabase performance advisor no longer reports the original missing `audio_records.task_id` FK index finding.
+
+Expected advisor residuals:
+
+- `codex_backup_phone_field_state_20260610` now reports `RLS Enabled No Policy` as info because the interim quarantine intentionally has no anon/authenticated policies.
+- `codex_backup_phone_field_state_20260610` still reports `No Primary Key`; it remains a quarantined backup table, not an active app table.
+- `audio_records_task_id_idx` reports as `Unused Index` immediately after creation; this is expected until production queries use it.
+- Other app-facing view/function advisor findings remain for later batches.
+
+SQL record:
+
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`
 
 ## Safest next approval
 
-Recommended next approval phrase:
+Recommended next approval phrase after observing Batch B + D interim:
+
+```text
+同意執行 Batch C quarantine
+```
+
+This would approve quarantining old generic assignment Supabase objects only:
+
+- Revoke public access to old `app_assignment_sheet_view`.
+- Revoke public execute on old `assign_tasks_to_user(integer[], text, text)`.
+- Revoke public execute on old `unassign_tasks_from_user(integer[], text, text)`.
+- Keep these objects for one observation period before any drop decision.
+
+Execution checklist:
+
+- `docs/supabase-cleanup-batch-c-preview.sql`
+
+## Previous approval already applied
+
+Recommended next approval phrase after observing Batch B + D interim:
 
 ```text
 同意執行 Batch B + Batch D interim
@@ -58,15 +104,17 @@ Execution checklist:
 | Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview | Apply Batch E/F only after approval. |
 | Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory | Human retention decisions still needed for old tabs/columns. |
 | Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
-| Include Supabase | Done for audit | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews | Live SQL changes still pending approval. |
+| Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim applied 2026-06-25 | Further batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
-| Adjust gradually after permission | Not started | No live changes applied by design | Needs explicit user approval. |
+| Adjust gradually after permission | Started | Batch B + D interim applied and verified 2026-06-25 | Further batches still need explicit approval. |
 | Produce final future-session MD after adjustment | Draft only | `docs/future-session-architecture-guide-draft.md` | Replace with final after approved cleanup is applied and verified. |
 | Produce final human developer README after adjustment | Draft only | `docs/human-developer-architecture-readme-draft.md` | Replace with final after approved cleanup is applied and verified. |
 
 ## Approval matrix
+
+Status note: Batch B, Batch D interim, and the combined Batch B + D interim scope were approved, applied, and verified on 2026-06-25. The remaining approval phrases below are for future batches only.
 
 | Batch | Approval phrase | Scope | Risk | Rollback |
 | --- | --- | --- | --- | --- |
@@ -102,6 +150,7 @@ Do not remove these without a separate explicit decision:
 - `docs/architecture-inventory.md`: active/legacy/retention object inventory.
 - `docs/architecture-cleanup-roadmap.md`: staged cleanup plan.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`: first recommended SQL preview.
+- `db/2026-06-25_batch_b_d_interim_cleanup.sql`: applied SQL record for Batch B + D interim.
 - `docs/supabase-cleanup-batch-c-preview.sql`: old generic assignment quarantine SQL preview.
 - `docs/gas-cleanup-batch-e-f-preview.md`: GAS behavior-change execution preview.
 - `docs/future-session-architecture-guide-draft.md`: draft future-session doc, not final.

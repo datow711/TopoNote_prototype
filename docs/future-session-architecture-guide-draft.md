@@ -1,6 +1,6 @@
 # TopoNote future-session architecture guide draft
 
-Status: draft before approved live cleanup.
+Status: draft after first approved live cleanup; not final.
 Updated: 2026-06-24.
 
 This is a quick-start guide for a future Codex session. It is not the final handoff requested by the user because live cleanup/refactor work has not been approved or applied yet.
@@ -70,23 +70,31 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-No live cleanup has been applied as of this draft.
+Batch B + Batch D interim was applied and verified on 2026-06-25. This draft is still not final because later cleanup/refactor batches and the final-doc gate remain pending.
 
-The first recommended approved live scope is:
+Applied first approved live scope:
 
 1. Revoke direct public execute on `mark_audio_record_pending_review()`.
 2. Revoke direct public execute on old `verify_login(text, text)`.
 3. Add index `audio_records_task_id_idx` on `audio_records(task_id)`.
 4. Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, unless the user approves dropping that backup table.
 
-Use `docs/supabase-cleanup-batch-b-d-preview.sql` as the execution checklist after explicit approval.
+Use `db/2026-06-25_batch_b_d_interim_cleanup.sql` as the applied SQL record.
 Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond the first SQL batch.
 
 ## Approval boundary
 
 Do not execute live Supabase SQL until the user explicitly approves the exact batch.
 
-Acceptable approval examples:
+Current approval examples after Batch B + D interim:
+
+- `同意執行 Batch C quarantine`
+- `同意移除 root GAS legacy login route`
+- `同意先從 Places GAS 選單移除舊 L3 satellite push/pull`
+
+Batch B + Batch D interim is already complete. Do not rerun it unless a rollback/replay need is explicit.
+
+Historical pre-Batch B+D approval examples:
 
 - `請執行 Batch B`
 - `請執行 Batch B + Batch D interim`

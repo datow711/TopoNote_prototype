@@ -1,8 +1,8 @@
 -- TopoNote Supabase cleanup preview - Batch B + Batch D interim
 -- Date: 2026-06-24
 --
--- This file is a review artifact only. It has NOT been applied.
--- Apply only after explicit user approval.
+-- Status: applied live via Supabase MCP execute_sql on 2026-06-25.
+-- Applied SQL record: db/2026-06-25_batch_b_d_interim_cleanup.sql
 --
 -- Intended effects:
 -- 1. Keep active app behavior unchanged.
@@ -70,9 +70,15 @@ order by grantee;
 revoke execute on function public.mark_audio_record_pending_review()
 from public, anon, authenticated;
 
+grant execute on function public.mark_audio_record_pending_review()
+to service_role;
+
 -- Old login RPC. Current frontend uses login_investigator/login_admin.
 revoke execute on function public.verify_login(text, text)
 from public, anon, authenticated;
+
+grant execute on function public.verify_login(text, text)
+to service_role;
 
 -- Performance advisor finding: audio_records.task_id foreign key is unindexed.
 create index if not exists audio_records_task_id_idx
