@@ -243,7 +243,13 @@ Verification for this documentation correction:
 
 ## Batch G - Google Sheet retention decisions
 
-Requires explicit human retention decisions.
+Status: phase 1 documentation matrix approved. No Sheet content change is included.
+
+Retention matrix:
+
+- `docs/google-sheet-retention-matrix.md`
+
+Requires explicit human retention decisions before any Sheet hide/archive/delete action.
 
 Candidates:
 

@@ -17,6 +17,7 @@ Completed so far:
 - Batch C assignment quarantine has been applied and verified on 2026-06-25.
 - Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested on 2026-06-25.
 - Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow; no Places GAS code/menu change was made.
+- Batch G phase 1 created a Google Sheet retention matrix; no Sheet content was changed.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
@@ -126,7 +127,7 @@ Execution checklist:
 | --- | --- | --- | --- |
 | Scan project architecture | Substantially done | `docs/architecture-audit-2026-06-24.md`, `docs/architecture-inventory.md` | Re-check live state before applying any approved live batch. |
 | Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview; Batch F deployed; Batch E corrected L3 satellite classification | Further GAS cleanup still needs approval. |
-| Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory | Human retention decisions still needed for old tabs/columns. |
+| Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory; retention matrix added in `docs/google-sheet-retention-matrix.md` | Human approval still required before any hide/archive/delete action. |
 | Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
 | Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25 | Further batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |

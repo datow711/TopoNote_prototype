@@ -24,6 +24,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 - `docs/architecture-inventory.md`
   - Structured active/legacy/retention inventory for frontend, root GAS, Places GAS, Google Sheet tabs, and Supabase objects.
   - Use this as the object-by-object deletion/refactor checklist.
+- `docs/google-sheet-retention-matrix.md`
+  - Batch G phase 1 Sheet retention matrix.
+  - Use this before any Sheet hide/archive/delete decision.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
@@ -89,7 +92,7 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, Batch F, and Batch E documentation correction are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, and Batch G phase 1 retention matrix are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
 Likely next discussion candidates are Batch G Sheet retention decisions or Batch H app-facing Supabase security redesign. Do not start either without a fresh approval.
 

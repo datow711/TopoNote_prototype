@@ -8,6 +8,8 @@ Batch B + Batch D interim Supabase cleanup, Batch C assignment quarantine, and B
 
 For the overall goal completion and approval matrix, see `docs/architecture-goal-status.md`.
 
+For Sheet-specific retention decisions, see `docs/google-sheet-retention-matrix.md`.
+
 ## Status labels
 
 - Active: used by the current app or current operations.
