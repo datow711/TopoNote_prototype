@@ -4,7 +4,7 @@ Updated: 2026-06-24.
 
 This inventory is a static local-code and prior read-only audit map. It is meant to answer: "What is active, what is legacy, and what needs a retention decision before removal?"
 
-Batch B + Batch D interim Supabase cleanup was applied and verified on 2026-06-25. No Google Sheet or Apps Script changes have been applied for this inventory.
+Batch B + Batch D interim Supabase cleanup and Batch C assignment quarantine were applied and verified on 2026-06-25. No Google Sheet or Apps Script changes have been applied for this inventory.
 
 For the overall goal completion and approval matrix, see `docs/architecture-goal-status.md`.
 
@@ -189,9 +189,9 @@ Supabase legacy candidates:
 | Object | Status | Suggested batch |
 | --- | --- | --- |
 | `verify_login(text, text)` | Quarantined legacy candidate | Direct anon/authenticated execute revoked 2026-06-25. Current frontend uses `login_investigator`/`login_admin`. |
-| `app_assignment_sheet_view` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `app_language_assignment_sheet_view`. |
-| `assign_tasks_to_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `assign_task_language`. |
-| `unassign_tasks_from_user(integer[], text, text)` | Legacy candidate | Batch C quarantine in `docs/supabase-cleanup-batch-c-preview.sql`. Superseded by `unassign_task_language`. |
+| `app_assignment_sheet_view` | Quarantined legacy candidate | Batch C applied 2026-06-25. Public/anon/authenticated grants revoked; object kept for observation. Superseded by `app_language_assignment_sheet_view`. |
+| `assign_tasks_to_user(integer[], text, text)` | Quarantined legacy candidate | Batch C applied 2026-06-25. Public/anon/authenticated execute revoked; `service_role` remains. Superseded by `assign_task_language`. |
+| `unassign_tasks_from_user(integer[], text, text)` | Quarantined legacy candidate | Batch C applied 2026-06-25. Public/anon/authenticated execute revoked; `service_role` remains. Superseded by `unassign_task_language`. |
 
 ## Synchronization design issues
 
@@ -232,15 +232,15 @@ Batch E/F GAS cleanup previews are in `docs/gas-cleanup-batch-e-f-preview.md`.
 
 ## Safest next live change
 
-Batch B + Batch D interim has already been applied and verified.
+Batch B + Batch D interim and Batch C have already been applied and verified.
 
-Use the next roadmap approval after observing that cleanup:
+Historical next roadmap approval after observing Batch B + D interim was:
 
 ```text
 同意執行 Batch C quarantine
 ```
 
-This quarantines old generic assignment Supabase objects without deleting them.
+This has now been applied. No next live change is pre-approved; discuss Batch F or Batch E first, explain the exact scope, then wait for explicit approval.
 
 ## Previous first live change already applied
 

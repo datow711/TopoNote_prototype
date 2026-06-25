@@ -1,5 +1,5 @@
 -- TopoNote Supabase cleanup Batch C preview
--- Status: review only. Do not run until the user explicitly approves:
+-- Status: applied live on 2026-06-25 after the user explicitly approved:
 --   同意執行 Batch C quarantine
 --
 -- Purpose:
@@ -68,15 +68,23 @@ order by function_name, args;
 revoke all on table public.app_assignment_sheet_view
   from public, anon, authenticated;
 
+grant select on table public.app_assignment_sheet_view
+  to service_role;
+
 -- Revoke direct API execute on old generic assignment RPCs.
 revoke execute on function public.assign_tasks_to_user(integer[], text, text)
   from public, anon, authenticated;
 
+grant execute on function public.assign_tasks_to_user(integer[], text, text)
+  to service_role;
+
 revoke execute on function public.unassign_tasks_from_user(integer[], text, text)
   from public, anon, authenticated;
 
--- Keep service_role access only if a hidden admin/integration path is confirmed.
--- Otherwise leave service_role unchanged for the quarantine observation period.
+grant execute on function public.unassign_tasks_from_user(integer[], text, text)
+  to service_role;
+
+-- service_role access is kept for the quarantine observation period.
 
 -- ============================================================
 -- 2. Post-change verification

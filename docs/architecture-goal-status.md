@@ -14,6 +14,7 @@ Completed so far:
 - Stale or awkward candidates have been identified and grouped.
 - Cleanup batches and review-only execution previews have been created.
 - Batch B + Batch D interim has been applied and verified on 2026-06-25.
+- Batch C assignment quarantine has been applied and verified on 2026-06-25.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet or Apps Script changes have been applied.
 
@@ -24,6 +25,25 @@ Still required:
 - Convert the two draft architecture docs into final docs after cleanup.
 
 ## Latest applied cleanup
+
+Applied on branch `codex/batch-c-assignment-quarantine` on 2026-06-25:
+
+- `app_assignment_sheet_view`: `anon` and `authenticated` grants were removed; `service_role` access remains.
+- `assign_tasks_to_user(integer[], text, text)`: `anon` and `authenticated` execute are now false; `service_role` execute remains true.
+- `unassign_tasks_from_user(integer[], text, text)`: `anon` and `authenticated` execute are now false; `service_role` execute remains true.
+- Current assignment surfaces were intentionally left unchanged: `app_language_assignment_sheet_view`, `assign_task_language(integer[], text, text, text)`, and `unassign_task_language(integer[], text, text)`.
+
+Live verification evidence:
+
+- Supabase security advisor no longer reports `app_assignment_sheet_view` in the security-definer view list.
+- Supabase security advisor no longer reports `assign_tasks_to_user` or `unassign_tasks_from_user` as anon/authenticated executable security-definer functions.
+- Supabase performance advisor did not add any Batch C-specific finding.
+
+SQL record:
+
+- `db/2026-06-25_batch_c_assignment_quarantine.sql`
+
+## Previous applied cleanup
 
 Applied on branch `codex/batch-b-d-interim-cleanup` on 2026-06-25:
 
@@ -52,13 +72,15 @@ SQL record:
 
 ## Safest next approval
 
-Recommended next approval phrase after observing Batch B + D interim:
+Batch C is already complete. No next live change is pre-approved. For the next refactor step, explain the candidate batch first, then wait for fresh user approval.
+
+Historical recommended approval phrase after observing Batch B + D interim:
 
 ```text
 同意執行 Batch C quarantine
 ```
 
-This would approve quarantining old generic assignment Supabase objects only:
+This already approved quarantining old generic assignment Supabase objects only:
 
 - Revoke public access to old `app_assignment_sheet_view`.
 - Revoke public execute on old `assign_tasks_to_user(integer[], text, text)`.
@@ -71,13 +93,13 @@ Execution checklist:
 
 ## Previous approval already applied
 
-Recommended next approval phrase after observing Batch B + D interim:
+Historical first-step approval phrase:
 
 ```text
 同意執行 Batch B + Batch D interim
 ```
 
-This would approve:
+This already approved:
 
 - Revoke direct public execute on trigger-only `mark_audio_record_pending_review()`.
 - Revoke direct public execute on old `verify_login(text, text)`.
@@ -104,11 +126,11 @@ Execution checklist:
 | Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview | Apply Batch E/F only after approval. |
 | Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory | Human retention decisions still needed for old tabs/columns. |
 | Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
-| Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim applied 2026-06-25 | Further batches still need approval. |
+| Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25 | Further batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
-| Adjust gradually after permission | Started | Batch B + D interim applied and verified 2026-06-25 | Further batches still need explicit approval. |
+| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25 | Further batches still need explicit approval. |
 | Produce final future-session MD after adjustment | Draft only | `docs/future-session-architecture-guide-draft.md` | Replace with final after approved cleanup is applied and verified. |
 | Produce final human developer README after adjustment | Draft only | `docs/human-developer-architecture-readme-draft.md` | Replace with final after approved cleanup is applied and verified. |
 
@@ -121,7 +143,7 @@ Status note: Batch B, Batch D interim, and the combined Batch B + D interim scop
 | B | `同意執行 Batch B` | Supabase function grant hardening and `audio_records(task_id)` index | Low; no current UI behavior should change | Re-grant execute or drop index if a regression is proven. |
 | D interim | `同意執行 Batch D interim` | Quarantine dated backup table with RLS/revokes | Low to medium; affects only direct access to a backup table | Re-grant old table privileges if a hidden dependency is proven. |
 | B + D interim | `同意執行 Batch B + Batch D interim` | Recommended first combined live change | Low; no active workflow deletion | Use preview rollback sections. |
-| C quarantine | `同意執行 Batch C quarantine` | Revoke access to old generic assignment view/RPCs | Medium; should be after Batch B and preflight | Re-grant old view/RPC privileges if needed. |
+| C quarantine | `同意執行 Batch C quarantine` | Revoke access to old generic assignment view/RPCs | Applied and verified 2026-06-25 | Re-grant old view/RPC privileges if needed. |
 | F | `同意移除 root GAS legacy login route` | Disable root GAS Sheet-based login route | Medium; requires GAS push/deploy and manual app checks | Restore old route and redeploy. |
 | E | `同意先從 Places GAS 選單移除舊 L3 satellite push/pull` | Hide old satellite Push/Pull menu entries | Medium; affects spreadsheet operators | Restore menu entries and push. |
 | G | No single safe phrase yet | Sheet tab/column retention, hide/archive/delete decisions | Medium to high; human data retention | Restore from backup/checkpoint/export if available. |
@@ -152,6 +174,7 @@ Do not remove these without a separate explicit decision:
 - `docs/supabase-cleanup-batch-b-d-preview.sql`: first recommended SQL preview.
 - `db/2026-06-25_batch_b_d_interim_cleanup.sql`: applied SQL record for Batch B + D interim.
 - `docs/supabase-cleanup-batch-c-preview.sql`: old generic assignment quarantine SQL preview.
+- `db/2026-06-25_batch_c_assignment_quarantine.sql`: applied SQL record for Batch C assignment quarantine.
 - `docs/gas-cleanup-batch-e-f-preview.md`: GAS behavior-change execution preview.
 - `docs/future-session-architecture-guide-draft.md`: draft future-session doc, not final.
 - `docs/human-developer-architecture-readme-draft.md`: draft human developer README, not final.

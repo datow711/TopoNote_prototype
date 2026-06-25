@@ -29,6 +29,27 @@ Advisor follow-up:
 - Performance advisor no longer reports the original missing `audio_records.task_id` FK index.
 - Expected residuals remain: `codex_backup_phone_field_state_20260610` has RLS enabled with no policy, still has no primary key, and the new `audio_records_task_id_idx` may show as unused until traffic uses it.
 
+## Applied cleanup update - Batch C - 2026-06-25
+
+Batch C assignment quarantine was approved by the user and applied on branch `codex/batch-c-assignment-quarantine`.
+
+Applied SQL record:
+
+- `db/2026-06-25_batch_c_assignment_quarantine.sql`
+
+Verified live Supabase results:
+
+- `app_assignment_sheet_view` no longer has `anon` or `authenticated` grants.
+- `assign_tasks_to_user(integer[], text, text)`: `anon_execute = false`, `authenticated_execute = false`, `service_role_execute = true`.
+- `unassign_tasks_from_user(integer[], text, text)`: `anon_execute = false`, `authenticated_execute = false`, `service_role_execute = true`.
+- Current language assignment surfaces remain unchanged: `app_language_assignment_sheet_view`, `assign_task_language`, and `unassign_task_language`.
+
+Advisor follow-up:
+
+- Security advisor no longer reports `app_assignment_sheet_view` in the security-definer view list.
+- Security advisor no longer reports `assign_tasks_to_user` or `unassign_tasks_from_user` as anon/authenticated executable security-definer functions.
+- Performance advisor did not add a Batch C-specific finding.
+
 ## Current architecture snapshot
 
 ### Frontend

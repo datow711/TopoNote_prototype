@@ -1,7 +1,7 @@
 # TopoNote future-session architecture guide draft
 
-Status: draft after first approved live cleanup; not final.
-Updated: 2026-06-24.
+Status: draft after approved live cleanup through Batch C; not final.
+Updated: 2026-06-25.
 
 This is a quick-start guide for a future Codex session. It is not the final handoff requested by the user because live cleanup/refactor work has not been approved or applied yet.
 
@@ -70,7 +70,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim was applied and verified on 2026-06-25. This draft is still not final because later cleanup/refactor batches and the final-doc gate remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. This draft is still not final because later cleanup/refactor batches and the final-doc gate remain pending.
 
 Applied first approved live scope:
 
@@ -80,19 +80,22 @@ Applied first approved live scope:
 4. Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`, unless the user approves dropping that backup table.
 
 Use `db/2026-06-25_batch_b_d_interim_cleanup.sql` as the applied SQL record.
+Use `db/2026-06-25_batch_c_assignment_quarantine.sql` as the Batch C applied SQL record.
 Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond the first SQL batch.
 
 ## Approval boundary
 
 Do not execute live Supabase SQL until the user explicitly approves the exact batch.
 
-Current approval examples after Batch B + D interim:
+Batch C is already complete. For the next live change, explain the candidate batch first, then wait for a fresh explicit approval.
+
+Historical approval examples after Batch B + D interim:
 
 - `同意執行 Batch C quarantine`
 - `同意移除 root GAS legacy login route`
 - `同意先從 Places GAS 選單移除舊 L3 satellite push/pull`
 
-Batch B + Batch D interim is already complete. Do not rerun it unless a rollback/replay need is explicit.
+Batch B + Batch D interim and Batch C are already complete. Do not rerun them unless a rollback/replay need is explicit.
 
 Historical pre-Batch B+D approval examples:
 
@@ -115,7 +118,7 @@ If the user approves only Batch B, do not touch the backup table.
 
 After applying any approved cleanup:
 
-1. Run the SQL post-change checks in `docs/supabase-cleanup-batch-b-d-preview.sql`.
+1. Run the SQL post-change checks in the relevant preview file.
 2. Run Supabase security and performance advisors.
 3. Run local syntax and whitespace checks.
 4. Update `docs/architecture-audit-2026-06-24.md` with what was applied.

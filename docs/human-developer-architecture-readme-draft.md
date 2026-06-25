@@ -1,11 +1,11 @@
 # TopoNote architecture README draft
 
-Status: draft after first approved live cleanup; not final.
-Updated: 2026-06-24.
+Status: draft after approved live cleanup through Batch C; not final.
+Updated: 2026-06-25.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim was applied and verified on 2026-06-25. This document is still a draft because later cleanup/refactor batches and the final-doc gate remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. This document is still a draft because later cleanup/refactor batches and the final-doc gate remain pending.
 
 ## What TopoNote is
 
@@ -146,9 +146,9 @@ Current app-facing views:
 - `app_sheet_sync_queue`
 - `app_language_assignment_sheet_view`
 
-Likely stale view:
+Quarantined stale view:
 
-- `app_assignment_sheet_view`: old generic assignment writeback view, superseded by `app_language_assignment_sheet_view`.
+- `app_assignment_sheet_view`: old generic assignment writeback view, superseded by `app_language_assignment_sheet_view`; public/anon/authenticated grants revoked on 2026-06-25.
 
 ## Normal workflow
 
@@ -184,10 +184,10 @@ Applied on 2026-06-25:
 - Revoke direct public execute on old `verify_login(text, text)`.
 - Add `audio_records(task_id)` index.
 - Enable RLS and revoke public access on `codex_backup_phone_field_state_20260610`.
+- Quarantine old generic assignment Supabase objects: `app_assignment_sheet_view`, `assign_tasks_to_user`, and `unassign_tasks_from_user`.
 
 Pending approval:
 
-- Quarantine old generic assignment Supabase objects: `app_assignment_sheet_view`, `assign_tasks_to_user`, and `unassign_tasks_from_user`.
 - Decide later whether to drop `codex_backup_phone_field_state_20260610`.
 
 Use `docs/architecture-cleanup-roadmap.md` for the staged cleanup order and approval phrases.

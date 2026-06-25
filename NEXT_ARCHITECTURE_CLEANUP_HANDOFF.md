@@ -2,13 +2,14 @@
 
 Updated: 2026-06-25
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited, and Batch B + Batch D interim has been applied and verified.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited, and Batch B + Batch D interim plus Batch C assignment quarantine have been applied and verified.
 
 ## Current status
 
-- Current cleanup branch: `codex/batch-b-d-interim-cleanup`.
+- Current cleanup branch: `codex/batch-c-assignment-quarantine`.
 - No production code was changed.
 - Supabase Batch B + Batch D interim was applied on 2026-06-25.
+- Supabase Batch C assignment quarantine was applied on 2026-06-25.
 - No Google Sheet content was changed.
 - No Apps Script push/deploy was run.
 
@@ -31,7 +32,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
   - Applied SQL record for Batch B + Batch D interim.
 - `docs/supabase-cleanup-batch-c-preview.sql`
   - Review-only SQL preview for quarantining old generic assignment Supabase objects.
-  - Has not been applied.
+  - Applied on 2026-06-25.
+- `db/2026-06-25_batch_c_assignment_quarantine.sql`
+  - Applied SQL record for Batch C assignment quarantine.
 - `docs/gas-cleanup-batch-e-f-preview.md`
   - Review-only execution preview for root GAS legacy login route and Places GAS old L3 satellite menu cleanup.
   - No local GAS code edit, push, or deploy has been done.
@@ -61,7 +64,13 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - `audio_records_task_id_idx` exists.
    - `codex_backup_phone_field_state_20260610` has RLS enabled and no `anon`/`authenticated` grants.
 
-5. Do not delete these yet:
+5. Verified Batch C assignment quarantine result:
+   - `app_assignment_sheet_view` no longer has `anon` or `authenticated` grants.
+   - `assign_tasks_to_user(integer[], text, text)` and `unassign_tasks_from_user(integer[], text, text)` are no longer executable by `anon` or `authenticated`.
+   - `service_role` access remains for the quarantined old objects.
+   - Current language assignment surfaces were left unchanged: `app_language_assignment_sheet_view`, `assign_task_language`, and `unassign_task_language`.
+
+6. Do not delete these yet:
    - `moi_placename_raw`
    - `final_tasks.assigned_to`
    - `task_assignments`
@@ -72,7 +81,11 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim is complete. Before executing the next live Supabase cleanup, get explicit user approval. The next staged approval phrase is:
+Batch B + Batch D interim and Batch C are complete. Before executing any next live cleanup, first explain the exact step, purpose, and risk, then get explicit user approval.
+
+Likely next discussion candidates are Batch F root GAS legacy login quarantine or Batch E Places GAS old satellite menu quarantine. Do not start either without a fresh approval.
+
+Historical next staged approval phrase after Batch B + D interim was:
 
 > 同意執行 Batch C quarantine
 

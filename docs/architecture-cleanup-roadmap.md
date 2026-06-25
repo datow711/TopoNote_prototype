@@ -11,6 +11,7 @@ For requirement-by-requirement completion status, see `docs/architecture-goal-st
 - Audit docs exist and are committed locally.
 - Future-session and human-developer architecture docs exist only as drafts.
 - Batch B + Batch D interim live Supabase cleanup has been applied and verified.
+- Batch C assignment quarantine has been applied and verified.
 - No Google Sheet content has been changed.
 - No Apps Script push or deployment has been run.
 
@@ -123,9 +124,13 @@ Alternative:
 
 ## Batch C - old generic assignment Supabase quarantine
 
-Requires explicit approval after Batch B.
+Status: applied and verified on 2026-06-25.
 
 SQL preview: `docs/supabase-cleanup-batch-c-preview.sql`.
+
+Applied SQL record:
+
+- `db/2026-06-25_batch_c_assignment_quarantine.sql`
 
 Suggested approval phrase:
 
@@ -289,15 +294,22 @@ Future options:
 
 ## Current recommended next approval
 
+Batch C has now been applied and verified. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
+
+Likely next candidates:
+
+- Batch F: root GAS legacy `action === 'login'` route quarantine.
+- Batch E: Places GAS old satellite sheet menu quarantine.
+
 Batch B + Batch D interim was applied and verified on 2026-06-25.
 
-The next staged approval after observing Batch B + D interim is:
+Historical next staged approval after observing Batch B + D interim was:
 
 ```text
 同意執行 Batch C quarantine
 ```
 
-This quarantines old generic assignment Supabase objects without deleting them.
+This has now been applied and verified.
 
 ## Previous first-step approval already applied
 
