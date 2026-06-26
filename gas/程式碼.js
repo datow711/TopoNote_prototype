@@ -117,6 +117,7 @@ function doPost(e) {
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
     if (action === 'setInvestigatorActive') return handleSetInvestigatorActive(requestData);
+    if (action === 'deleteInvestigatorUser') return handleDeleteInvestigatorUser(requestData);
     if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
 
     throw new Error("未知的操作");
@@ -229,6 +230,18 @@ function setInvestigatorActiveInSupabase_(data) {
   }, config.serviceRoleKey);
 }
 
+function deleteInvestigatorUserInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('delete_investigator_user', {
+    p_user_id: data.userId,
+    p_actor_account: data.actorAccount
+  }, config.serviceRoleKey);
+}
+
 function updateUserProfileInSheet_(data, profile) {
   if (!SHEET_ID) throw new Error('Missing script property: SHEET_ID');
 
@@ -301,6 +314,31 @@ function handleSetInvestigatorActive(data) {
     success: true,
     userId: userId,
     isActive: isActive,
+    supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleDeleteInvestigatorUser(data) {
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var adminPassword = String(data.adminPassword || '');
+  var userId = String(data.userId || '').trim();
+
+  if (!actorAccount || !adminPassword) {
+    throw new Error('Admin account and password are required');
+  }
+  if (!userId) {
+    throw new Error('User id is required');
+  }
+
+  verifyAdminPassword_(actorAccount, adminPassword);
+  var supabaseResult = deleteInvestigatorUserInSupabase_({
+    userId: userId,
+    actorAccount: actorAccount
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    userId: userId,
     supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
   })).setMimeType(ContentService.MimeType.JSON);
 }

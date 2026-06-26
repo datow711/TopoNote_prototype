@@ -305,16 +305,17 @@ Recommended next implementation path:
 
 1. H1: capture live advisor snapshot and classify accepted vs migration-target findings. Completed in `docs/supabase-advisor-snapshot-2026-06-26.md`.
 2. H2: backend-wrap one narrow admin write, `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Completed with root GAS Web App version 22 and H2-final direct public execute revoke.
-3. H3: migrate remaining high-impact admin writes in staged batches.
+3. H3: migrate remaining high-impact admin writes in staged batches. H3a for `delete_investigator_user` is implemented on a branch and deployed to root GAS Web App version 23; manual app validation is pending before merge.
 4. H4: only then consider app-facing view/RLS rewrites.
 
 ## Current recommended next approval
 
-Batch C, Batch F, Batch E documentation correction, Batch G phase 1, Batch H phase 0, H1 advisor snapshot, H2 implementation, and H2-final grant revoke have now been applied or documented. No next live change is pre-approved.
+Batch C, Batch F, Batch E documentation correction, Batch G phase 1, Batch H phase 0, H1 advisor snapshot, H2 implementation, and H2-final grant revoke have now been applied or documented. H3a implementation is on branch `codex/batch-h3a-delete-investigator-wrapper`; root GAS is deployed to Web App version 23, and fake-password smoke testing passed. Manual app validation is still pending. No next live change is pre-approved.
 
 Likely next candidates:
 
-- H3 single-function backend wrapper, likely `delete_investigator_user`, after separate explanation and approval.
+- Finish H3a validation: manually test investigator delete through the app.
+- H3a-final grant revoke only after H3a validation and separate approval.
 - Sheet retention action batch only after explicit human retention decisions.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.

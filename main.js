@@ -1632,25 +1632,27 @@ async function deleteInvestigatorUser(userId, button) {
         return;
     }
 
+    const adminPassword = prompt('請輸入管理員密碼以刪除調查員');
+    if (!adminPassword) return;
+
     const originalText = button.innerText;
     button.innerText = '刪除中...';
     button.disabled = true;
 
     try {
-        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/delete_investigator_user`, {
+        const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'apikey': CONFIG.SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
-                p_user_id: userId,
-                p_actor_account: state.userId
+                action: 'deleteInvestigatorUser',
+                actorAccount: state.userId,
+                adminPassword,
+                userId
             })
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to delete investigator user');
         alert(`已刪除「${displayName}」。`);
         await refreshAdminUsers();
     } catch (err) {

@@ -2,7 +2,7 @@
 
 Updated: 2026-06-26.
 
-Status: Batch H phase 0 design memo, updated after H2-final. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC. This file does not approve further SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
+Status: Batch H phase 0 design memo, updated after H3a implementation. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC. H3a moves `delete_investigator_user` behind root GAS; grant revocation for that RPC is still pending manual validation and separate approval. This file does not approve further SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
 
 ## Purpose
 
@@ -36,7 +36,6 @@ Current direct RPC calls:
 | --- | --- | --- |
 | `login_investigator` | Investigator login | Public login endpoint under static app model. |
 | `login_admin` | Admin login and root GAS admin verification | Public login endpoint under static app model. |
-| `delete_investigator_user` | Admin user manager | Admin action exposed to browser; should be future migration candidate. |
 | `approve_task_language` | Admin review | Admin review write; should be future migration candidate. |
 | `revoke_task_language_review` | Admin review | Admin review write; should be future migration candidate. |
 | `assign_task_language` | Admin language assignment | Admin assignment write; should be future migration candidate. |
@@ -50,6 +49,7 @@ Root GAS and Places GAS hold service-role-only capabilities in script properties
 | --- | --- | --- |
 | `update_investigator_profile` | Root GAS only | Correctly behind admin password verification and service role. |
 | `set_investigator_active` | Root GAS only | Moved behind admin password verification and service role in H2/H2-final. |
+| `delete_investigator_user` | Root GAS in H3a; public grant still pending | Moved behind admin password verification and service role in H3a. Revoke direct public execute only after manual validation and separate H3a-final approval. |
 | `sync_sheet_users` | Places GAS | Service-role sheet-to-Supabase sync. |
 | `mark_reviews_sheet_synced` | Places GAS | Service-role review writeback acknowledgement. |
 | `third_phase_places` / `final_tasks` upserts | Places GAS | Service-role source Sheet sync. |
@@ -78,7 +78,6 @@ These are not safe to revoke without replacing the browser call path:
 
 - `login_investigator`
 - `login_admin`
-- `delete_investigator_user`
 - `approve_task_language`
 - `revoke_task_language_review`
 - `assign_task_language`
@@ -128,11 +127,10 @@ Move admin-only writes behind root GAS or another backend while leaving read vie
 
 First migration candidates:
 
-1. `delete_investigator_user`
-2. `approve_task_language`
-3. `revoke_task_language_review`
-4. `assign_task_language`
-5. `unassign_task_language`
+1. `approve_task_language`
+2. `revoke_task_language_review`
+3. `assign_task_language`
+4. `unassign_task_language`
 
 Pros:
 
@@ -188,13 +186,14 @@ Status: completed on 2026-06-26.
 
 After one successful H2 cycle:
 
-- `delete_investigator_user`
 - `approve_task_language`
 - `revoke_task_language_review`
 - `assign_task_language`
 - `unassign_task_language`
 
 Each should be one separately approved batch or a carefully grouped admin-write batch.
+
+H3a status: `delete_investigator_user` was moved behind root GAS and deployed to Web App version 23. Its direct public Supabase execute grant is intentionally still unchanged until manual app validation and a separate H3a-final approval.
 
 ### H4 - view/RLS redesign
 

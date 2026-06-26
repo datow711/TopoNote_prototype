@@ -1,11 +1,11 @@
 # TopoNote architecture README draft
 
-Status: draft after approved cleanup through Batch H2-final grant revoke; not final.
+Status: draft after approved cleanup through Batch H3a implementation branch; not final.
 Updated: 2026-06-26.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 routes the admin active toggle through root GAS and deploys Web App version 22. Batch H2-final revoked direct public Supabase execute on `set_investigator_active` while keeping `service_role` access. This document is still a draft because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 routes the admin active toggle through root GAS and deploys Web App version 22. Batch H2-final revoked direct public Supabase execute on `set_investigator_active` while keeping `service_role` access. Batch H3a routes investigator deletion through root GAS and deploys Web App version 23; manual app validation is pending before merge. This document is still a draft because later cleanup/refactor batches remain pending.
 
 ## What TopoNote is
 
