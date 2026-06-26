@@ -66,11 +66,52 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
         survey_area_3: ''
       }
     ];
+    state.assignedPlaces = [
+      {
+        id: 101,
+        assignedUsers: ['Old Investigator'],
+        assignedTo: '',
+        tAssignee: 'Old Investigator',
+        hAssignee: ''
+      },
+      {
+        id: 102,
+        assignedUsers: [],
+        assignedTo: '',
+        tAssignee: '',
+        hAssignee: 'old@example.com'
+      }
+    ];
+    state.uploadedRecords = [
+      { recordId: 1, placeId: 101, uploaderId: 'old@example.com' },
+      { recordId: 2, placeId: 102, uploaderId: 'Old Investigator' }
+    ];
+    state.reviewQueue = [
+      {
+        id: 101,
+        tAssignee: 'Old Investigator',
+        hAssignee: '',
+        tReviewState: '已完成標注',
+        hReviewState: '尚未標注'
+      },
+      {
+        id: 102,
+        tAssignee: '',
+        hAssignee: 'old@example.com',
+        tReviewState: '尚未標注',
+        hReviewState: '已完成標注'
+      }
+    ];
     document.getElementById('app-section').classList.remove('hidden');
     renderAdminUserManager();
   });
 
   await page.getByRole('button', { name: '編輯' }).click();
+  await expect(page.getByText('指派 2 筆')).toBeVisible();
+  await expect(page.getByText('錄音 2 筆')).toBeVisible();
+  await expect(page.getByText('通過 2 筆')).toBeVisible();
+  await expect(page.locator('.user-detail-panel')).toBeHidden();
+
   await page.locator('#user-edit-email').fill('new@example.com');
   await page.locator('#user-edit-name').fill('New Investigator');
   await page.locator('#user-edit-phone').fill('0988');

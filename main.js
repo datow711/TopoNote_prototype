@@ -284,6 +284,49 @@ function renderUserDetailFields(user) {
     return detailRows.map(([label, value]) => renderUserDetailField(label, value)).join('');
 }
 
+function doesUserMatchIdentifier(user, identifier) {
+    return getUserIdentifierAliases(user).some(alias => isSameUserIdentifier(alias, identifier));
+}
+
+function isPlaceAssignedToUser(place, user) {
+    return [
+        ...(place.assignedUsers || []),
+        place.assignedTo,
+        place.tAssignee,
+        place.hAssignee
+    ].filter(Boolean).some(identifier => doesUserMatchIdentifier(user, identifier));
+}
+
+function getInvestigatorWorkStats(user) {
+    const assignedTaskIds = new Set(
+        state.assignedPlaces
+            .filter(place => isPlaceAssignedToUser(place, user))
+            .map(place => String(place.id))
+    );
+    const recordingCount = state.uploadedRecords.filter(record =>
+        doesUserMatchIdentifier(user, record.uploaderId)
+    ).length;
+    const approvedCount = state.reviewQueue.reduce((count, place) => {
+        const taiApproved = place.tReviewState === '已完成標注' && doesUserMatchIdentifier(user, place.tAssignee);
+        const hakApproved = place.hReviewState === '已完成標注' && doesUserMatchIdentifier(user, place.hAssignee);
+        return count + (taiApproved ? 1 : 0) + (hakApproved ? 1 : 0);
+    }, 0);
+
+    return {
+        assignedCount: assignedTaskIds.size,
+        recordingCount,
+        approvedCount
+    };
+}
+
+function renderInvestigatorWorkStats(stats) {
+    return `
+        <span class="user-stat-chip">指派 ${stats.assignedCount} 筆</span>
+        <span class="user-stat-chip">錄音 ${stats.recordingCount} 筆</span>
+        <span class="user-stat-chip">通過 ${stats.approvedCount} 筆</span>
+    `;
+}
+
 function getUserEditInputId(fieldKey) {
     return `user-edit-${fieldKey}`;
 }
@@ -1541,12 +1584,14 @@ function renderAdminUserManager() {
             const hoverTitle = getUserHoverTitle(user);
             const userKey = user.id || user.account || user.email;
             const detailId = getUserDetailElementId(userKey);
+            const workStats = getInvestigatorWorkStats(user);
             return `
             <div class="user-status-row">
                 <button class="user-detail-toggle" type="button" onclick="toggleUserDetails('${escapeHtml(userKey)}', this)" aria-expanded="false" aria-controls="${escapeHtml(detailId)}">展開</button>
                 <span class="user-name" title="${escapeHtml(hoverTitle)}">${escapeHtml(user.name || user.account)}</span>
                 <span class="user-email" title="${escapeHtml(user.email || user.account)}">${escapeHtml(user.email || user.account)}</span>
                 <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
+                <span class="user-work-stats">${renderInvestigatorWorkStats(workStats)}</span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
                 <button class="edit-user-btn" type="button" onclick="openInvestigatorEditDialog('${escapeJsString(user.id)}')">編輯</button>
@@ -1570,6 +1615,7 @@ function renderAdminUserManager() {
                     <span>姓名</span>
                     <span>登入 ID (email)</span>
                     <span>手機</span>
+                    <span>工作量</span>
                     <span></span>
                     <span></span>
                     <span></span>
