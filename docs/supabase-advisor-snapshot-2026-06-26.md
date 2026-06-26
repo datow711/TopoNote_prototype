@@ -4,7 +4,7 @@ Status: Batch H1 live advisor snapshot and finding classification. This file rec
 
 Project ref: `sikconjhtomqdkicbjal`
 
-Post-snapshot update: H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC on 2026-06-26. The snapshot counts below are historical H1 baseline counts.
+Post-snapshot update: H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC on 2026-06-26. H3a moved `delete_investigator_user` behind root GAS, and H3a-final revoked direct public execute on that RPC on 2026-06-26. The snapshot counts below are historical H1 baseline counts.
 
 ## Snapshot summary
 
@@ -90,7 +90,7 @@ Each function below appears once for `anon` and once for `authenticated`.
 | `login_investigator(p_email text)` | Browser login | `accepted-current-model` | Keep until auth model changes; not first H2 target. |
 | `login_admin(p_email text, p_password text)` | Browser admin login, root GAS admin verification | `accepted-current-model` | Keep until admin session/backend auth design changes. |
 | `set_investigator_active(p_user_id uuid, p_is_active boolean, p_actor_account text)` | Root GAS admin active toggle | `quarantined-or-resolved` | H2 moved this behind root GAS; H2-final revoked direct public execute and kept `service_role`. |
-| `delete_investigator_user(p_user_id uuid, p_actor_account text)` | Admin user manager | `migration-target` | H3 candidate after H2 succeeds. |
+| `delete_investigator_user(p_user_id uuid, p_actor_account text)` | Root GAS admin delete | `quarantined-or-resolved` | H3a moved this behind root GAS; H3a-final revoked direct public execute and kept `service_role`. |
 | `approve_task_language(p_task_id integer, p_language text, p_reviewed_by text, p_fields jsonb)` | Admin review | `migration-target` | H3 candidate; impacts review/writeback. |
 | `revoke_task_language_review(p_task_id integer, p_language text, p_reviewed_by text)` | Admin review | `migration-target` | H3 candidate; impacts review/writeback. |
 | `assign_task_language(p_task_ids integer[], p_language text, p_user_name text, p_assigned_by text)` | Admin assignment | `migration-target` | H3 candidate; impacts assignment/writeback. |
@@ -132,7 +132,7 @@ H2 and H2-final are complete. Proceed to H3 only after user approval.
 
 Recommended H3 candidates:
 
-- Backend-wrap one remaining high-impact admin write through root GAS, likely `delete_investigator_user` first.
+- Backend-wrap one remaining high-impact admin write through root GAS, likely a review RPC such as `approve_task_language` first.
 
 Prep document:
 
@@ -140,7 +140,6 @@ Prep document:
 
 Why this remains staged:
 
-- `delete_investigator_user` is destructive and should be one separate batch.
 - Review and assignment writes affect Sheet writeback/sync and should not be grouped casually.
 - The H2 root GAS pattern is now available as the migration template.
 

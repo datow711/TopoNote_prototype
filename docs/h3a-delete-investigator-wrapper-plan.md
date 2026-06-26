@@ -2,7 +2,7 @@
 
 Updated: 2026-06-26.
 
-Status: implementation branch in progress. Frontend and root GAS changes were implemented and root GAS was deployed to Apps Script Web App version 23 on 2026-06-26. Supabase grants were intentionally not changed in H3a.
+Status: implemented and merged. Frontend and root GAS changes were implemented, root GAS was deployed to Apps Script Web App version 23, and Batch H3a-final revoked direct public Supabase execute on `delete_investigator_user` on 2026-06-26.
 
 ## Plain-language goal
 
@@ -29,15 +29,14 @@ Root GAS verifies the admin password first, then calls Supabase with `SUPABASE_S
 - Root GAS verifies the admin password with `verifyAdminPassword_()` before calling Supabase.
 - Root GAS calls Supabase RPC `delete_investigator_user` using `SUPABASE_SERVICE_ROLE_KEY`.
 
-## Not changed in H3a
+## Not changed in initial H3a
 
-- Supabase grants for `delete_investigator_user`.
 - Review RPCs.
 - Assignment RPCs.
 - App-facing views or RLS policies.
 - Google Sheet content.
 
-Grant revocation should be a separate H3a-final batch only after the root GAS path is manually verified.
+Supabase grants for `delete_investigator_user` were intentionally left unchanged during the first H3a implementation, then revoked in the separate approved Batch H3a-final follow-up.
 
 ## Deployment evidence
 
@@ -51,6 +50,23 @@ Grant revocation should be a separate H3a-final batch only after the root GAS pa
 - `node --check gas\程式碼.js` passed.
 - Search confirmed `main.js` no longer contains `/rpc/delete_investigator_user`.
 - Live fake-password smoke test returned `{ "success": false, "error": "Error: Admin password verification failed" }`, which proves the route is deployed and rejects invalid admin credentials before mutation.
+
+## H3a-final grant revoke notes from 2026-06-26
+
+Applied on branch `codex/batch-h3a-final-grant-revoke`:
+
+- Revoked `execute` on `public.delete_investigator_user(uuid, text)` from `public`.
+- Revoked `execute` from `anon`.
+- Revoked `execute` from `authenticated`.
+- Granted/kept `execute` for `service_role`.
+- SQL record: `db/2026-06-26_batch_h3a_final_delete_investigator_grant_revoke.sql`.
+
+Verification evidence:
+
+- `anon_can_execute = false`.
+- `authenticated_can_execute = false`.
+- `service_role_can_execute = true`.
+- Root GAS fake-password smoke test still returns `Error: Admin password verification failed`, which confirms the backend service-role path still reaches the RPC flow.
 
 ## Manual verification
 
@@ -75,12 +91,8 @@ Fast rollback:
 3. `clasp push`.
 4. Deploy the previous or rollback Apps Script version.
 
-Because H3a does not revoke Supabase grants, rollback does not require emergency SQL.
+Because H3a-final revoked Supabase grants, rollback requires re-granting `execute` to `anon` and `authenticated` only if a hidden direct caller is proven.
 
 ## Follow-up after H3a verification
 
-Only after the root GAS delete path is manually verified:
-
-1. Confirm app no longer calls `/rpc/delete_investigator_user` from browser.
-2. Decide whether to revoke `anon` / `authenticated` execute on `delete_investigator_user`.
-3. If approved, make that grant change as a separate H3a-final SQL batch with rollback SQL.
+H3a and H3a-final are complete. The next staged backend-wrap candidates are the review or assignment functions listed in `docs/supabase-app-facing-security-design.md`.

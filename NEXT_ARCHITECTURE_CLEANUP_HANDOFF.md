@@ -2,11 +2,11 @@
 
 Updated: 2026-06-26
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 has been merged/pushed by the user, root GAS Web App version 22 is deployed, and Batch H2-final revoked direct public Supabase execute on `set_investigator_active`. Batch H3a implementation is in progress on a branch and deploys the `delete_investigator_user` wrapper to root GAS Web App version 23; Supabase grants are not changed in H3a.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 has been merged/pushed by the user, root GAS Web App version 22 is deployed, and Batch H2-final revoked direct public Supabase execute on `set_investigator_active`. Batch H3a has been merged/pushed by the user, root GAS Web App version 23 is deployed, and Batch H3a-final revoked direct public Supabase execute on `delete_investigator_user`.
 
 ## Current status
 
-- Current cleanup branch: `codex/batch-h3a-delete-investigator-wrapper`.
+- Current cleanup branch: `codex/batch-h3a-final-grant-revoke`.
 - Root GAS code was changed for Batch H3a and deployed to the active Web App as version 23.
 - Batch H2 live smoke testing passed after Google Apps Script authorization: fake credentials return `Error: Admin password verification failed`, as expected.
 - Batch H2-final live SQL was applied on 2026-06-26: `anon` and `authenticated` cannot execute `set_investigator_active`; `service_role` can.
@@ -38,8 +38,10 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
   - Batch H2 implementation plan and H2-final grant revoke status.
   - Use this before any rollback or follow-up around `set_investigator_active`.
 - `docs/h3a-delete-investigator-wrapper-plan.md`
-  - Batch H3a implementation plan and deployment status.
-  - Use this before validating, merging, or changing Supabase grants for `delete_investigator_user`.
+  - Batch H3a implementation plan and H3a-final grant revoke status.
+  - Use this before any rollback or follow-up around `delete_investigator_user`.
+- `db/2026-06-26_batch_h3a_final_delete_investigator_grant_revoke.sql`
+  - Applied SQL record for closing direct public execute on `delete_investigator_user`.
 - `db/2026-06-26_batch_h2_final_set_investigator_active_grant_revoke.sql`
   - Applied SQL record for closing direct public execute on `set_investigator_active`.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
@@ -112,7 +114,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - Root GAS verifies admin password, then calls Supabase RPC `delete_investigator_user` with `SUPABASE_SERVICE_ROLE_KEY`.
    - Root GAS active deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` is now `@23`.
    - Live fake-password smoke test returns `Error: Admin password verification failed`, as expected.
-   - No Supabase grants were changed in H3a. Do not revoke direct public execute on `delete_investigator_user` until manual app validation is complete and a separate H3a-final batch is approved.
+   - H3a-final revoked direct public Supabase execute on `delete_investigator_user` for `public`, `anon`, and `authenticated`.
+   - H3a-final kept `service_role` execute so root GAS can still call the RPC.
+   - Verification result: `anon=false`, `authenticated=false`, `service_role=true`.
 
 9. Do not delete these yet:
    - `moi_placename_raw`
@@ -125,9 +129,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, H2 implementation, and H2-final grant revoke are complete. H3a implementation still needs manual app validation before merge. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, H2 implementation, H2-final grant revoke, H3a implementation, and H3a-final grant revoke are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Immediate next step is H3a manual validation for investigator delete. After H3a is validated and merged, likely next discussion candidates are H3a-final grant revoke, another H3 function, or a Sheet retention action batch after human retention decisions.
+Likely next discussion candidates are another H3 function, probably one review RPC first, or a Sheet retention action batch after human retention decisions.
 
 Historical next staged approval phrase after Batch B + D interim was:
 

@@ -2,7 +2,7 @@
 
 Updated: 2026-06-26.
 
-Status: Batch H phase 0 design memo, updated after H3a implementation. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC. H3a moves `delete_investigator_user` behind root GAS; grant revocation for that RPC is still pending manual validation and separate approval. This file does not approve further SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
+Status: Batch H phase 0 design memo, updated after H3a-final. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC. H3a moved `delete_investigator_user` behind root GAS, and H3a-final revoked direct public execute on that RPC. This file does not approve further SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
 
 ## Purpose
 
@@ -49,7 +49,7 @@ Root GAS and Places GAS hold service-role-only capabilities in script properties
 | --- | --- | --- |
 | `update_investigator_profile` | Root GAS only | Correctly behind admin password verification and service role. |
 | `set_investigator_active` | Root GAS only | Moved behind admin password verification and service role in H2/H2-final. |
-| `delete_investigator_user` | Root GAS in H3a; public grant still pending | Moved behind admin password verification and service role in H3a. Revoke direct public execute only after manual validation and separate H3a-final approval. |
+| `delete_investigator_user` | Root GAS only | Moved behind admin password verification and service role in H3a/H3a-final. |
 | `sync_sheet_users` | Places GAS | Service-role sheet-to-Supabase sync. |
 | `mark_reviews_sheet_synced` | Places GAS | Service-role review writeback acknowledgement. |
 | `third_phase_places` / `final_tasks` upserts | Places GAS | Service-role source Sheet sync. |
@@ -193,7 +193,7 @@ After one successful H2 cycle:
 
 Each should be one separately approved batch or a carefully grouped admin-write batch.
 
-H3a status: `delete_investigator_user` was moved behind root GAS and deployed to Web App version 23. Its direct public Supabase execute grant is intentionally still unchanged until manual app validation and a separate H3a-final approval.
+H3a status: `delete_investigator_user` was moved behind root GAS and deployed to Web App version 23. H3a-final revoked direct public execute from `public`, `anon`, and `authenticated`, while keeping `service_role`.
 
 ### H4 - view/RLS redesign
 

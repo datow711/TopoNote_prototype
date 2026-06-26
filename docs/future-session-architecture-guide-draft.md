@@ -74,7 +74,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 moved `set_investigator_active` behind root GAS and deployed Web App version 22. H2-final revoked direct public Supabase execute on that RPC while keeping `service_role` access. H3a moves `delete_investigator_user` behind root GAS and deploys Web App version 23; manual app validation is pending before merge and no Supabase grant revoke was done. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 moved `set_investigator_active` behind root GAS and deployed Web App version 22. H2-final revoked direct public Supabase execute on that RPC while keeping `service_role` access. H3a moved `delete_investigator_user` behind root GAS and deployed Web App version 23. H3a-final revoked direct public Supabase execute on that RPC while keeping `service_role` access. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -86,6 +86,7 @@ Applied first approved live scope:
 Use `db/2026-06-25_batch_b_d_interim_cleanup.sql` as the applied SQL record.
 Use `db/2026-06-25_batch_c_assignment_quarantine.sql` as the Batch C applied SQL record.
 Use `db/2026-06-26_batch_h2_final_set_investigator_active_grant_revoke.sql` as the H2-final applied SQL record.
+Use `db/2026-06-26_batch_h3a_final_delete_investigator_grant_revoke.sql` as the H3a-final applied SQL record.
 Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond the first SQL batch.
 
 ## Approval boundary
