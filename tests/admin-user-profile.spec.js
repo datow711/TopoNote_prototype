@@ -64,6 +64,23 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
         survey_area_2: '',
         life_area_3: '',
         survey_area_3: ''
+      },
+      {
+        id: 'user-2',
+        account: 'zero@example.com',
+        role: 'user',
+        is_active: false,
+        name: 'Zero Investigator',
+        email: 'zero@example.com',
+        phone: '0900',
+        languages: '',
+        hakka_dialect: '',
+        life_area_1: '',
+        survey_area_1: '',
+        life_area_2: '',
+        survey_area_2: '',
+        life_area_3: '',
+        survey_area_3: ''
       }
     ];
     state.assignedPlaces = [
@@ -106,11 +123,18 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
     renderAdminUserManager();
   });
 
-  await page.getByRole('button', { name: '編輯' }).click();
   await expect(page.getByText('指派 2 筆')).toBeVisible();
   await expect(page.getByText('錄音 2 筆')).toBeVisible();
   await expect(page.getByText('通過 2 筆')).toBeVisible();
-  await expect(page.locator('.user-detail-panel')).toBeHidden();
+  await expect(page.locator('.user-detail-panel[hidden]')).toHaveCount(2);
+
+  const userNames = page.locator('.user-status-row .user-name');
+  await page.getByRole('button', { name: '錄音' }).click();
+  await expect(userNames.first()).toHaveText('Zero Investigator');
+  await page.getByRole('button', { name: '錄音' }).click();
+  await expect(userNames.first()).toHaveText('Old Investigator');
+
+  await page.locator('.user-status-row').filter({ hasText: 'Old Investigator' }).getByRole('button', { name: '編輯' }).click();
 
   await page.locator('#user-edit-email').fill('new@example.com');
   await page.locator('#user-edit-name').fill('New Investigator');

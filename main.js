@@ -33,6 +33,7 @@ let state = {
     selectedAssignTaskIds: new Set(),
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
     allUserRecords: [],
+    adminUserSort: { key: '', direction: 'asc' },
 };
 
 let mediaRecorder;
@@ -319,11 +320,63 @@ function getInvestigatorWorkStats(user) {
     };
 }
 
-function renderInvestigatorWorkStats(stats) {
+function renderInvestigatorStatChip(label, count) {
+    return `<span class="user-stat-chip">${escapeHtml(label)} ${count} 筆</span>`;
+}
+
+function getAdminUserSortableValue(row, key) {
+    const { user, stats } = row;
+    const values = {
+        name: user.name || user.account || '',
+        email: user.email || user.account || '',
+        phone: user.phone || '',
+        assigned: stats.assignedCount,
+        recordings: stats.recordingCount,
+        approved: stats.approvedCount,
+        active: user.is_active ? 1 : 0
+    };
+    return values[key] ?? '';
+}
+
+function sortAdminUserRows(rows) {
+    const { key, direction } = state.adminUserSort || {};
+    if (!key) return rows;
+
+    const sign = direction === 'desc' ? -1 : 1;
+    return [...rows].sort((left, right) => {
+        const leftValue = getAdminUserSortableValue(left, key);
+        const rightValue = getAdminUserSortableValue(right, key);
+        if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+            return ((Number(leftValue) || 0) - (Number(rightValue) || 0)) * sign;
+        }
+        return String(leftValue).localeCompare(String(rightValue), 'zh-Hant', { numeric: true }) * sign;
+    });
+}
+
+function toggleAdminUserSort(key) {
+    const current = state.adminUserSort || { key: '', direction: 'asc' };
+    state.adminUserSort = {
+        key,
+        direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    };
+    renderAdminUserManager();
+}
+
+function renderAdminUserSortHeader(label, key) {
+    const current = state.adminUserSort || {};
+    const active = current.key === key;
+    const direction = active ? current.direction : 'asc';
+    const arrow = active ? (direction === 'asc' ? '▲' : '▼') : '';
     return `
-        <span class="user-stat-chip">指派 ${stats.assignedCount} 筆</span>
-        <span class="user-stat-chip">錄音 ${stats.recordingCount} 筆</span>
-        <span class="user-stat-chip">通過 ${stats.approvedCount} 筆</span>
+        <button
+            class="user-sort-header ${active ? 'active' : ''}"
+            type="button"
+            onclick="toggleAdminUserSort('${escapeJsString(key)}')"
+            aria-label="${escapeHtml(label)}排序${active ? (direction === 'asc' ? '，目前升冪' : '，目前降冪') : ''}"
+        >
+            <span>${escapeHtml(label)}</span>
+            <span class="user-sort-arrow">${arrow}</span>
+        </button>
     `;
 }
 
@@ -1578,20 +1631,25 @@ function renderAdminUserManager() {
     const container = document.getElementById('place-list-container');
 
     const investigators = state.allUserRecords.filter(user => user.role !== 'admin');
-    const body = investigators.length === 0
+    const userRows = sortAdminUserRows(investigators.map(user => ({
+        user,
+        stats: getInvestigatorWorkStats(user)
+    })));
+    const body = userRows.length === 0
         ? '<div class="empty-state compact">目前沒有調查員帳號。請從 Places 的 Users 表同步。</div>'
-        : investigators.map(user => {
+        : userRows.map(({ user, stats: workStats }) => {
             const hoverTitle = getUserHoverTitle(user);
             const userKey = user.id || user.account || user.email;
             const detailId = getUserDetailElementId(userKey);
-            const workStats = getInvestigatorWorkStats(user);
             return `
             <div class="user-status-row">
                 <button class="user-detail-toggle" type="button" onclick="toggleUserDetails('${escapeHtml(userKey)}', this)" aria-expanded="false" aria-controls="${escapeHtml(detailId)}">展開</button>
                 <span class="user-name" title="${escapeHtml(hoverTitle)}">${escapeHtml(user.name || user.account)}</span>
                 <span class="user-email" title="${escapeHtml(user.email || user.account)}">${escapeHtml(user.email || user.account)}</span>
                 <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
-                <span class="user-work-stats">${renderInvestigatorWorkStats(workStats)}</span>
+                <span class="user-work-stat">${renderInvestigatorStatChip('指派', workStats.assignedCount)}</span>
+                <span class="user-work-stat">${renderInvestigatorStatChip('錄音', workStats.recordingCount)}</span>
+                <span class="user-work-stat">${renderInvestigatorStatChip('通過', workStats.approvedCount)}</span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
                 <button class="edit-user-btn" type="button" onclick="openInvestigatorEditDialog('${escapeJsString(user.id)}')">編輯</button>
@@ -1612,11 +1670,13 @@ function renderAdminUserManager() {
             <div class="user-status-list">
                 <div class="user-status-header">
                     <span></span>
-                    <span>姓名</span>
-                    <span>登入 ID (email)</span>
-                    <span>手機</span>
-                    <span>工作量</span>
-                    <span></span>
+                    <span>${renderAdminUserSortHeader('姓名', 'name')}</span>
+                    <span>${renderAdminUserSortHeader('登入 ID', 'email')}</span>
+                    <span>${renderAdminUserSortHeader('手機', 'phone')}</span>
+                    <span>${renderAdminUserSortHeader('指派', 'assigned')}</span>
+                    <span>${renderAdminUserSortHeader('錄音', 'recordings')}</span>
+                    <span>${renderAdminUserSortHeader('通過', 'approved')}</span>
+                    <span>${renderAdminUserSortHeader('active', 'active')}</span>
                     <span></span>
                     <span></span>
                     <span></span>
