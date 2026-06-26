@@ -1,7 +1,7 @@
 # TopoNote future-session architecture guide draft
 
-Status: draft after approved cleanup through deployed Batch F; not final.
-Updated: 2026-06-25.
+Status: draft after approved cleanup through Batch H2 implementation branch; not final.
+Updated: 2026-06-26.
 
 This is a quick-start guide for a future Codex session. It is not the final handoff requested by the user because live cleanup/refactor work has not been approved or applied yet.
 
@@ -74,7 +74,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. Batch H2 implementation branch now routes that toggle through root GAS and deploys Web App version 22, but live validation is pending one-time Apps Script authorization by running `authorizeRootGasScopes()`. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -100,6 +100,8 @@ Historical approval examples after Batch B + D interim:
 - `同意先從 Places GAS 選單移除舊 L3 satellite push/pull` (superseded by documentation correction: L3 satellite is active separate Sheet workflow)
 
 Batch B + Batch D interim, Batch C, and Batch F are already complete. Do not rerun them unless a rollback/replay need is explicit.
+
+Batch H2 implementation is not ready to merge until the root GAS deployment owner authorizes the added Apps Script scope and the admin active toggle is manually validated.
 
 Historical pre-Batch B+D approval examples:
 

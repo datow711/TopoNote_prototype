@@ -116,6 +116,7 @@ function doPost(e) {
     if (action === 'upload') return handleUpload(requestData);
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
+    if (action === 'setInvestigatorActive') return handleSetInvestigatorActive(requestData);
     if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
 
     throw new Error("未知的操作");
@@ -172,6 +173,13 @@ function callSupabaseRpc_(rpcName, body, bearerKey) {
   return text ? JSON.parse(text) : null;
 }
 
+function authorizeRootGasScopes() {
+  UrlFetchApp.fetch('https://www.google.com/generate_204', {
+    muteHttpExceptions: true
+  });
+  return true;
+}
+
 function verifyAdminPassword_(actorAccount, adminPassword) {
   var config = getSupabaseConfig_();
   var users = callSupabaseRpc_('login_admin', {
@@ -205,6 +213,19 @@ function updateInvestigatorProfileInSupabase_(data, profile) {
     p_survey_area_2: profile.survey_area_2 || '',
     p_life_area_3: profile.life_area_3 || '',
     p_survey_area_3: profile.survey_area_3 || ''
+  }, config.serviceRoleKey);
+}
+
+function setInvestigatorActiveInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('set_investigator_active', {
+    p_user_id: data.userId,
+    p_is_active: data.isActive === true,
+    p_actor_account: data.actorAccount
   }, config.serviceRoleKey);
 }
 
@@ -254,6 +275,34 @@ function updateUserProfileInSheet_(data, profile) {
   });
 
   return rowIndex + 1;
+}
+
+function handleSetInvestigatorActive(data) {
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var adminPassword = String(data.adminPassword || '');
+  var userId = String(data.userId || '').trim();
+  var isActive = data.isActive === true;
+
+  if (!actorAccount || !adminPassword) {
+    throw new Error('Admin account and password are required');
+  }
+  if (!userId) {
+    throw new Error('User id is required');
+  }
+
+  verifyAdminPassword_(actorAccount, adminPassword);
+  var supabaseResult = setInvestigatorActiveInSupabase_({
+    userId: userId,
+    isActive: isActive,
+    actorAccount: actorAccount
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    userId: userId,
+    isActive: isActive,
+    supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function handleUpdateUserProfile(data) {

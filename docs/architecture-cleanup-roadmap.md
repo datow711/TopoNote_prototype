@@ -304,17 +304,17 @@ Future options:
 Recommended next implementation path:
 
 1. H1: capture live advisor snapshot and classify accepted vs migration-target findings. Completed in `docs/supabase-advisor-snapshot-2026-06-26.md`.
-2. H2: backend-wrap one narrow admin write, likely `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Prep plan: `docs/h2-set-investigator-active-wrapper-plan.md`.
+2. H2: backend-wrap one narrow admin write, `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Implementation branch deployed root GAS Web App version 22; live validation is pending one-time Apps Script authorization by running `authorizeRootGasScopes()` in the root GAS editor.
 3. H3: migrate remaining high-impact admin writes in staged batches.
 4. H4: only then consider app-facing view/RLS rewrites.
 
 ## Current recommended next approval
 
-Batch C, Batch F, Batch E documentation correction, Batch G phase 1, and Batch H phase 0 have now been applied or documented. No next live change is pre-approved. The next staged discussion should choose one candidate, explain its exact scope, and then wait for explicit user approval.
+Batch C, Batch F, Batch E documentation correction, Batch G phase 1, Batch H phase 0, H1 advisor snapshot, and H2 prep have now been applied or documented. H2 implementation is on branch `codex/batch-h2-set-active-wrapper`; root GAS is deployed to Web App version 22, but live validation is pending one-time Apps Script authorization. No next live change is pre-approved.
 
 Likely next candidates:
 
-- Batch H2 implementation: backend-wrap `set_investigator_active` after approving `docs/h2-set-investigator-active-wrapper-plan.md`.
+- Finish Batch H2 validation: run `authorizeRootGasScopes()` once in the root GAS editor, rerun the fake-password smoke test, then manually test the admin active toggle.
 - Sheet retention action batch only after explicit human retention decisions.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.

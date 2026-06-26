@@ -2,7 +2,9 @@
 
 Updated: 2026-06-26.
 
-Status: design/prep only. This file does not approve frontend changes, GAS changes, Supabase SQL/grant changes, `clasp push`, or Apps Script deployment.
+Status: implementation branch in progress. Frontend and root GAS changes were implemented and root GAS was deployed to Apps Script Web App version 22 on 2026-06-26. Supabase SQL/grant changes were intentionally not made.
+
+Current blocker: live smoke testing reaches Apps Script authorization before the new handler. The deploying Google account must run `authorizeRootGasScopes()` once in the Apps Script editor to authorize the added `https://www.googleapis.com/auth/script.external_request` scope. After that, rerun the fake-password smoke test and manual app toggle validation.
 
 ## Plain-language goal
 
@@ -226,10 +228,45 @@ Only after the user approves H2 implementation:
 8. Manually verify admin user toggle in the APP.
 9. Commit and merge only after verification.
 
+## Implementation notes from 2026-06-26
+
+Implemented on branch `codex/batch-h2-set-active-wrapper`:
+
+- `main.js` now posts `action: "setInvestigatorActive"` to root GAS instead of directly calling `/rest/v1/rpc/set_investigator_active`.
+- The admin toggle now prompts for the admin password before sending the change.
+- `gas/程式碼.js` now routes `setInvestigatorActive` through `handleSetInvestigatorActive(data)`.
+- Root GAS verifies the admin password with `verifyAdminPassword_()` before calling Supabase.
+- Root GAS calls Supabase RPC `set_investigator_active` using `SUPABASE_SERVICE_ROLE_KEY`.
+- `gas/appsscript.json` now explicitly declares root GAS scopes for external requests, script properties, Sheets, and Drive.
+- `authorizeRootGasScopes()` was added as a maintenance helper so the deployment owner can authorize new root GAS scopes from the Apps Script editor.
+
+Deployment evidence:
+
+- `npx.cmd clasp push --force` succeeded.
+- Apps Script version 22 was created.
+- Active Web App deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` was updated to `@22`.
+
+Verification evidence:
+
+- `node --check main.js` passed.
+- `node --check gas\程式碼.js` passed.
+- `gas/appsscript.json` parsed as valid JSON.
+- Search confirmed `main.js` no longer contains `/rpc/set_investigator_active`.
+- Live fake-password smoke test is blocked until the deployment owner authorizes the new Apps Script scope. Current error: missing permission for `UrlFetchApp.fetch`.
+
+Required one-time authorization:
+
+1. Open the root GAS Apps Script project.
+2. Select function `authorizeRootGasScopes`.
+3. Click Run.
+4. Complete the Google authorization prompt for the deploying account.
+5. Rerun the smoke test and manual validation below.
+
 ## Manual verification for future H2 implementation
 
 After deploy:
 
+0. If the live endpoint returns a `UrlFetchApp.fetch` permission error, run `authorizeRootGasScopes()` once in the root GAS Apps Script editor and then retry.
 1. Log in as admin.
 2. Open admin user manager.
 3. Toggle one non-critical investigator inactive.

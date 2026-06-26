@@ -1589,23 +1589,28 @@ async function refreshAdminUsers() {
 }
 
 async function toggleInvestigatorActive(userId, isActive, checkbox) {
+    const adminPassword = prompt('請輸入管理員密碼以變更調查員啟用狀態');
+    if (!adminPassword) {
+        checkbox.checked = !isActive;
+        return;
+    }
+
     checkbox.disabled = true;
     try {
-        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/set_investigator_active`, {
+        const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'apikey': CONFIG.SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
-                p_user_id: userId,
-                p_is_active: isActive,
-                p_actor_account: state.userId
+                action: 'setInvestigatorActive',
+                actorAccount: state.userId,
+                adminPassword,
+                userId,
+                isActive
             })
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to update active state');
         await refreshAdminUsers();
     } catch (err) {
         console.error('更新調查員 active 狀態失敗:', err);

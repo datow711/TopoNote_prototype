@@ -1,6 +1,6 @@
 # TopoNote architecture goal status
 
-Updated: 2026-06-25.
+Updated: 2026-06-26.
 
 This document tracks the original architecture cleanup goal against current evidence. It is not a replacement for the audit; it is a completion and approval matrix so future work can tell what is done, what is still blocked by approval, and what evidence is required before the goal can be marked complete.
 
@@ -20,7 +20,8 @@ Completed so far:
 - Batch G phase 1 created a Google Sheet retention matrix; no Sheet content was changed.
 - Batch H phase 0 created a Supabase app-facing security design memo; no Supabase SQL or app behavior was changed.
 - Batch H1 recorded the live Supabase advisor snapshot and finding classification; no Supabase SQL or app behavior was changed.
-- Batch H2 prep created an implementation plan for wrapping `set_investigator_active` behind root GAS; no code or DB change was made.
+- Batch H2 implementation branch wraps `set_investigator_active` behind root GAS and deploys root GAS Web App version 22. Supabase grants were not changed.
+- Batch H2 live validation is pending one-time Apps Script authorization: the deployment owner must run `authorizeRootGasScopes()` in the root GAS editor before the live endpoint can call Supabase via `UrlFetchApp.fetch`.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
@@ -131,12 +132,12 @@ Execution checklist:
 | Scan project architecture | Substantially done | `docs/architecture-audit-2026-06-24.md`, `docs/architecture-inventory.md` | Re-check live state before applying any approved live batch. |
 | Include GAS backend | Done for audit | Root GAS and Places GAS covered in audit, inventory, and GAS preview; Batch F deployed; Batch E corrected L3 satellite classification | Further GAS cleanup still needs approval. |
 | Include related Google forms/sheets | Done for audit | Sheet tabs and sync flows covered in audit/inventory; retention matrix added in `docs/google-sheet-retention-matrix.md` | Human approval still required before any hide/archive/delete action. |
-| Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory | No frontend cleanup applied yet. |
+| Include frontend code | Done for audit | Frontend entrypoints, Supabase calls, and root GAS actions covered in inventory; H2 implementation branch removes the direct frontend call to `set_investigator_active` | H2 still needs Apps Script authorization plus manual app validation before merge. |
 | Include Supabase | Partially cleaned | Supabase tables/views/RPCs/security candidates covered in audit/inventory/SQL previews; Batch B + D interim and Batch C applied 2026-06-25; Batch H phase 0 design memo and H1 advisor snapshot added | Further implementation batches still need approval. |
 | Identify unused/stale data/tables/functions | Done as candidates | Legacy candidates listed in inventory and roadmap | Quarantine/drop only after approved batches and observation. |
 | Identify over-complex or poor sync design | Done as design issues | Direct-browser Supabase access, dual audio logs, layered assignment model, old Sheet workflows documented in inventory | Refactor decisions remain staged; no behavior change applied yet. |
 | Organize delete/refactor targets | Done | `docs/architecture-cleanup-roadmap.md`, preview files | Execute only approved batches. |
-| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25; Batch F pushed/deployed/smoke-tested; Batch E documentation correction applied | Further batches still need explicit approval. |
+| Adjust gradually after permission | Started | Batch B + D interim and Batch C applied and verified 2026-06-25; Batch F pushed/deployed/smoke-tested; Batch E documentation correction applied; H2 implementation deployed to root GAS version 22 | H2 still needs Apps Script authorization plus manual app validation before merge; further batches still need explicit approval. |
 | Produce final future-session MD after adjustment | Draft only | `docs/future-session-architecture-guide-draft.md` | Replace with final after approved cleanup is applied and verified. |
 | Produce final human developer README after adjustment | Draft only | `docs/human-developer-architecture-readme-draft.md` | Replace with final after approved cleanup is applied and verified. |
 
@@ -156,6 +157,7 @@ Status note: Batch B, Batch D interim, the combined Batch B + D interim scope, B
 | H phase 0 | User-approved design memo | App-facing Supabase view/RLS/security design only | Documentation-only | Revert documentation commit if direction changes. |
 | H1 | User-approved advisor snapshot | Live Supabase advisor baseline and classification | Documentation-only/read-only Supabase | Re-run advisors if baseline becomes stale. |
 | H2 prep | User-approved implementation plan | Plan to backend-wrap `set_investigator_active` through root GAS | Documentation-only | Revert documentation commit if direction changes. |
+| H2 implementation | User-approved implementation branch | Frontend calls root GAS `setInvestigatorActive`; root GAS verifies admin password and calls Supabase with service role | Deployed to root GAS Web App `@22`; live smoke/manual validation pending one-time Apps Script scope authorization | Revert frontend/GAS changes or deploy previous GAS version if regression is proven. |
 | H implementation | No single safe phrase yet | App-facing Supabase view/RLS/security implementation | High; can break frontend if rushed | Requires H1/H2 staged migration. |
 
 ## Non-removal rules
