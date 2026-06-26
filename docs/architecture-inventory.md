@@ -14,6 +14,8 @@ For Supabase app-facing security design, see `docs/supabase-app-facing-security-
 
 For the 2026-06-26 live Supabase advisor baseline, see `docs/supabase-advisor-snapshot-2026-06-26.md`.
 
+For the H2 `set_investigator_active` backend-wrapper plan, see `docs/h2-set-investigator-active-wrapper-plan.md`.
+
 ## Status labels
 
 - Active: used by the current app or current operations.

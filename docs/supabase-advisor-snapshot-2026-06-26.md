@@ -132,6 +132,10 @@ Recommended H2 candidate:
 
 - Backend-wrap `set_investigator_active` through root GAS, following the existing `updateUserProfile` pattern.
 
+Prep document:
+
+- `docs/h2-set-investigator-active-wrapper-plan.md`
+
 Why this is the best first implementation target:
 
 - It is narrower than review or assignment writes.

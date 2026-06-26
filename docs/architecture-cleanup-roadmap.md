@@ -304,7 +304,7 @@ Future options:
 Recommended next implementation path:
 
 1. H1: capture live advisor snapshot and classify accepted vs migration-target findings. Completed in `docs/supabase-advisor-snapshot-2026-06-26.md`.
-2. H2: backend-wrap one narrow admin write, likely `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern.
+2. H2: backend-wrap one narrow admin write, likely `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Prep plan: `docs/h2-set-investigator-active-wrapper-plan.md`.
 3. H3: migrate remaining high-impact admin writes in staged batches.
 4. H4: only then consider app-facing view/RLS rewrites.
 
@@ -314,7 +314,7 @@ Batch C, Batch F, Batch E documentation correction, Batch G phase 1, and Batch H
 
 Likely next candidates:
 
-- Batch H2: backend-wrap one narrow admin write after H1.
+- Batch H2 implementation: backend-wrap `set_investigator_active` after approving `docs/h2-set-investigator-active-wrapper-plan.md`.
 - Sheet retention action batch only after explicit human retention decisions.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.

@@ -5,7 +5,7 @@ Updated: 2026-06-25.
 
 This document explains the current project architecture for a human developer. It is not the final README requested by the user because the approved cleanup/refactor phase has not happened yet.
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. This document is still a draft because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. This document is still a draft because later cleanup/refactor batches remain pending.
 
 ## What TopoNote is
 
@@ -45,6 +45,7 @@ The system currently bridges four surfaces:
   - `docs/google-sheet-retention-matrix.md`
   - `docs/supabase-app-facing-security-design.md`
   - `docs/supabase-advisor-snapshot-2026-06-26.md`
+  - `docs/h2-set-investigator-active-wrapper-plan.md`
   - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - `docs/supabase-cleanup-batch-c-preview.sql`
   - `docs/gas-cleanup-batch-e-f-preview.md`

@@ -20,6 +20,7 @@ Completed so far:
 - Batch G phase 1 created a Google Sheet retention matrix; no Sheet content was changed.
 - Batch H phase 0 created a Supabase app-facing security design memo; no Supabase SQL or app behavior was changed.
 - Batch H1 recorded the live Supabase advisor snapshot and finding classification; no Supabase SQL or app behavior was changed.
+- Batch H2 prep created an implementation plan for wrapping `set_investigator_active` behind root GAS; no code or DB change was made.
 - Two architecture docs requested by the user exist as drafts only.
 - No Google Sheet content has been changed. Root GAS code has been changed and deployed for Batch F.
 
@@ -154,6 +155,7 @@ Status note: Batch B, Batch D interim, the combined Batch B + D interim scope, B
 | G | No single safe phrase yet | Sheet tab/column retention, hide/archive/delete decisions | Medium to high; human data retention | Restore from backup/checkpoint/export if available. |
 | H phase 0 | User-approved design memo | App-facing Supabase view/RLS/security design only | Documentation-only | Revert documentation commit if direction changes. |
 | H1 | User-approved advisor snapshot | Live Supabase advisor baseline and classification | Documentation-only/read-only Supabase | Re-run advisors if baseline becomes stale. |
+| H2 prep | User-approved implementation plan | Plan to backend-wrap `set_investigator_active` through root GAS | Documentation-only | Revert documentation commit if direction changes. |
 | H implementation | No single safe phrase yet | App-facing Supabase view/RLS/security implementation | High; can break frontend if rushed | Requires H1/H2 staged migration. |
 
 ## Non-removal rules
