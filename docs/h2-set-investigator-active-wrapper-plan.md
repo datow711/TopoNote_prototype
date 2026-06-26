@@ -2,9 +2,9 @@
 
 Updated: 2026-06-26.
 
-Status: implementation branch in progress. Frontend and root GAS changes were implemented and root GAS was deployed to Apps Script Web App version 22 on 2026-06-26. Supabase SQL/grant changes were intentionally not made.
+Status: implemented and merged. Frontend and root GAS changes were implemented, root GAS was deployed to Apps Script Web App version 22, and Batch H2-final revoked direct public Supabase execute on `set_investigator_active` on 2026-06-26.
 
-Current validation status: the deploying Google account authorized the added `https://www.googleapis.com/auth/script.external_request` scope on 2026-06-26. The live fake-password smoke test now reaches the new handler and returns `Error: Admin password verification failed`, as expected. Manual app toggle validation is still pending before merge.
+Current validation status: the deploying Google account authorized the added `https://www.googleapis.com/auth/script.external_request` scope on 2026-06-26. The live fake-password smoke test reaches the new handler and returns `Error: Admin password verification failed`, as expected. After H2-final, direct Supabase execute is false for `anon` and `authenticated`, and true for `service_role`.
 
 ## Plain-language goal
 
@@ -56,9 +56,7 @@ Do not change these in H2:
 - `assign_task_language`
 - `unassign_task_language`
 - app-facing views or RLS policies
-- Supabase grants for `set_investigator_active`
-
-Grant revocation should be a later H2 follow-up only after the new GAS path is deployed and manually verified.
+Supabase grants for `set_investigator_active` were intentionally left unchanged during the first H2 implementation, then revoked in the separate approved Batch H2-final follow-up.
 
 ## Proposed frontend contract
 
@@ -255,6 +253,23 @@ Verification evidence:
 - The deployment owner authorized the new Apps Script scope on 2026-06-26.
 - Live fake-password smoke test returned `{ "success": false, "error": "Error: Admin password verification failed" }`, which proves the route is deployed and rejects invalid admin credentials before mutation.
 
+## H2-final grant revoke notes from 2026-06-26
+
+Applied on branch `codex/batch-h2-final-grant-revoke`:
+
+- Revoked `execute` on `public.set_investigator_active(uuid, boolean, text)` from `public`.
+- Revoked `execute` from `anon`.
+- Revoked `execute` from `authenticated`.
+- Granted/kept `execute` for `service_role`.
+- SQL record: `db/2026-06-26_batch_h2_final_set_investigator_active_grant_revoke.sql`.
+
+Verification evidence:
+
+- `anon_can_execute = false`.
+- `authenticated_can_execute = false`.
+- `service_role_can_execute = true`.
+- Root GAS fake-password smoke test still returns `Error: Admin password verification failed`, which confirms the backend service-role path still reaches the RPC flow.
+
 One-time authorization already completed on 2026-06-26:
 
 1. Open the root GAS Apps Script project.
@@ -287,13 +302,8 @@ Fast rollback:
 3. `clasp push`.
 4. Deploy the previous or rollback Apps Script version.
 
-Because H2 should not revoke Supabase grants yet, rollback does not require emergency SQL.
+Because H2-final revoked Supabase grants, rollback requires re-granting `execute` to `anon` and `authenticated` only if a hidden direct caller is proven.
 
 ## Follow-up after H2 verification
 
-Only after the GAS path is stable:
-
-1. Run Supabase advisors again.
-2. Confirm app no longer calls `/rpc/set_investigator_active` from browser.
-3. Decide whether to revoke `anon` / `authenticated` execute on `set_investigator_active`.
-4. If approved, make that grant change as a separate SQL batch with rollback SQL.
+H2 and H2-final are complete. The next staged backend-wrap candidates are the H3 admin-write functions listed in `docs/supabase-app-facing-security-design.md`.

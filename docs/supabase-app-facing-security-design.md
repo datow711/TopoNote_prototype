@@ -1,8 +1,8 @@
 # TopoNote Supabase app-facing security design
 
-Updated: 2026-06-25.
+Updated: 2026-06-26.
 
-Status: Batch H phase 0 design memo. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 prep for `set_investigator_active` is in `docs/h2-set-investigator-active-wrapper-plan.md`. This file does not approve SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
+Status: Batch H phase 0 design memo, updated after H2-final. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC. This file does not approve further SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
 
 ## Purpose
 
@@ -36,7 +36,6 @@ Current direct RPC calls:
 | --- | --- | --- |
 | `login_investigator` | Investigator login | Public login endpoint under static app model. |
 | `login_admin` | Admin login and root GAS admin verification | Public login endpoint under static app model. |
-| `set_investigator_active` | Admin user manager | Admin action exposed to browser; should be future migration candidate. |
 | `delete_investigator_user` | Admin user manager | Admin action exposed to browser; should be future migration candidate. |
 | `approve_task_language` | Admin review | Admin review write; should be future migration candidate. |
 | `revoke_task_language_review` | Admin review | Admin review write; should be future migration candidate. |
@@ -50,6 +49,7 @@ Root GAS and Places GAS hold service-role-only capabilities in script properties
 | Surface | Consumer | Current role |
 | --- | --- | --- |
 | `update_investigator_profile` | Root GAS only | Correctly behind admin password verification and service role. |
+| `set_investigator_active` | Root GAS only | Moved behind admin password verification and service role in H2/H2-final. |
 | `sync_sheet_users` | Places GAS | Service-role sheet-to-Supabase sync. |
 | `mark_reviews_sheet_synced` | Places GAS | Service-role review writeback acknowledgement. |
 | `third_phase_places` / `final_tasks` upserts | Places GAS | Service-role source Sheet sync. |
@@ -78,7 +78,6 @@ These are not safe to revoke without replacing the browser call path:
 
 - `login_investigator`
 - `login_admin`
-- `set_investigator_active`
 - `delete_investigator_user`
 - `approve_task_language`
 - `revoke_task_language_review`
@@ -92,6 +91,7 @@ Already quarantined:
 - `assign_tasks_to_user`
 - `unassign_tasks_from_user`
 - direct execute on trigger-only `mark_audio_record_pending_review`
+- direct public execute on `set_investigator_active` after the H2 root GAS wrapper
 
 ## Do-not-do list
 
@@ -128,12 +128,11 @@ Move admin-only writes behind root GAS or another backend while leaving read vie
 
 First migration candidates:
 
-1. `set_investigator_active`
-2. `delete_investigator_user`
-3. `approve_task_language`
-4. `revoke_task_language_review`
-5. `assign_task_language`
-6. `unassign_task_language`
+1. `delete_investigator_user`
+2. `approve_task_language`
+3. `revoke_task_language_review`
+4. `assign_task_language`
+5. `unassign_task_language`
 
 Pros:
 
@@ -181,16 +180,9 @@ No behavior change.
 
 Prep document: `docs/h2-set-investigator-active-wrapper-plan.md`.
 
-Pick one narrow admin write and move it behind root GAS, following the `updateUserProfile` pattern.
+Status: completed on 2026-06-26.
 
-Candidate: `set_investigator_active`, because it is smaller than review/assignment writeback and already belongs to admin user management.
-
-Required design before implementation:
-
-- How root GAS verifies the admin actor.
-- Whether to reuse admin password verification or introduce a session token.
-- Exact request/response contract.
-- Rollback path to restore direct RPC call.
+`set_investigator_active` was moved behind root GAS, following the `updateUserProfile` pattern. Root GAS verifies the admin password, then calls Supabase with `SUPABASE_SERVICE_ROLE_KEY`. H2-final revoked direct public execute from `public`, `anon`, and `authenticated`, while keeping `service_role`.
 
 ### H3 - backend-wrap destructive/admin-heavy writes
 

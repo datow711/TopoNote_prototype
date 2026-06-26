@@ -74,7 +74,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. Batch H2 implementation branch now routes that toggle through root GAS and deploys Web App version 22. Apps Script authorization is complete and fake-password smoke testing passed; manual app toggle validation is still pending. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 moved `set_investigator_active` behind root GAS and deployed Web App version 22. H2-final revoked direct public Supabase execute on that RPC while keeping `service_role` access. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -85,6 +85,7 @@ Applied first approved live scope:
 
 Use `db/2026-06-25_batch_b_d_interim_cleanup.sql` as the applied SQL record.
 Use `db/2026-06-25_batch_c_assignment_quarantine.sql` as the Batch C applied SQL record.
+Use `db/2026-06-26_batch_h2_final_set_investigator_active_grant_revoke.sql` as the H2-final applied SQL record.
 Use `docs/architecture-cleanup-roadmap.md` for the staged approval order beyond the first SQL batch.
 
 ## Approval boundary
@@ -101,7 +102,7 @@ Historical approval examples after Batch B + D interim:
 
 Batch B + Batch D interim, Batch C, and Batch F are already complete. Do not rerun them unless a rollback/replay need is explicit.
 
-Batch H2 implementation is not ready to merge until the admin active toggle is manually validated.
+Batch H2 implementation has been merged/pushed by the user; H2-final Supabase grant revoke has been applied live.
 
 Historical pre-Batch B+D approval examples:
 

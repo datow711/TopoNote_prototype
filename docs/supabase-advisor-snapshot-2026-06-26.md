@@ -4,6 +4,8 @@ Status: Batch H1 live advisor snapshot and finding classification. This file rec
 
 Project ref: `sikconjhtomqdkicbjal`
 
+Post-snapshot update: H2 moved `set_investigator_active` behind root GAS, and H2-final revoked direct public execute on that RPC on 2026-06-26. The snapshot counts below are historical H1 baseline counts.
+
 ## Snapshot summary
 
 Security advisor returned 34 findings:
@@ -87,7 +89,7 @@ Each function below appears once for `anon` and once for `authenticated`.
 | --- | --- | --- | --- |
 | `login_investigator(p_email text)` | Browser login | `accepted-current-model` | Keep until auth model changes; not first H2 target. |
 | `login_admin(p_email text, p_password text)` | Browser admin login, root GAS admin verification | `accepted-current-model` | Keep until admin session/backend auth design changes. |
-| `set_investigator_active(p_user_id uuid, p_is_active boolean, p_actor_account text)` | Admin user manager | `migration-target` | Best H2 candidate for backend wrapping. |
+| `set_investigator_active(p_user_id uuid, p_is_active boolean, p_actor_account text)` | Root GAS admin active toggle | `quarantined-or-resolved` | H2 moved this behind root GAS; H2-final revoked direct public execute and kept `service_role`. |
 | `delete_investigator_user(p_user_id uuid, p_actor_account text)` | Admin user manager | `migration-target` | H3 candidate after H2 succeeds. |
 | `approve_task_language(p_task_id integer, p_language text, p_reviewed_by text, p_fields jsonb)` | Admin review | `migration-target` | H3 candidate; impacts review/writeback. |
 | `revoke_task_language_review(p_task_id integer, p_language text, p_reviewed_by text)` | Admin review | `migration-target` | H3 candidate; impacts review/writeback. |
@@ -126,20 +128,20 @@ These earlier targets are not present as public executable security-definer find
 
 ## Recommended next step
 
-Proceed to H2 only after user approval.
+H2 and H2-final are complete. Proceed to H3 only after user approval.
 
-Recommended H2 candidate:
+Recommended H3 candidates:
 
-- Backend-wrap `set_investigator_active` through root GAS, following the existing `updateUserProfile` pattern.
+- Backend-wrap one remaining high-impact admin write through root GAS, likely `delete_investigator_user` first.
 
 Prep document:
 
 - `docs/h2-set-investigator-active-wrapper-plan.md`
 
-Why this is the best first implementation target:
+Why this remains staged:
 
-- It is narrower than review or assignment writes.
-- It already belongs to admin user management.
-- It gives a concrete pattern for moving browser-callable admin RPCs behind a service-role backend.
+- `delete_investigator_user` is destructive and should be one separate batch.
+- Review and assignment writes affect Sheet writeback/sync and should not be grouped casually.
+- The H2 root GAS pattern is now available as the migration template.
 
 Do not begin H2 by changing views or RLS policies. Those remain H4-level design work.

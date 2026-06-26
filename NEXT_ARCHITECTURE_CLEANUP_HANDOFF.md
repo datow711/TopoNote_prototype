@@ -2,13 +2,14 @@
 
 Updated: 2026-06-26
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 implementation is in progress on a branch and deployed to root GAS Web App version 22. One-time Apps Script authorization is complete and fake-password smoke testing passed; manual app toggle validation is still pending.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 has been merged/pushed by the user, root GAS Web App version 22 is deployed, and Batch H2-final revoked direct public Supabase execute on `set_investigator_active`.
 
 ## Current status
 
-- Current cleanup branch: `codex/batch-h2-set-active-wrapper`.
+- Current cleanup branch: `codex/batch-h2-final-grant-revoke`.
 - Root GAS code was changed for Batch H2 and deployed to the active Web App as version 22.
 - Batch H2 live smoke testing passed after Google Apps Script authorization: fake credentials return `Error: Admin password verification failed`, as expected.
+- Batch H2-final live SQL was applied on 2026-06-26: `anon` and `authenticated` cannot execute `set_investigator_active`; `service_role` can.
 - Supabase Batch B + Batch D interim was applied on 2026-06-25.
 - Supabase Batch C assignment quarantine was applied on 2026-06-25.
 - No Google Sheet content was changed.
@@ -34,8 +35,10 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
   - Batch H1 live Supabase advisor snapshot and classification.
   - Use this as the baseline before H2 implementation.
 - `docs/h2-set-investigator-active-wrapper-plan.md`
-  - Batch H2 implementation plan and current deployment/authorization status.
-  - Use this before validating, merging, or changing Supabase grants for `set_investigator_active`.
+  - Batch H2 implementation plan and H2-final grant revoke status.
+  - Use this before any rollback or follow-up around `set_investigator_active`.
+- `db/2026-06-26_batch_h2_final_set_investigator_active_grant_revoke.sql`
+  - Applied SQL record for closing direct public execute on `set_investigator_active`.
 - `docs/supabase-cleanup-batch-b-d-preview.sql`
   - Review-only SQL preview.
   - Contains preflight checks, intended SQL, post-change verification, and rollback notes.
@@ -97,7 +100,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - Root GAS active deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` is now `@22`.
    - The deploying Google account authorized the added Apps Script scope on 2026-06-26.
    - Live fake-password smoke test returns `Error: Admin password verification failed`, as expected.
-   - No Supabase grants were changed in H2.
+   - H2-final revoked direct public Supabase execute on `set_investigator_active` for `public`, `anon`, and `authenticated`.
+   - H2-final kept `service_role` execute so root GAS can still call the RPC.
+   - Verification result: `anon=false`, `authenticated=false`, `service_role=true`.
 
 8. Do not delete these yet:
    - `moi_placename_raw`
@@ -110,9 +115,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, and H2 prep are complete. H2 implementation is not ready to merge until manual app validation is done. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, H2 implementation, and H2-final grant revoke are complete. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Immediate next step is H2 validation: manually test the admin active toggle. After H2 is validated and merged, likely next discussion candidates are remaining high-impact admin write wrappers or a Sheet retention action batch after human retention decisions.
+Likely next discussion candidates are remaining high-impact admin write wrappers, starting with one H3 function, or a Sheet retention action batch after human retention decisions.
 
 Historical next staged approval phrase after Batch B + D interim was:
 
