@@ -2,7 +2,7 @@
 
 Updated: 2026-06-25.
 
-Status: Batch H phase 0 design memo. This file does not approve SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
+Status: Batch H phase 0 design memo. H1 live advisor snapshot was recorded in `docs/supabase-advisor-snapshot-2026-06-26.md`. This file does not approve SQL changes, grant changes, view rewrites, RLS policy changes, frontend changes, or GAS deployment.
 
 ## Purpose
 
@@ -165,6 +165,8 @@ Cons:
 ## Recommended staged path
 
 ### H1 - inventory and live advisor snapshot
+
+Status: completed in `docs/supabase-advisor-snapshot-2026-06-26.md`.
 
 Before changing SQL:
 

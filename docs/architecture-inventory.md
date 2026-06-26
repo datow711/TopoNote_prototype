@@ -12,6 +12,8 @@ For Sheet-specific retention decisions, see `docs/google-sheet-retention-matrix.
 
 For Supabase app-facing security design, see `docs/supabase-app-facing-security-design.md`.
 
+For the 2026-06-26 live Supabase advisor baseline, see `docs/supabase-advisor-snapshot-2026-06-26.md`.
+
 ## Status labels
 
 - Active: used by the current app or current operations.

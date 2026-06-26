@@ -14,11 +14,12 @@ This is a quick-start guide for a future Codex session. It is not the final hand
 5. `docs/architecture-cleanup-roadmap.md`
 6. `docs/google-sheet-retention-matrix.md`
 7. `docs/supabase-app-facing-security-design.md`
-8. `docs/supabase-cleanup-batch-b-d-preview.sql`
-9. `docs/supabase-cleanup-batch-c-preview.sql`
-10. `docs/gas-cleanup-batch-e-f-preview.md`
-11. `logs/timeline.md`
-12. Recent `logs/sessions/` entries, especially:
+8. `docs/supabase-advisor-snapshot-2026-06-26.md`
+9. `docs/supabase-cleanup-batch-b-d-preview.sql`
+10. `docs/supabase-cleanup-batch-c-preview.sql`
+11. `docs/gas-cleanup-batch-e-f-preview.md`
+12. `logs/timeline.md`
+13. Recent `logs/sessions/` entries, especially:
    - `2026-06-23-record-text-editing.md`
    - `2026-06-23-ux-filter-upload-scope.md`
    - `2026-06-08-language-assignment-alignment.md`
@@ -72,7 +73,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
