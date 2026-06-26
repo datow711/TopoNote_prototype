@@ -74,7 +74,7 @@ Do not push/deploy GAS unless the user explicitly approves that step.
 
 ## Live cleanup status
 
-Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. Batch H2 implementation branch now routes that toggle through root GAS and deploys Web App version 22, but live validation is pending one-time Apps Script authorization by running `authorizeRootGasScopes()`. This draft is still not final because later cleanup/refactor batches remain pending.
+Batch B + Batch D interim and Batch C assignment quarantine were applied and verified on 2026-06-25. Batch F root GAS legacy login route quarantine was pushed, deployed, and smoke-tested on 2026-06-25. Batch E documentation correction reclassified L3 satellite push/pull as an active separate Sheet workflow. Batch G phase 1 created a Sheet retention matrix. Batch H phase 0 created a Supabase app-facing security design memo. Batch H1 recorded the live Supabase advisor baseline. Batch H2 prep planned the `set_investigator_active` backend wrapper. Batch H2 implementation branch now routes that toggle through root GAS and deploys Web App version 22. Apps Script authorization is complete and fake-password smoke testing passed; manual app toggle validation is still pending. This draft is still not final because later cleanup/refactor batches remain pending.
 
 Applied first approved live scope:
 
@@ -101,7 +101,7 @@ Historical approval examples after Batch B + D interim:
 
 Batch B + Batch D interim, Batch C, and Batch F are already complete. Do not rerun them unless a rollback/replay need is explicit.
 
-Batch H2 implementation is not ready to merge until the root GAS deployment owner authorizes the added Apps Script scope and the admin active toggle is manually validated.
+Batch H2 implementation is not ready to merge until the admin active toggle is manually validated.
 
 Historical pre-Batch B+D approval examples:
 

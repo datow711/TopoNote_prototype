@@ -4,7 +4,7 @@ Updated: 2026-06-26.
 
 Status: implementation branch in progress. Frontend and root GAS changes were implemented and root GAS was deployed to Apps Script Web App version 22 on 2026-06-26. Supabase SQL/grant changes were intentionally not made.
 
-Current blocker: live smoke testing reaches Apps Script authorization before the new handler. The deploying Google account must run `authorizeRootGasScopes()` once in the Apps Script editor to authorize the added `https://www.googleapis.com/auth/script.external_request` scope. After that, rerun the fake-password smoke test and manual app toggle validation.
+Current validation status: the deploying Google account authorized the added `https://www.googleapis.com/auth/script.external_request` scope on 2026-06-26. The live fake-password smoke test now reaches the new handler and returns `Error: Admin password verification failed`, as expected. Manual app toggle validation is still pending before merge.
 
 ## Plain-language goal
 
@@ -252,9 +252,10 @@ Verification evidence:
 - `node --check gas\程式碼.js` passed.
 - `gas/appsscript.json` parsed as valid JSON.
 - Search confirmed `main.js` no longer contains `/rpc/set_investigator_active`.
-- Live fake-password smoke test is blocked until the deployment owner authorizes the new Apps Script scope. Current error: missing permission for `UrlFetchApp.fetch`.
+- The deployment owner authorized the new Apps Script scope on 2026-06-26.
+- Live fake-password smoke test returned `{ "success": false, "error": "Error: Admin password verification failed" }`, which proves the route is deployed and rejects invalid admin credentials before mutation.
 
-Required one-time authorization:
+One-time authorization already completed on 2026-06-26:
 
 1. Open the root GAS Apps Script project.
 2. Select function `authorizeRootGasScopes`.

@@ -2,13 +2,13 @@
 
 Updated: 2026-06-26
 
-This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 implementation is in progress on a branch and deployed to root GAS Web App version 22, but live validation is pending one-time Apps Script authorization.
+This handoff is for the ongoing architecture cleanup goal. The project has been audited. Batch B + Batch D interim and Batch C assignment quarantine have been applied and verified; Batch F root GAS legacy login route quarantine has been pushed, deployed, and smoke-tested. Batch H2 implementation is in progress on a branch and deployed to root GAS Web App version 22. One-time Apps Script authorization is complete and fake-password smoke testing passed; manual app toggle validation is still pending.
 
 ## Current status
 
 - Current cleanup branch: `codex/batch-h2-set-active-wrapper`.
 - Root GAS code was changed for Batch H2 and deployed to the active Web App as version 22.
-- Batch H2 live smoke testing is currently blocked by Google Apps Script authorization for `UrlFetchApp.fetch`. Run `authorizeRootGasScopes()` once in the root GAS Apps Script editor, then rerun the fake-password smoke test.
+- Batch H2 live smoke testing passed after Google Apps Script authorization: fake credentials return `Error: Admin password verification failed`, as expected.
 - Supabase Batch B + Batch D interim was applied on 2026-06-25.
 - Supabase Batch C assignment quarantine was applied on 2026-06-25.
 - No Google Sheet content was changed.
@@ -95,7 +95,8 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
    - Root GAS verifies admin password, then calls Supabase RPC `set_investigator_active` with `SUPABASE_SERVICE_ROLE_KEY`.
    - `gas/appsscript.json` now declares the required root GAS scopes.
    - Root GAS active deployment `AKfycbyxPScSi3MxyJUT93vD0-fRx6dT3As7qWkCl_R6VD2BFmgxP4eqQVJKdYvir66CyHBUnw` is now `@22`.
-   - Live fake-password smoke test currently returns a `UrlFetchApp.fetch` permission error until the deploying Google account authorizes the added scope.
+   - The deploying Google account authorized the added Apps Script scope on 2026-06-26.
+   - Live fake-password smoke test returns `Error: Admin password verification failed`, as expected.
    - No Supabase grants were changed in H2.
 
 8. Do not delete these yet:
@@ -109,9 +110,9 @@ This handoff is for the ongoing architecture cleanup goal. The project has been 
 
 ## Next approval boundary
 
-Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, and H2 prep are complete. H2 implementation is not ready to merge until authorization plus manual validation are done. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
+Batch B + Batch D interim, Batch C, Batch F, Batch E documentation correction, Batch G phase 1 retention matrix, Batch H phase 0 design memo, H1 advisor snapshot, and H2 prep are complete. H2 implementation is not ready to merge until manual app validation is done. Before executing any next cleanup batch, first explain the exact step, purpose, and risk, then get explicit user approval.
 
-Immediate next step is H2 validation: run `authorizeRootGasScopes()` in the root GAS Apps Script editor, rerun the fake-password smoke test, then manually test the admin active toggle. After H2 is validated and merged, likely next discussion candidates are remaining high-impact admin write wrappers or a Sheet retention action batch after human retention decisions.
+Immediate next step is H2 validation: manually test the admin active toggle. After H2 is validated and merged, likely next discussion candidates are remaining high-impact admin write wrappers or a Sheet retention action batch after human retention decisions.
 
 Historical next staged approval phrase after Batch B + D interim was:
 

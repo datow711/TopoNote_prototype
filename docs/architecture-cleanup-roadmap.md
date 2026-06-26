@@ -304,17 +304,17 @@ Future options:
 Recommended next implementation path:
 
 1. H1: capture live advisor snapshot and classify accepted vs migration-target findings. Completed in `docs/supabase-advisor-snapshot-2026-06-26.md`.
-2. H2: backend-wrap one narrow admin write, `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Implementation branch deployed root GAS Web App version 22; live validation is pending one-time Apps Script authorization by running `authorizeRootGasScopes()` in the root GAS editor.
+2. H2: backend-wrap one narrow admin write, `set_investigator_active`, following the existing root GAS `updateUserProfile` pattern. Implementation branch deployed root GAS Web App version 22; one-time Apps Script authorization is complete; fake-password smoke test passed; manual app toggle validation is still pending.
 3. H3: migrate remaining high-impact admin writes in staged batches.
 4. H4: only then consider app-facing view/RLS rewrites.
 
 ## Current recommended next approval
 
-Batch C, Batch F, Batch E documentation correction, Batch G phase 1, Batch H phase 0, H1 advisor snapshot, and H2 prep have now been applied or documented. H2 implementation is on branch `codex/batch-h2-set-active-wrapper`; root GAS is deployed to Web App version 22, but live validation is pending one-time Apps Script authorization. No next live change is pre-approved.
+Batch C, Batch F, Batch E documentation correction, Batch G phase 1, Batch H phase 0, H1 advisor snapshot, and H2 prep have now been applied or documented. H2 implementation is on branch `codex/batch-h2-set-active-wrapper`; root GAS is deployed to Web App version 22, one-time Apps Script authorization is complete, and fake-password smoke testing passed. Manual app toggle validation is still pending. No next live change is pre-approved.
 
 Likely next candidates:
 
-- Finish Batch H2 validation: run `authorizeRootGasScopes()` once in the root GAS editor, rerun the fake-password smoke test, then manually test the admin active toggle.
+- Finish Batch H2 validation: manually test the admin active toggle.
 - Sheet retention action batch only after explicit human retention decisions.
 
 Batch B + Batch D interim was applied and verified on 2026-06-25.
