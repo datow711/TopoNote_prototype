@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-29] [GAS]
+Updated root GAS feedback reporting so each saved feedback submission also posts to Google Chat through the `CHAT_WEBHOOK` script property. The Chat message now uses `來信者`, `來信時間`, and `訊息內容` fields, including the stored subject and message content. Root GAS Web App deployment was updated to version 24.
+
 [2026-06-23] [FEATURE]
 Added original-uploader editing for uploaded recording text fields. History records now show an edit action only to the recorder, update the existing `audio_records` row via PATCH for `note` and `phonetic_reading`, and keep the audio file unchanged. New uploads now keep the real inserted record ID so they can be edited immediately.
 

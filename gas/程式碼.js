@@ -2,7 +2,7 @@
 var FOLDER_ID = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
 var SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
 var FEEDBACK_SPREADSHEET_ID_PROPERTY = 'FEEDBACK_SPREADSHEET_ID';
-var FEEDBACK_CHAT_WEBHOOK_URL_PROPERTY = 'FEEDBACK_CHAT_WEBHOOK_URL';
+var FEEDBACK_CHAT_WEBHOOK_URL_PROPERTY = 'CHAT_WEBHOOK';
 var FEEDBACK_SPREADSHEET_NAME = 'TopoNote_問題回報';
 var FEEDBACK_SHEET_NAME = '問題回報';
 var FEEDBACK_HEADERS = ['意見ID', '調查員姓名', 'Email', '寄件時間', '意見主旨', '意見內容', '是否已回復'];
@@ -519,7 +519,9 @@ function handleSubmitFeedback(data) {
     notifyFeedbackChat_({
       id: feedbackId,
       investigatorName: investigatorName,
+      investigatorEmail: investigatorEmail,
       subject: subject,
+      message: message,
       submittedAt: submittedAt,
       spreadsheetUrl: sheet.getParent().getUrl()
     });
@@ -591,13 +593,18 @@ function notifyFeedbackChat_(feedback) {
   if (!webhookUrl) return;
 
   var submittedAtText = Utilities.formatDate(feedback.submittedAt, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  var sender = feedback.investigatorName || feedback.investigatorEmail || '未填';
+  if (feedback.investigatorName && feedback.investigatorEmail) {
+    sender += ' <' + feedback.investigatorEmail + '>';
+  }
+  var messageText = feedback.message || '';
+  if (feedback.subject) {
+    messageText = '主旨：' + feedback.subject + '\n' + messageText;
+  }
   var text = [
-    'TopoNote 有新的問題回報',
-    'ID：' + feedback.id,
-    '調查員：' + (feedback.investigatorName || '未填'),
-    '主旨：' + feedback.subject,
-    '時間：' + submittedAtText,
-    '請至問題回報 Sheet 查看完整內容：' + feedback.spreadsheetUrl
+    '來信者：' + sender,
+    '來信時間：' + submittedAtText,
+    '訊息內容：' + messageText
   ].join('\n');
 
   try {
