@@ -1347,9 +1347,9 @@ button:disabled {
 .user-status-header,
 .user-status-row {
     display: grid;
-    grid-template-columns: 52px minmax(96px, 1fr) minmax(160px, 1.1fr) minmax(92px, 0.75fr) 72px 72px 72px auto auto auto auto;
+    grid-template-columns: 52px minmax(120px, 1fr) minmax(210px, 1.35fr) minmax(112px, 0.75fr) 86px 86px 86px 54px 24px 56px 56px;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .user-status-header {
@@ -1380,6 +1380,11 @@ button:disabled {
 .user-sort-header:hover,
 .user-sort-header.active {
     color: var(--accent-deep);
+}
+
+.user-status-header > span:nth-child(n+5):nth-child(-n+8) .user-sort-header {
+    justify-content: center;
+    text-align: center;
 }
 
 .user-sort-arrow {
@@ -1434,10 +1439,17 @@ button:disabled {
     gap: 5px;
 }
 
+.user-work-stat {
+    justify-content: center;
+}
+
 .user-stat-chip {
     display: inline-flex;
+    box-sizing: border-box;
+    width: 100%;
     min-height: 24px;
     align-items: center;
+    justify-content: center;
     padding: 3px 7px;
     border: 1px solid rgba(45, 115, 108, 0.18);
     border-radius: 9999px;
