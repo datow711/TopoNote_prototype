@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-06-29] [FEATURE]
+Added an admin self-service password change flow. The browser shows a `變更密碼` action only in admin mode, submits current and new password values to root GAS, and never calls the Supabase password RPC directly. Root GAS verifies the current admin password with `login_admin`, then calls service-role-only `change_admin_password`; live grants are `anon=false`, `authenticated=false`, `service_role=true`. Root GAS Web App deployment was updated to version 25.
+
 [2026-06-29] [GAS]
 Updated root GAS feedback reporting so each saved feedback submission also posts to Google Chat through the `CHAT_WEBHOOK` script property. The Chat message now uses `來信者`, `來信時間`, and `訊息內容` fields, including the stored subject and message content. Root GAS Web App deployment was updated to version 24.
 

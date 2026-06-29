@@ -118,6 +118,7 @@ function doPost(e) {
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
     if (action === 'setInvestigatorActive') return handleSetInvestigatorActive(requestData);
     if (action === 'deleteInvestigatorUser') return handleDeleteInvestigatorUser(requestData);
+    if (action === 'changeAdminPassword') return handleChangeAdminPassword(requestData);
     if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
 
     throw new Error("未知的操作");
@@ -242,6 +243,18 @@ function deleteInvestigatorUserInSupabase_(data) {
   }, config.serviceRoleKey);
 }
 
+function changeAdminPasswordInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('change_admin_password', {
+    p_actor_account: data.actorAccount,
+    p_new_password: data.newPassword
+  }, config.serviceRoleKey);
+}
+
 function updateUserProfileInSheet_(data, profile) {
   if (!SHEET_ID) throw new Error('Missing script property: SHEET_ID');
 
@@ -339,6 +352,33 @@ function handleDeleteInvestigatorUser(data) {
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
     userId: userId,
+    supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleChangeAdminPassword(data) {
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var currentPassword = String(data.currentPassword || '');
+  var newPassword = String(data.newPassword || '');
+
+  if (!actorAccount || !currentPassword) {
+    throw new Error('Admin account and current password are required');
+  }
+  if (newPassword.length < 8) {
+    throw new Error('New password must be at least 8 characters');
+  }
+  if (newPassword === currentPassword) {
+    throw new Error('New password must be different from current password');
+  }
+
+  verifyAdminPassword_(actorAccount, currentPassword);
+  var supabaseResult = changeAdminPasswordInSupabase_({
+    actorAccount: actorAccount,
+    newPassword: newPassword
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
     supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
   })).setMimeType(ContentService.MimeType.JSON);
 }

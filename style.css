@@ -203,6 +203,17 @@ button:disabled {
     font-size: 13px;
 }
 
+.btn-change-password {
+    width: auto;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 12px;
+    background: var(--canvas);
+    color: var(--ink);
+    border: 1px solid var(--hairline);
+    font-size: 13px;
+}
+
 .btn-record {
     background: var(--canvas-dark);
 }

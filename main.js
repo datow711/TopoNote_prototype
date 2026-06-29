@@ -996,6 +996,9 @@ function renderUserInfo() {
     const feedbackButton = state.userRole === 'admin'
         ? ''
         : '<button class="btn-feedback" type="button" onclick="openFeedbackDialog()">問題回報</button>';
+    const adminPasswordButton = state.userRole === 'admin'
+        ? '<button class="btn-change-password" type="button" onclick="openAdminPasswordDialog()">變更密碼</button>'
+        : '';
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
@@ -1004,6 +1007,7 @@ function renderUserInfo() {
         <div class="user-action-group">
             ${taskDownloadButton}
             ${feedbackButton}
+            ${adminPasswordButton}
             <button class="btn-logout" onclick="logout()">登出</button>
         </div>
     `;
@@ -1011,6 +1015,113 @@ function renderUserInfo() {
     if (identityLine) {
         identityLine.textContent = `${roleText}: ${displayName}`;
         identityLine.title = hoverTitle;
+    }
+}
+
+function openAdminPasswordDialog() {
+    if (state.userRole !== 'admin') return;
+    closeAdminPasswordDialog();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'admin-password-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel admin-password-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="admin-password-title">
+            <h3 id="admin-password-title">變更管理員密碼</h3>
+            <label class="user-edit-field">
+                <span>目前密碼</span>
+                <input id="admin-current-password" type="password" autocomplete="current-password" required>
+            </label>
+            <label class="user-edit-field">
+                <span>新密碼</span>
+                <input id="admin-new-password" type="password" autocomplete="new-password" minlength="8" required>
+            </label>
+            <label class="user-edit-field">
+                <span>確認新密碼</span>
+                <input id="admin-confirm-password" type="password" autocomplete="new-password" minlength="8" required>
+            </label>
+            <div id="admin-password-status" class="user-edit-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" onclick="closeAdminPasswordDialog()">取消</button>
+                <button class="btn-primary" id="admin-password-submit-btn" type="button" onclick="submitAdminPasswordChange()">儲存</button>
+            </div>
+        </div>
+    `;
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeAdminPasswordDialog();
+    });
+    document.body.appendChild(dialog);
+    document.getElementById('admin-current-password')?.focus();
+}
+
+function closeAdminPasswordDialog() {
+    document.getElementById('admin-password-dialog')?.remove();
+}
+
+async function submitAdminPasswordChange() {
+    const currentPasswordInput = document.getElementById('admin-current-password');
+    const newPasswordInput = document.getElementById('admin-new-password');
+    const confirmPasswordInput = document.getElementById('admin-confirm-password');
+    const submitButton = document.getElementById('admin-password-submit-btn');
+    const status = document.getElementById('admin-password-status');
+
+    const currentPassword = currentPasswordInput?.value || '';
+    const newPassword = newPasswordInput?.value || '';
+    const confirmPassword = confirmPasswordInput?.value || '';
+
+    if (!currentPassword) {
+        if (status) status.textContent = '請輸入目前密碼。';
+        currentPasswordInput?.focus();
+        return;
+    }
+    if (newPassword.length < 8) {
+        if (status) status.textContent = '新密碼至少需要 8 個字元。';
+        newPasswordInput?.focus();
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        if (status) status.textContent = '兩次輸入的新密碼不一致。';
+        confirmPasswordInput?.focus();
+        return;
+    }
+    if (newPassword === currentPassword) {
+        if (status) status.textContent = '新密碼不能與目前密碼相同。';
+        newPasswordInput?.focus();
+        return;
+    }
+
+    const originalText = submitButton?.textContent || '儲存';
+    if (status) status.textContent = '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '儲存中...';
+    }
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'changeAdminPassword',
+                actorAccount: state.userEmail || state.userId,
+                currentPassword,
+                newPassword
+            })
+        });
+
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to change password');
+
+        closeAdminPasswordDialog();
+        alert('管理員密碼已更新。下次登入請使用新密碼。');
+    } catch (err) {
+        console.error('變更管理員密碼失敗:', err);
+        if (status) status.textContent = `變更失敗：${err.message}`;
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalText;
+        }
     }
 }
 
