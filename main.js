@@ -357,10 +357,10 @@ function sortAdminUserRows(rows) {
 }
 
 function toggleAdminUserSort(key) {
-    const current = state.adminUserSort || { key: '', direction: 'asc' };
+    const current = state.adminUserSort || { key: '', direction: 'desc' };
     state.adminUserSort = {
         key,
-        direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+        direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
     };
     renderAdminUserManager();
 }
@@ -368,7 +368,7 @@ function toggleAdminUserSort(key) {
 function renderAdminUserSortHeader(label, key) {
     const current = state.adminUserSort || {};
     const active = current.key === key;
-    const direction = active ? current.direction : 'asc';
+    const direction = active ? current.direction : 'desc';
     const arrow = active ? (direction === 'asc' ? '▲' : '▼') : '';
     return `
         <button

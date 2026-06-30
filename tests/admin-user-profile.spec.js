@@ -130,9 +130,9 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
 
   const userNames = page.locator('.user-status-row .user-name');
   await page.getByRole('button', { name: '錄音' }).click();
-  await expect(userNames.first()).toHaveText('Zero Investigator');
-  await page.getByRole('button', { name: '錄音' }).click();
   await expect(userNames.first()).toHaveText('Old Investigator');
+  await page.getByRole('button', { name: '錄音' }).click();
+  await expect(userNames.first()).toHaveText('Zero Investigator');
 
   await page.locator('.user-status-row').filter({ hasText: 'Old Investigator' }).getByRole('button', { name: '編輯' }).click();
 
