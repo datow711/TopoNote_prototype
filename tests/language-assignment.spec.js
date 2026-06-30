@@ -363,6 +363,108 @@ test('admin assignee filter supports assigned and per-language unassigned choice
   await expect(page.locator('#place-list-container')).not.toContainText('客語已指派');
 });
 
+test('recording status filter supports language recorded choices and union selection', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.typeFiltersInitialized = false;
+    state.classFiltersInitialized = false;
+    state.selectedTypes = [];
+    state.selectedTaiClasses = [];
+    state.selectedHakClasses = [];
+    state.selectedStatuses = ['台語已有錄音'];
+    state.allUsers = [];
+    state.allUserRecords = [];
+    state.assignedPlaces = [
+      {
+        id: 1,
+        sourceId: 'uuid-1',
+        placeName: '無錄音',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 2,
+        sourceId: 'uuid-2',
+        placeName: '只有台語錄音',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        taiAudioCount: 1,
+        hakAudioCount: 0,
+        recordingStatus: '台語完成'
+      },
+      {
+        id: 3,
+        sourceId: 'uuid-3',
+        placeName: '只有客語錄音',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 1,
+        recordingStatus: '客語完成'
+      },
+      {
+        id: 4,
+        sourceId: 'uuid-4',
+        placeName: '雙語錄音',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        taiAudioCount: 2,
+        hakAudioCount: 2,
+        recordingStatus: '全部完成'
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+    applyFilters();
+  });
+
+  await expect(page.locator('[data-status-filter="台語已有錄音"]')).toHaveClass(/selected/);
+  await expect(page.locator('[data-status-filter="客語已有錄音"]')).not.toHaveClass(/selected/);
+  await expect(page.locator('.place-item')).toHaveCount(2);
+  await expect(page.locator('#place-list-container')).toContainText('只有台語錄音');
+  await expect(page.locator('#place-list-container')).toContainText('雙語錄音');
+  await expect(page.locator('#place-list-container')).not.toContainText('只有客語錄音');
+
+  await page.locator('[data-status-filter="客語已有錄音"]').click();
+  await expect(page.locator('.place-item')).toHaveCount(3);
+  await expect(page.locator('#place-list-container')).toContainText('只有台語錄音');
+  await expect(page.locator('#place-list-container')).toContainText('只有客語錄音');
+  await expect(page.locator('#place-list-container')).toContainText('雙語錄音');
+  await expect(page.locator('#place-list-container')).not.toContainText('無錄音');
+
+  await page.locator('[data-status-filter="all"]').click();
+  await expect(page.locator('[data-status-filter="all"]')).toHaveClass(/selected/);
+  await expect(page.locator('.place-item')).toHaveCount(4);
+});
+
 test('investigator recording language defaults to assigned language and warns out of scope uploads', async ({ page }) => {
   await page.goto(appUrl);
   const result = await page.evaluate(() => {

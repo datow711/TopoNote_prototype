@@ -56,11 +56,13 @@
             </div>
             
             <div class="status-chips" id="status-container">
-                <div class="status-chip selected" onclick="selectStatus('all', this)">全部狀態</div>
-                <div class="status-chip" onclick="selectStatus('未錄音', this)">未錄音</div>
-                <div class="status-chip" onclick="selectStatus('台語完成', this)">台語完成</div>
-                <div class="status-chip" onclick="selectStatus('客語完成', this)">客語完成</div>
-                <div class="status-chip" onclick="selectStatus('全部完成', this)">全部完成</div>
+                <div class="status-chip selected" data-status-filter="all" onclick="selectAllStatusFilters()">全部狀態</div>
+                <div class="status-chip selected" data-status-filter="未錄音" onclick="toggleStatusFilter('未錄音')">未錄音</div>
+                <div class="status-chip selected" data-status-filter="台語已有錄音" onclick="toggleStatusFilter('台語已有錄音')">台語已有錄音</div>
+                <div class="status-chip selected" data-status-filter="客語已有錄音" onclick="toggleStatusFilter('客語已有錄音')">客語已有錄音</div>
+                <div class="status-chip selected" data-status-filter="台語完成" onclick="toggleStatusFilter('台語完成')">台語完成</div>
+                <div class="status-chip selected" data-status-filter="客語完成" onclick="toggleStatusFilter('客語完成')">客語完成</div>
+                <div class="status-chip selected" data-status-filter="全部完成" onclick="toggleStatusFilter('全部完成')">全部完成</div>
             </div>
             <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
         </div>

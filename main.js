@@ -7,6 +7,8 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+const STATUS_FILTER_VALUES = ['未錄音', '台語已有錄音', '客語已有錄音', '台語完成', '客語完成', '全部完成'];
+
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], reviewQueue: [],
     userDbId: "",
@@ -24,7 +26,8 @@ let state = {
     availableTaiClasses: [],
     availableHakClasses: [],
     selectedHakArea: "all",
-    selectedStatus: "all", 
+    selectedStatus: "all",
+    selectedStatuses: [...STATUS_FILTER_VALUES],
     userSpecialty: "",
     lastSelectedPlaceIndex: null,
     filteredPlaces: [],
@@ -942,6 +945,7 @@ function logout() {
     state.availableHakClasses = [];
     state.selectedHakArea = 'all';
     state.selectedStatus = 'all';
+    state.selectedStatuses = [...STATUS_FILTER_VALUES];
     state.lastSelectedPlaceIndex = null;
     state.filteredPlaces = [];
     state.selectedAssignTaskIds = new Set();
@@ -2012,6 +2016,7 @@ function initFilters() {
         state.selectedTypes = reconcileMultiFilterSelection(state.selectedTypes, state.availableTypes, { emptySelectsAll: false });
     }
     renderMultiFilterChips('type-container', 'types', '全部類別', state.availableTypes, state.selectedTypes, getTypeDisplayText);
+    syncStatusFilterChips();
 
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
@@ -2190,10 +2195,38 @@ function selectHakArea(hakArea, element) {
     element.classList.add('selected');
     handleFilterChange();
 }
-function selectStatus(status, element) {
-    state.selectedStatus = status;
-    document.querySelectorAll('.status-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected');
+
+function syncStatusFilterChips() {
+    const selectedSet = new Set(Array.isArray(state.selectedStatuses) ? state.selectedStatuses : STATUS_FILTER_VALUES);
+    const allSelected = STATUS_FILTER_VALUES.every(status => selectedSet.has(status));
+
+    document.querySelectorAll('.status-chip').forEach(chip => {
+        const status = chip.dataset.statusFilter;
+        const selected = status === 'all' ? allSelected : selectedSet.has(status);
+        chip.classList.toggle('selected', selected);
+    });
+}
+
+function selectAllStatusFilters() {
+    state.selectedStatuses = [...STATUS_FILTER_VALUES];
+    state.selectedStatus = 'all';
+    syncStatusFilterChips();
+    handleFilterChange();
+}
+
+function toggleStatusFilter(status) {
+    if (!STATUS_FILTER_VALUES.includes(status)) return;
+
+    const selected = Array.isArray(state.selectedStatuses) ? state.selectedStatuses : [...STATUS_FILTER_VALUES];
+    const selectedSet = new Set(selected);
+    if (selectedSet.has(status)) {
+        selectedSet.delete(status);
+    } else {
+        selectedSet.add(status);
+    }
+    state.selectedStatuses = [...STATUS_FILTER_VALUES].filter(value => selectedSet.has(value));
+    state.selectedStatus = state.selectedStatuses.length === STATUS_FILTER_VALUES.length ? 'all' : '';
+    syncStatusFilterChips();
     handleFilterChange();
 }
 
@@ -2215,6 +2248,12 @@ function placeMatchesAssigneeFilter(place, assigneeFilter) {
     return assignedUsersInclude(assignedUsers, assigneeFilter);
 }
 
+function placeMatchesStatusFilter(place, status) {
+    if (status === '台語已有錄音') return Number(place.taiAudioCount || 0) > 0;
+    if (status === '客語已有錄音') return Number(place.hakAudioCount || 0) > 0;
+    return place.recordingStatus === status;
+}
+
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
     if (state.currentTab === 'users') {
@@ -2233,7 +2272,9 @@ function applyFilters() {
     const hakClassSet = new Set(selectedHakClasses);
     const hasTypeOptions = (state.availableTypes || []).length > 0;
     const hakArea = state.selectedHakArea;
-    const status = state.selectedStatus; 
+    const selectedStatuses = Array.isArray(state.selectedStatuses) ? state.selectedStatuses : [...STATUS_FILTER_VALUES];
+    const statusFilterSet = new Set(selectedStatuses);
+    const hasStatusFilter = selectedStatuses.length > 0 && selectedStatuses.length < STATUS_FILTER_VALUES.length;
     
     // 獲取調查員篩選器的值 (如果有的話)
     const assigneeInput = document.getElementById('assignee-filter');
@@ -2264,7 +2305,9 @@ function applyFilters() {
         }
         
         // 錄音狀態篩選
-        const matchStatus = status === 'all' || place.recordingStatus === status;
+        const matchStatus = hasStatusFilter
+            ? STATUS_FILTER_VALUES.some(status => statusFilterSet.has(status) && placeMatchesStatusFilter(place, status))
+            : true;
         
         return matchK && matchC && matchTw && matchTy && matchTaiClass && matchHakClass && matchHakArea && matchStatus && matchAssignee;
     });
