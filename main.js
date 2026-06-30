@@ -2028,6 +2028,9 @@ function initFilters() {
         // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
                                    '<option value="UNASSIGNED">⚠️ 只看未指派</option>' + 
+                                   '<option value="ASSIGNED">✅ 只看有指派</option>' +
+                                   '<option value="TAI_UNASSIGNED">台語未指派</option>' +
+                                   '<option value="HAK_UNASSIGNED">客語未指派</option>' +
                                    state.allUsers.map(u => `<option value="${escapeHtml(getUserAnnotatorName(u))}" title="${escapeHtml(getUserHoverTitle(u))}">👤 ${escapeHtml(u.name || u.account)}</option>`).join('');
         if (previousAssignee && Array.from(assigneeSelect.options).some(option => option.value === previousAssignee)) {
             assigneeSelect.value = previousAssignee;
@@ -2199,6 +2202,19 @@ function handleFilterChange() {
     applyFilters();
 }
 
+function placeMatchesAssigneeFilter(place, assigneeFilter) {
+    if (!assigneeFilter) return true;
+
+    const assignedUsers = normalizeAssignedUsers(place.assignedUsers, place.assignedTo);
+    const hasAnyAssignee = assignedUsers.length > 0 || Boolean(place.tAssignee || place.hAssignee);
+
+    if (assigneeFilter === "UNASSIGNED") return !hasAnyAssignee;
+    if (assigneeFilter === "ASSIGNED") return hasAnyAssignee;
+    if (assigneeFilter === "TAI_UNASSIGNED") return !place.tAssignee;
+    if (assigneeFilter === "HAK_UNASSIGNED") return !place.hAssignee;
+    return assignedUsersInclude(assignedUsers, assigneeFilter);
+}
+
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
     if (state.currentTab === 'users') {
@@ -2244,11 +2260,7 @@ function applyFilters() {
         // 🛑 新增：調查員篩選邏輯
         let matchAssignee = true;
         if (state.userRole === 'admin' && assigneeFilter !== "") {
-            if (assigneeFilter === "UNASSIGNED") {
-                matchAssignee = place.assignedUsers.length === 0;
-            } else {
-                matchAssignee = assignedUsersInclude(place.assignedUsers, assigneeFilter);
-            }
+            matchAssignee = placeMatchesAssigneeFilter(place, assigneeFilter);
         }
         
         // 錄音狀態篩選

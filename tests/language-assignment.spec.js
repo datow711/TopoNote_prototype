@@ -245,6 +245,124 @@ test('admin filter state survives assignment refresh and chip filters default al
   await expect(page.locator('#town-filter')).toHaveValue('頭份市');
 });
 
+test('admin assignee filter supports assigned and per-language unassigned choices', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.typeFiltersInitialized = false;
+    state.classFiltersInitialized = false;
+    state.selectedTypes = [];
+    state.selectedTaiClasses = [];
+    state.selectedHakClasses = [];
+    state.allUsers = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com' },
+      { account: 'chen@example.com', name: 'Chen Investigator', email: 'chen@example.com' }
+    ];
+    state.allUserRecords = state.allUsers;
+    state.assignedPlaces = [
+      {
+        id: 1,
+        sourceId: 'uuid-1',
+        placeName: '完全未指派',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        tAssignee: '',
+        hAssignee: '',
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 2,
+        sourceId: 'uuid-2',
+        placeName: '台語已指派',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: ['Lin Investigator'],
+        tAssignee: 'Lin Investigator',
+        hAssignee: '',
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 3,
+        sourceId: 'uuid-3',
+        placeName: '客語已指派',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: ['Chen Investigator'],
+        tAssignee: '',
+        hAssignee: 'Chen Investigator',
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 4,
+        sourceId: 'uuid-4',
+        placeName: '兩語已指派',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        taiClass: '直接標注',
+        hakClass: '電話調查',
+        assignedUsers: ['Lin Investigator', 'Chen Investigator'],
+        tAssignee: 'Lin Investigator',
+        hAssignee: 'Chen Investigator',
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+    applyFilters();
+  });
+
+  await expect(page.locator('#assignee-filter option[value="ASSIGNED"]')).toHaveText('✅ 只看有指派');
+  await expect(page.locator('#assignee-filter option[value="TAI_UNASSIGNED"]')).toHaveText('台語未指派');
+  await expect(page.locator('#assignee-filter option[value="HAK_UNASSIGNED"]')).toHaveText('客語未指派');
+
+  await page.selectOption('#assignee-filter', 'UNASSIGNED');
+  await expect(page.locator('.place-item')).toHaveCount(1);
+  await expect(page.locator('#place-list-container')).toContainText('完全未指派');
+
+  await page.selectOption('#assignee-filter', 'ASSIGNED');
+  await expect(page.locator('.place-item')).toHaveCount(3);
+  await expect(page.locator('#place-list-container')).not.toContainText('完全未指派');
+
+  await page.selectOption('#assignee-filter', 'TAI_UNASSIGNED');
+  await expect(page.locator('.place-item')).toHaveCount(2);
+  await expect(page.locator('#place-list-container')).toContainText('完全未指派');
+  await expect(page.locator('#place-list-container')).toContainText('客語已指派');
+  await expect(page.locator('#place-list-container')).not.toContainText('台語已指派');
+
+  await page.selectOption('#assignee-filter', 'HAK_UNASSIGNED');
+  await expect(page.locator('.place-item')).toHaveCount(2);
+  await expect(page.locator('#place-list-container')).toContainText('完全未指派');
+  await expect(page.locator('#place-list-container')).toContainText('台語已指派');
+  await expect(page.locator('#place-list-container')).not.toContainText('客語已指派');
+});
+
 test('investigator recording language defaults to assigned language and warns out of scope uploads', async ({ page }) => {
   await page.goto(appUrl);
   const result = await page.evaluate(() => {
