@@ -687,6 +687,12 @@ function normalizeTask(t) {
     };
 }
 
+function isWrittenAnnotationPlace(place) {
+    if (!place) return false;
+    return [place.taiClass, place.hakClass]
+        .some(value => String(value || '').trim() === '書面標注');
+}
+
 function normalizeReviewTask(t) {
     return {
         ...normalizeTask(t),
@@ -1956,10 +1962,11 @@ async function loadDataFromSupabase(userName) {
                 ...labelUserRecords
             ]);
             state.reviewQueue = [];
-            state.assignedPlaces = places
+            const userVisiblePlaces = places.filter(place => !isWrittenAnnotationPlace(place));
+            state.assignedPlaces = userVisiblePlaces
                 .filter(place => assignedUsersInclude(place.assignedUsers, state.userId) || assignedUsersInclude(place.assignedUsers, state.userName));
                 
-            state.allPlaces = places
+            state.allPlaces = userVisiblePlaces
                 .filter(place => !assignedUsersInclude(place.assignedUsers, state.userId) && !assignedUsersInclude(place.assignedUsers, state.userName) && place.sourceTable !== 'test_places');
         }
 

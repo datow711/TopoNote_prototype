@@ -245,6 +245,105 @@ test('admin filter state survives assignment refresh and chip filters default al
   await expect(page.locator('#town-filter')).toHaveValue('頭份市');
 });
 
+test('written annotation places are hidden from normal users but visible to admins', async ({ page }) => {
+  await page.goto(appUrl);
+  const result = await page.evaluate(async () => {
+    const taskRows = [
+      {
+        task_id: 201,
+        source_id: 'uuid-201',
+        source_table: 'third_phase_places',
+        place_name: '一般調查地名',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        tai_class: '直接標注',
+        hak_class: '電話調查',
+        assigned_users: 'lin@example.com',
+        assigned_to: '',
+        t_assignee: 'lin@example.com',
+        h_assignee: '',
+        recording_status: '尚未錄音',
+        tai_audio_count: 0,
+        hak_audio_count: 0
+      },
+      {
+        task_id: 202,
+        source_id: 'uuid-202',
+        source_table: 'third_phase_places',
+        place_name: '書面標注地名',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        tai_class: '書面標注',
+        hak_class: '電話調查',
+        assigned_users: 'lin@example.com',
+        assigned_to: '',
+        t_assignee: 'lin@example.com',
+        h_assignee: '',
+        recording_status: '尚未錄音',
+        tai_audio_count: 0,
+        hak_audio_count: 0
+      },
+      {
+        task_id: 203,
+        source_id: 'uuid-203',
+        source_table: 'third_phase_places',
+        place_name: '客語書面地名',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        tai_class: '電話調查',
+        hak_class: '書面標注',
+        assigned_users: '',
+        assigned_to: '',
+        t_assignee: '',
+        h_assignee: '',
+        recording_status: '尚未錄音',
+        tai_audio_count: 0,
+        hak_audio_count: 0
+      }
+    ];
+
+    const originalFetch = window.fetch;
+    window.fetch = async url => {
+      const urlText = String(url);
+      if (urlText.includes('/rest/v1/app_tasks_view')) {
+        return new Response(JSON.stringify(taskRows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/audio_records')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/app_users_view')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/app_review_queue_view')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return originalFetch(url);
+    };
+
+    state.userRole = 'user';
+    state.userId = 'lin@example.com';
+    state.userName = 'Lin Investigator';
+    state.userEmail = 'lin@example.com';
+    await loadDataFromSupabase();
+    const userAssignedIds = state.assignedPlaces.map(place => place.id);
+    const userOtherIds = state.allPlaces.map(place => place.id);
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    await loadDataFromSupabase();
+    const adminAssignedIds = state.assignedPlaces.map(place => place.id);
+
+    return { userAssignedIds, userOtherIds, adminAssignedIds };
+  });
+
+  expect(result.userAssignedIds).toEqual([201]);
+  expect(result.userOtherIds).toEqual([]);
+  expect(result.adminAssignedIds).toEqual([201, 202, 203]);
+});
+
 test('admin assignee filter supports assigned and per-language unassigned choices', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
