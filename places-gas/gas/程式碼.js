@@ -12,6 +12,7 @@ var DAILY_PREWORK_SYNC_HOUR = 6;
 var DAILY_PREWORK_SYNC_MINUTE = 30;
 var CHECKPOINT_PREFIX = '__ckpt_';
 var CHECKPOINT_DEFAULT_RETENTION = 5;
+var WRITTEN_ANNOTATION_CLASS = '書面標注';
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
@@ -911,6 +912,58 @@ function writeReviewConflictWarning_(sheet, headerMap, rowNumber, warning) {
   sheet.getRange(rowNumber, headerMap['同步警告']).setValue(warning);
 }
 
+function getReviewClassHeader_(language) {
+  return language === '台語' ? 'TaiClass' : 'HakClass';
+}
+
+function getSheetReviewClass_(sheet, headerMap, rowNumber, language) {
+  var header = getReviewClassHeader_(language);
+  if (!headerMap[header]) return '';
+  return String(sheet.getRange(rowNumber, headerMap[header]).getDisplayValue() || '').trim();
+}
+
+function buildWrittenAnnotationReviewConflictWarning_(review, currentClass) {
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  return [
+    'APP回寫分類衝突',
+    review.language || '',
+    review.reviewed_by || 'APP',
+    stamp,
+    'SheetClass=' + (currentClass || '空白'),
+    'Reason=書面標注不走APP回寫'
+  ].join('|');
+}
+
+function detectWrittenAnnotationReviewConflict_(sheet, headerMap, rowNumber, review) {
+  var currentClass = getSheetReviewClass_(sheet, headerMap, rowNumber, review.language);
+  if (currentClass !== WRITTEN_ANNOTATION_CLASS) return null;
+  return {
+    currentClass: currentClass,
+    warning: buildWrittenAnnotationReviewConflictWarning_(review, currentClass)
+  };
+}
+
+function rowHasWrittenAnnotationClass_(row, colMap) {
+  return String(getCellValue_(row, colMap, 'TaiClass') || '').trim() === WRITTEN_ANNOTATION_CLASS ||
+    String(getCellValue_(row, colMap, 'HakClass') || '').trim() === WRITTEN_ANNOTATION_CLASS;
+}
+
+function writeSatellitePushWarning_(sheet, colMap, rowNumber, warning) {
+  if (colMap['同步警告'] === undefined) return;
+  sheet.getRange(rowNumber, colMap['同步警告'] + 1).setValue(warning);
+}
+
+function buildSatellitePushClassWarning_(row, colMap) {
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  return [
+    '書面標注發送分類錯誤',
+    String(getCellValue_(row, colMap, 'UUID') || '').trim(),
+    stamp,
+    'TaiClass=' + (String(getCellValue_(row, colMap, 'TaiClass') || '').trim() || '空白'),
+    'HakClass=' + (String(getCellValue_(row, colMap, 'HakClass') || '').trim() || '空白')
+  ].join('|');
+}
+
 function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
   var expectedStamp = getReviewSourceStamp_(review);
   var currentStamp = getSheetStamp_(sheet, headerMap, rowNumber, review.language);
@@ -1160,6 +1213,13 @@ function syncApprovedReviewsToSheets(options) {
 
       if (!rowNumber) {
         skipped.push(review.source_id + '：' + sheetName + ' 找不到 UUID');
+        return;
+      }
+
+      var writtenAnnotationConflict = detectWrittenAnnotationReviewConflict_(sheet, headerMap, rowNumber, review);
+      if (writtenAnnotationConflict) {
+        writeReviewConflictWarning_(sheet, headerMap, rowNumber, writtenAnnotationConflict.warning);
+        skipped.push(review.source_id + '：' + review.language + ' 分級為書面標注，不走 APP 回寫，已略過。');
         return;
       }
 
@@ -1438,6 +1498,7 @@ function pushTasksToSatelliteSheets() {
 
   // 3. 按標注員進行任務分組
   var tasksByUser = {};
+  var invalidClassCount = 0;
   for (var j = 1; j < l2Data.length; j++) {
     var row = l2Data[j];
     var person = row[colMap["標注員"]];
@@ -1445,6 +1506,12 @@ function pushTasksToSatelliteSheets() {
     
     // 條件：調查方式為「書面標注」且已有指派標注員
     if (method === "書面標注" && person && userMap[person]) {
+      if (!rowHasWrittenAnnotationClass_(row, colMap)) {
+        invalidClassCount++;
+        writeSatellitePushWarning_(l2Sheet, colMap, j + 1, buildSatellitePushClassWarning_(row, colMap));
+        continue;
+      }
+
       if (!tasksByUser[person]) tasksByUser[person] = [];
       
       tasksByUser[person].push([
@@ -1500,7 +1567,11 @@ function pushTasksToSatelliteSheets() {
     }
   }
 
-  SpreadsheetApp.getUi().alert("🛰️ 衛星同步完成！共推送 " + totalPushed + " 筆新任務。");
+  var message = "🛰️ 衛星同步完成！共推送 " + totalPushed + " 筆新任務。";
+  if (invalidClassCount > 0) {
+    message += "\n⚠️ 已略過 " + invalidClassCount + " 筆調查方式為書面標注、但 TaiClass/HakClass 未標為書面標注的任務，請查看同步警告欄。";
+  }
+  SpreadsheetApp.getUi().alert(message);
 }
 
 
