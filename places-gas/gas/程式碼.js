@@ -13,6 +13,9 @@ var DAILY_PREWORK_SYNC_MINUTE = 30;
 var CHECKPOINT_PREFIX = '__ckpt_';
 var CHECKPOINT_DEFAULT_RETENTION = 5;
 var WRITTEN_ANNOTATION_CLASS = '書面標注';
+var SATELLITE_LOCKED_BACKGROUND = '#666666';
+var SATELLITE_LOCKED_FONT_COLOR = '#eeeeee';
+var SATELLITE_LOCKED_NOTE = '請勿填寫';
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
@@ -982,6 +985,24 @@ function buildSatellitePullClassWarning_(uuid, language, row, colMap) {
   ].join('|');
 }
 
+function applySatelliteTaskLanguageGuidance_(sheet, startRow, taskMetaList) {
+  taskMetaList.forEach(function(meta, index) {
+    var rowNumber = startRow + index;
+    if (!meta.taiWritten) {
+      sheet.getRange(rowNumber, 6, 1, 2)
+        .setBackground(SATELLITE_LOCKED_BACKGROUND)
+        .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
+        .setNote(SATELLITE_LOCKED_NOTE);
+    }
+    if (!meta.hakWritten) {
+      sheet.getRange(rowNumber, 8, 1, 2)
+        .setBackground(SATELLITE_LOCKED_BACKGROUND)
+        .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
+        .setNote(SATELLITE_LOCKED_NOTE);
+    }
+  });
+}
+
 function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
   var expectedStamp = getReviewSourceStamp_(review);
   var currentStamp = getSheetStamp_(sheet, headerMap, rowNumber, review.language);
@@ -1531,20 +1552,24 @@ function pushTasksToSatelliteSheets() {
       }
 
       if (!tasksByUser[person]) tasksByUser[person] = [];
-      
-      tasksByUser[person].push([
-        row[colMap["UUID"]],
-        row[colMap["地名"]],
-        row[colMap["縣市"]],
-        row[colMap["鄉鎮"]],
-        row[colMap["村里"]],
-        row[colMap["台文漢字"]],
-        row[colMap["台文羅馬字"]],
-        row[colMap["客文漢字"]],
-        row[colMap["客文羅馬字"]],
-        row[colMap["任務狀態"]],
-        row[colMap["備註"]]
-      ]);
+
+      tasksByUser[person].push({
+        values: [
+          row[colMap["UUID"]],
+          row[colMap["地名"]],
+          row[colMap["縣市"]],
+          row[colMap["鄉鎮"]],
+          row[colMap["村里"]],
+          row[colMap["台文漢字"]],
+          row[colMap["台文羅馬字"]],
+          row[colMap["客文漢字"]],
+          row[colMap["客文羅馬字"]],
+          row[colMap["任務狀態"]],
+          row[colMap["備註"]]
+        ],
+        taiWritten: isLanguageWrittenAnnotationClass_(row, colMap, '台語'),
+        hakWritten: isLanguageWrittenAnnotationClass_(row, colMap, '客語')
+      });
     }
   }
 
@@ -1574,10 +1599,14 @@ function pushTasksToSatelliteSheets() {
       }
       
       // 只保留衛星表中尚未存在的任務
-      var filteredTasks = tasksByUser[person].filter(task => !existingUUIDs.has(String(task[0]).trim()));
+      var filteredTasks = tasksByUser[person].filter(task => !existingUUIDs.has(String(task.values[0]).trim()));
       
       if (filteredTasks.length > 0) {
-        targetSheet.getRange(targetSheet.getLastRow() + 1, 1, filteredTasks.length, satelliteHeaders.length).setValues(filteredTasks);
+        var startRow = targetSheet.getLastRow() + 1;
+        targetSheet.getRange(startRow, 1, filteredTasks.length, satelliteHeaders.length).setValues(filteredTasks.map(function(task) {
+          return task.values;
+        }));
+        applySatelliteTaskLanguageGuidance_(targetSheet, startRow, filteredTasks);
         totalPushed += filteredTasks.length;
       }
     } catch (e) {
