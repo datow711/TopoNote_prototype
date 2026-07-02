@@ -964,6 +964,24 @@ function buildSatellitePushClassWarning_(row, colMap) {
   ].join('|');
 }
 
+function isLanguageWrittenAnnotationClass_(row, colMap, language) {
+  var header = language === '台語' ? 'TaiClass' : 'HakClass';
+  return String(getCellValue_(row, colMap, header) || '').trim() === WRITTEN_ANNOTATION_CLASS;
+}
+
+function buildSatellitePullClassWarning_(uuid, language, row, colMap) {
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  var classHeader = language === '台語' ? 'TaiClass' : 'HakClass';
+  return [
+    '書面標注回填分類衝突',
+    uuid || '',
+    language || '',
+    stamp,
+    classHeader + '=' + (String(getCellValue_(row, colMap, classHeader) || '').trim() || '空白'),
+    'Reason=衛星表回填只接受書面標注分級'
+  ].join('|');
+}
+
 function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
   var expectedStamp = getReviewSourceStamp_(review);
   var currentStamp = getSheetStamp_(sheet, headerMap, rowNumber, review.language);
@@ -1602,6 +1620,7 @@ function pullResultsFromSatelliteSheets() {
   }
 
   var totalUpdated = 0;
+  var classConflictCount = 0;
 
   // 2. 遍歷每位標注員的衛星檔案
   for (var u = 1; u < userData.length; u++) {
@@ -1623,32 +1642,59 @@ function pullResultsFromSatelliteSheets() {
         
         // 取得填寫內容
         var twHan = String(sRow[sColMap["台文漢字"]]).trim();
+        var twRoman = String(sRow[sColMap["台文羅馬字"]]).trim();
         var hkHan = String(sRow[sColMap["客文漢字"]]).trim();
+        var hkRoman = String(sRow[sColMap["客文羅馬字"]]).trim();
         var note = sRow[sColMap["備註"]];
 
-        // --- 核心邏輯：只要台文或客文有填寫內容，就進行回填 ---
-        if ((twHan !== "" || hkHan !== "") && l2IndexMap[uuid]) {
+        // --- 核心邏輯：分語種確認主表分類，只有書面標注分級才允許回填 ---
+        if ((twHan !== "" || twRoman !== "" || hkHan !== "" || hkRoman !== "") && l2IndexMap[uuid]) {
           var rowNum = l2IndexMap[uuid];
-          
-          // 回填內容
-          l2Sheet.getRange(rowNum, l2ColMap["台文漢字"] + 1).setValue(sRow[sColMap["台文漢字"]]);
-          l2Sheet.getRange(rowNum, l2ColMap["台文羅馬字"] + 1).setValue(sRow[sColMap["台文羅馬字"]]);
-          l2Sheet.getRange(rowNum, l2ColMap["客文漢字"] + 1).setValue(sRow[sColMap["客文漢字"]]);
-          l2Sheet.getRange(rowNum, l2ColMap["客文羅馬字"] + 1).setValue(sRow[sColMap["客文羅馬字"]]);
-          
-          // 衛星表「備註」 -> L2「標注員備註」
-          if (l2ColMap["標注員備註"] !== undefined) {
-            l2Sheet.getRange(rowNum, l2ColMap["標注員備註"] + 1).setValue(note);
-          }
-          
-          // 自動修改狀態為「待審查」
-          l2Sheet.getRange(rowNum, l2ColMap["任務狀態"] + 1).setValue("待審查");
-          
-          // 更新標注時間
-          var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
-          l2Sheet.getRange(rowNum, l2ColMap["標注時間"] + 1).setValue(now);
+          var l2Row = l2Data[rowNum - 1];
+          var rowUpdated = false;
+          var rowWarnings = [];
 
-          totalUpdated++;
+          if (twHan !== "" || twRoman !== "") {
+            if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '台語')) {
+              l2Sheet.getRange(rowNum, l2ColMap["台文漢字"] + 1).setValue(sRow[sColMap["台文漢字"]]);
+              l2Sheet.getRange(rowNum, l2ColMap["台文羅馬字"] + 1).setValue(sRow[sColMap["台文羅馬字"]]);
+              rowUpdated = true;
+            } else {
+              classConflictCount++;
+              rowWarnings.push(buildSatellitePullClassWarning_(uuid, '台語', l2Row, l2ColMap));
+            }
+          }
+
+          if (hkHan !== "" || hkRoman !== "") {
+            if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '客語')) {
+              l2Sheet.getRange(rowNum, l2ColMap["客文漢字"] + 1).setValue(sRow[sColMap["客文漢字"]]);
+              l2Sheet.getRange(rowNum, l2ColMap["客文羅馬字"] + 1).setValue(sRow[sColMap["客文羅馬字"]]);
+              rowUpdated = true;
+            } else {
+              classConflictCount++;
+              rowWarnings.push(buildSatellitePullClassWarning_(uuid, '客語', l2Row, l2ColMap));
+            }
+          }
+
+          if (rowWarnings.length > 0) {
+            writeSatellitePushWarning_(l2Sheet, l2ColMap, rowNum, rowWarnings.join(' / '));
+          }
+
+          if (rowUpdated) {
+            // 衛星表「備註」 -> L2「標注員備註」
+            if (l2ColMap["標注員備註"] !== undefined) {
+              l2Sheet.getRange(rowNum, l2ColMap["標注員備註"] + 1).setValue(note);
+            }
+
+            // 自動修改狀態為「待審查」
+            l2Sheet.getRange(rowNum, l2ColMap["任務狀態"] + 1).setValue("待審查");
+
+            // 更新標注時間
+            var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+            l2Sheet.getRange(rowNum, l2ColMap["標注時間"] + 1).setValue(now);
+
+            totalUpdated++;
+          }
         }
       }
     } catch (e) {
@@ -1660,5 +1706,9 @@ function pullResultsFromSatelliteSheets() {
   var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
   userListSheet.getRange(2, 3, userData.length - 1, 1).setValue(syncTime);
 
-  SpreadsheetApp.getUi().alert("✅ 回填完成！\n共掃描並更新了 " + totalUpdated + " 筆已填寫的詞條。\n狀態已自動更新為「待審查」。");
+  var message = "✅ 回填完成！\n共掃描並更新了 " + totalUpdated + " 筆已填寫的詞條。\n狀態已自動更新為「待審查」。";
+  if (classConflictCount > 0) {
+    message += "\n⚠️ 已略過 " + classConflictCount + " 筆語種回填，原因是主表 TaiClass/HakClass 不是書面標注，請查看同步警告欄。";
+  }
+  SpreadsheetApp.getUi().alert(message);
 }
