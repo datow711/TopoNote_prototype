@@ -288,6 +288,20 @@ test('town filter supports multi-select choices within the selected county', asy
       {
         id: 303,
         sourceId: 'uuid-303',
+        placeName: 'Delta Place',
+        county: 'County',
+        town: 'Town D',
+        type: 'Type',
+        taiClass: 'A',
+        hakClass: 'B',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 304,
+        sourceId: 'uuid-304',
         placeName: 'Gamma Place',
         county: 'Other County',
         town: 'Town C',
@@ -313,23 +327,35 @@ test('town filter supports multi-select choices within the selected county', asy
     updateTowns();
     handleFilterChange();
   });
-  await expect(page.locator('.place-item')).toHaveCount(2);
+  await expect(page.locator('.place-item')).toHaveCount(3);
 
   await page.locator('#town-filter-button').click();
-  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').uncheck();
-  await expect(page.locator('#town-filter-summary')).toHaveText('Town A');
-  await expect(page.locator('#place-list-container')).toContainText('Alpha Place');
-  await expect(page.locator('#place-list-container')).not.toContainText('Beta Place');
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').click();
+  await expect(page.locator('#town-filter-summary')).toHaveText('Town B');
+  await expect(page.locator('#place-list-container')).toContainText('Beta Place');
+  await expect(page.locator('#place-list-container')).not.toContainText('Alpha Place');
 
-  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').check();
-  await expect(page.locator('#town-filter-summary')).toHaveText('所有鄉鎮');
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town A' }).locator('input').click();
+  await expect(page.locator('#town-filter-summary')).toHaveText('已選 2 個鄉鎮');
+  await expect(page.locator('#place-list-container')).toContainText('Alpha Place');
+  await expect(page.locator('#place-list-container')).toContainText('Beta Place');
+  await expect(page.locator('#place-list-container')).not.toContainText('Delta Place');
   await expect(page.locator('.place-item')).toHaveCount(2);
 
-  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').uncheck();
-  await expect(page.locator('#town-filter-summary')).toHaveText('Town A');
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: '所有鄉鎮' }).locator('input').click();
+  await expect(page.locator('#town-filter-summary')).toHaveText('所有鄉鎮');
+  await expect(page.locator('.place-item')).toHaveCount(3);
+
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: '所有鄉鎮' }).locator('input').click();
+  await expect(page.locator('#town-filter-summary')).toHaveText('未選鄉鎮');
+  await expect(page.locator('.place-item')).toHaveCount(0);
+
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: '所有鄉鎮' }).locator('input').click();
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').click();
+  await expect(page.locator('#town-filter-summary')).toHaveText('Town B');
   await page.selectOption('#county-filter', 'Other County');
   await page.evaluate(() => {
-    updateTowns([]);
+    resetTownFilters();
     handleFilterChange();
   });
   await expect(page.locator('#town-filter-summary')).toHaveText('所有鄉鎮');

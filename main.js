@@ -2124,20 +2124,20 @@ function updateTowns(selectedTowns = state.selectedTowns) {
             .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
     }
     state.availableTowns = towns;
-    state.selectedTowns = reconcileMultiFilterSelection(selection, towns, { emptySelectsAll: false });
+    const validSelection = reconcileMultiFilterSelection(selection, towns, { emptySelectsAll: false });
+    state.selectedTowns = validSelection.length > 0 ? validSelection : [...towns];
     renderTownMultiSelect();
 }
 
-function getEffectiveSelectedTowns() {
-    const towns = state.availableTowns || [];
-    const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
-    return selected.length === 0 ? [...towns] : selected;
+function resetTownFilters() {
+    updateTowns([]);
 }
 
 function getTownFilterSummary() {
     const towns = state.availableTowns || [];
     const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
-    if (towns.length === 0 || selected.length === 0 || selected.length === towns.length) return '所有鄉鎮';
+    if (towns.length === 0 || selected.length === towns.length) return '所有鄉鎮';
+    if (selected.length === 0) return '未選鄉鎮';
     if (selected.length === 1) return selected[0];
     return `已選 ${selected.length} 個鄉鎮`;
 }
@@ -2149,7 +2149,8 @@ function renderTownMultiSelect() {
     if (!button || !summary || !menu) return;
 
     const towns = state.availableTowns || [];
-    const selectedSet = new Set(getEffectiveSelectedTowns());
+    const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    const selectedSet = new Set(selected);
     const allChecked = towns.length === 0 || selectedSet.size === towns.length;
     summary.innerText = getTownFilterSummary();
     button.disabled = towns.length === 0;
@@ -2179,20 +2180,29 @@ function toggleTownDropdown(event) {
 }
 
 function selectAllTownFilters() {
-    state.selectedTowns = [];
+    const towns = state.availableTowns || [];
+    const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    const isAllSelected = towns.length > 0 && selected.length === towns.length && towns.every(town => selected.includes(town));
+    state.selectedTowns = isAllSelected ? [] : [...towns];
     renderTownMultiSelect();
     handleFilterChange();
 }
 
 function toggleTownFilterValue(town) {
     const towns = state.availableTowns || [];
-    const current = getEffectiveSelectedTowns();
-    let next = current.includes(town)
-        ? current.filter(item => item !== town)
-        : current.concat(town);
+    const current = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    const isAllSelected = towns.length > 0 && current.length === towns.length && towns.every(item => current.includes(item));
+    let next;
+    if (isAllSelected) {
+        next = [town];
+    } else {
+        next = current.includes(town)
+            ? current.filter(item => item !== town)
+            : current.concat(town);
+    }
 
     next = next.filter(item => towns.includes(item));
-    state.selectedTowns = next.length === towns.length ? [] : next;
+    state.selectedTowns = next;
     renderTownMultiSelect();
     handleFilterChange();
 }
@@ -2372,6 +2382,7 @@ function applyFilters() {
     const selectedStatuses = Array.isArray(state.selectedStatuses) ? state.selectedStatuses : [...STATUS_FILTER_VALUES];
     const statusFilterSet = new Set(selectedStatuses);
     const hasStatusFilter = selectedStatuses.length > 0 && selectedStatuses.length < STATUS_FILTER_VALUES.length;
+    const hasTownFilter = county && (state.availableTowns || []).length > 0;
     
     // 獲取調查員篩選器的值 (如果有的話)
     const assigneeInput = document.getElementById('assignee-filter');
@@ -2388,7 +2399,7 @@ function applyFilters() {
             || uuidText.includes(keyword)
             || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
-        const matchTw = selectedTowns.length > 0 ? townSet.has(place.town) : true;
+        const matchTw = hasTownFilter ? townSet.has(place.town) : true;
         const matchTy = hasTypeOptions && selectedTypes.length > 0 ? typeSet.has(place.type || place.Type) : true;
         const matchTaiClass = selectedTaiClasses.length > 0 ? taiClassSet.has(place.taiClass) : true;
         const matchHakClass = selectedHakClasses.length > 0 ? hakClassSet.has(place.hakClass) : true;
