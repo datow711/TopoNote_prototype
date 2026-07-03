@@ -196,8 +196,8 @@ test('admin filter state survives assignment refresh and chip filters default al
         id: 2,
         sourceId: 'uuid-2',
         placeName: '新竹地名',
-        county: '新竹縣',
-        town: '竹北市',
+        county: '苗栗縣',
+        town: '竹南鎮',
         type: '聚落',
         taiClass: '現場調查',
         hakClass: '現場調查',
@@ -229,8 +229,8 @@ test('admin filter state survives assignment refresh and chip filters default al
   await expect(page.locator('#tai-class-container .filter-chip.selected')).toHaveCount(3);
 
   await page.selectOption('#county-filter', '苗栗縣');
-  await page.evaluate(() => updateTowns('頭份市'));
-  await page.selectOption('#town-filter', '頭份市');
+  await page.evaluate(() => updateTowns(['頭份市']));
+  await expect(page.locator('#town-filter-summary')).toHaveText('頭份市');
 
   await page.evaluate(async () => {
     loadDataFromSupabase = async () => {
@@ -242,7 +242,99 @@ test('admin filter state survives assignment refresh and chip filters default al
   });
 
   await expect(page.locator('#county-filter')).toHaveValue('苗栗縣');
-  await expect(page.locator('#town-filter')).toHaveValue('頭份市');
+  await expect(page.locator('#town-filter-summary')).toHaveText('頭份市');
+});
+
+test('town filter supports multi-select choices within the selected county', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.allUsers = [];
+    state.allUserRecords = [];
+    state.assignedPlaces = [
+      {
+        id: 301,
+        sourceId: 'uuid-301',
+        placeName: 'Alpha Place',
+        county: 'County',
+        town: 'Town A',
+        type: 'Type',
+        taiClass: 'A',
+        hakClass: 'B',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 302,
+        sourceId: 'uuid-302',
+        placeName: 'Beta Place',
+        county: 'County',
+        town: 'Town B',
+        type: 'Type',
+        taiClass: 'A',
+        hakClass: 'B',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      },
+      {
+        id: 303,
+        sourceId: 'uuid-303',
+        placeName: 'Gamma Place',
+        county: 'Other County',
+        town: 'Town C',
+        type: 'Type',
+        taiClass: 'A',
+        hakClass: 'B',
+        assignedUsers: [],
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: '未錄音'
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+    applyFilters();
+  });
+
+  await page.selectOption('#county-filter', 'County');
+  await page.evaluate(() => {
+    updateTowns();
+    handleFilterChange();
+  });
+  await expect(page.locator('.place-item')).toHaveCount(2);
+
+  await page.locator('#town-filter-button').click();
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').uncheck();
+  await expect(page.locator('#town-filter-summary')).toHaveText('Town A');
+  await expect(page.locator('#place-list-container')).toContainText('Alpha Place');
+  await expect(page.locator('#place-list-container')).not.toContainText('Beta Place');
+
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').check();
+  await expect(page.locator('#town-filter-summary')).toHaveText('所有鄉鎮');
+  await expect(page.locator('.place-item')).toHaveCount(2);
+
+  await page.locator('#town-filter-menu .town-filter-option', { hasText: 'Town B' }).locator('input').uncheck();
+  await expect(page.locator('#town-filter-summary')).toHaveText('Town A');
+  await page.selectOption('#county-filter', 'Other County');
+  await page.evaluate(() => {
+    updateTowns([]);
+    handleFilterChange();
+  });
+  await expect(page.locator('#town-filter-summary')).toHaveText('所有鄉鎮');
+  await expect(page.locator('#place-list-container')).toContainText('Gamma Place');
+  await expect(page.locator('#place-list-container')).not.toContainText('Alpha Place');
 });
 
 test('written annotation places are hidden from normal users but visible to admins', async ({ page }) => {

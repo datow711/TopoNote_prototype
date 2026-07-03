@@ -39,12 +39,15 @@
 
         <div class="filter-section">
             <div class="filter-row">
-                <select id="county-filter" onchange="updateTowns(); handleFilterChange()">
+                <select id="county-filter" onchange="updateTowns([]); handleFilterChange()">
                     <option value="">所有縣市</option>
                 </select>
-                <select id="town-filter" onchange="handleFilterChange()">
-                    <option value="">所有鄉鎮</option>
-                </select>
+                <div class="town-multi-filter" id="town-filter">
+                    <button type="button" class="town-filter-button" id="town-filter-button" aria-haspopup="true" aria-expanded="false" onclick="toggleTownDropdown(event)">
+                        <span id="town-filter-summary">所有鄉鎮</span>
+                    </button>
+                    <div class="town-filter-menu hidden" id="town-filter-menu" onclick="event.stopPropagation()"></div>
+                </div>
             </div>
             
             <div class="type-chips category-filter-group" id="type-container"></div>

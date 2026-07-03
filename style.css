@@ -483,6 +483,81 @@ button:disabled {
     font-size: 14px;
 }
 
+.town-multi-filter {
+    position: relative;
+    min-width: 0;
+    margin-bottom: 7px;
+}
+
+.town-filter-button {
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 32px 7px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 14px;
+    text-align: left;
+    position: relative;
+}
+
+.town-filter-button::after {
+    content: "";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: translateY(-65%) rotate(45deg);
+}
+
+.town-filter-button:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+    background: var(--canvas);
+}
+
+.town-filter-menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.town-filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--ink);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.town-filter-option:hover {
+    background: var(--canvas);
+}
+
+.town-filter-option input {
+    margin: 0;
+    flex: 0 0 auto;
+}
+
 #assignee-filter {
     margin-bottom: 15px;
 }

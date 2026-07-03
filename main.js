@@ -17,6 +17,9 @@ let state = {
     userPhone: "",
     currentTab: 'assigned', 
     selectedPlace: null, 
+    selectedTowns: [],
+    availableTowns: [],
+    townDropdownOpen: false,
     selectedTypes: [],
     typeFiltersInitialized: false,
     selectedTaiClasses: [],
@@ -38,6 +41,12 @@ let state = {
     allUserRecords: [],
     adminUserSort: { key: '', direction: 'asc' },
 };
+
+document.addEventListener('click', () => {
+    if (!state.townDropdownOpen) return;
+    state.townDropdownOpen = false;
+    renderTownMultiSelect();
+});
 
 let mediaRecorder;
 let audioChunks = [];
@@ -941,6 +950,9 @@ function logout() {
     state.reviewQueue = [];
     state.selectedPlace = null;
     state.currentTab = 'assigned';
+    state.selectedTowns = [];
+    state.availableTowns = [];
+    state.townDropdownOpen = false;
     state.selectedTypes = [];
     state.typeFiltersInitialized = false;
     state.selectedTaiClasses = [];
@@ -2007,13 +2019,13 @@ function initFilters() {
     
     const countySelect = document.getElementById('county-filter');
     const previousCounty = countySelect.value;
-    const previousTown = document.getElementById('town-filter').value;
+    const previousTowns = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
     countySelect.innerHTML = '<option value="">所有縣市</option>'; 
     counties.forEach(c => countySelect.add(new Option(c, c)));
     if (previousCounty && counties.includes(previousCounty)) {
         countySelect.value = previousCounty;
     }
-    updateTowns(previousTown);
+    updateTowns(previousTowns);
     
     state.availableTypes = types;
     if (!state.typeFiltersInitialized) {
@@ -2095,17 +2107,94 @@ function initClassFilters() {
     renderMultiFilterChips('hak-class-container', 'hakClasses', '全部客語分級', state.availableHakClasses, state.selectedHakClasses);
 }
 
-function updateTowns(selectedTown = '') {
+function normalizeTownSelection(selectedTowns) {
+    if (Array.isArray(selectedTowns)) return selectedTowns.filter(Boolean);
+    return selectedTowns ? [selectedTowns] : [];
+}
+
+function updateTowns(selectedTowns = state.selectedTowns) {
     const county = document.getElementById('county-filter').value;
-    const townSelect = document.getElementById('town-filter');
-    townSelect.innerHTML = '<option value="">所有鄉鎮</option>';
+    const selection = normalizeTownSelection(selectedTowns);
+    let towns = [];
     if (county) {
-        const towns = [...new Set(state.allPlaces.concat(state.assignedPlaces, state.reviewQueue).filter(p => p.county === county).map(p => p.town).filter(Boolean))];
-        towns.forEach(t => townSelect.add(new Option(t, t)));
-        if (selectedTown && towns.includes(selectedTown)) {
-            townSelect.value = selectedTown;
-        }
+        towns = [...new Set(state.allPlaces.concat(state.assignedPlaces, state.reviewQueue)
+            .filter(p => p.county === county)
+            .map(p => p.town)
+            .filter(Boolean))]
+            .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
     }
+    state.availableTowns = towns;
+    state.selectedTowns = reconcileMultiFilterSelection(selection, towns, { emptySelectsAll: false });
+    renderTownMultiSelect();
+}
+
+function getEffectiveSelectedTowns() {
+    const towns = state.availableTowns || [];
+    const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    return selected.length === 0 ? [...towns] : selected;
+}
+
+function getTownFilterSummary() {
+    const towns = state.availableTowns || [];
+    const selected = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    if (towns.length === 0 || selected.length === 0 || selected.length === towns.length) return '所有鄉鎮';
+    if (selected.length === 1) return selected[0];
+    return `已選 ${selected.length} 個鄉鎮`;
+}
+
+function renderTownMultiSelect() {
+    const button = document.getElementById('town-filter-button');
+    const summary = document.getElementById('town-filter-summary');
+    const menu = document.getElementById('town-filter-menu');
+    if (!button || !summary || !menu) return;
+
+    const towns = state.availableTowns || [];
+    const selectedSet = new Set(getEffectiveSelectedTowns());
+    const allChecked = towns.length === 0 || selectedSet.size === towns.length;
+    summary.innerText = getTownFilterSummary();
+    button.disabled = towns.length === 0;
+    button.setAttribute('aria-expanded', state.townDropdownOpen ? 'true' : 'false');
+    menu.classList.toggle('hidden', !state.townDropdownOpen);
+
+    const allRow = `
+        <label class="town-filter-option">
+            <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="selectAllTownFilters()">
+            <span>所有鄉鎮</span>
+        </label>
+    `;
+    const townRows = towns.map(town => `
+        <label class="town-filter-option">
+            <input type="checkbox" ${selectedSet.has(town) ? 'checked' : ''} onchange="toggleTownFilterValue('${escapeJsString(town)}')">
+            <span>${escapeHtml(town)}</span>
+        </label>
+    `).join('');
+    menu.innerHTML = allRow + townRows;
+}
+
+function toggleTownDropdown(event) {
+    if (event) event.stopPropagation();
+    if ((state.availableTowns || []).length === 0) return;
+    state.townDropdownOpen = !state.townDropdownOpen;
+    renderTownMultiSelect();
+}
+
+function selectAllTownFilters() {
+    state.selectedTowns = [];
+    renderTownMultiSelect();
+    handleFilterChange();
+}
+
+function toggleTownFilterValue(town) {
+    const towns = state.availableTowns || [];
+    const current = getEffectiveSelectedTowns();
+    let next = current.includes(town)
+        ? current.filter(item => item !== town)
+        : current.concat(town);
+
+    next = next.filter(item => towns.includes(item));
+    state.selectedTowns = next.length === towns.length ? [] : next;
+    renderTownMultiSelect();
+    handleFilterChange();
 }
 
 function getTypeDisplayText(value) {
@@ -2270,10 +2359,11 @@ function applyFilters() {
 
     const keyword = document.getElementById('search-box').value.toLowerCase();
     const county = document.getElementById('county-filter').value;
-    const town = document.getElementById('town-filter').value;
+    const selectedTowns = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
     const selectedTypes = Array.isArray(state.selectedTypes) ? state.selectedTypes : [];
     const selectedTaiClasses = Array.isArray(state.selectedTaiClasses) ? state.selectedTaiClasses : [];
     const selectedHakClasses = Array.isArray(state.selectedHakClasses) ? state.selectedHakClasses : [];
+    const townSet = new Set(selectedTowns);
     const typeSet = new Set(selectedTypes);
     const taiClassSet = new Set(selectedTaiClasses);
     const hakClassSet = new Set(selectedHakClasses);
@@ -2298,7 +2388,7 @@ function applyFilters() {
             || uuidText.includes(keyword)
             || taskIdText.includes(keyword);
         const matchC = county ? place.county === county : true;
-        const matchTw = town ? place.town === town : true;
+        const matchTw = selectedTowns.length > 0 ? townSet.has(place.town) : true;
         const matchTy = hasTypeOptions && selectedTypes.length > 0 ? typeSet.has(place.type || place.Type) : true;
         const matchTaiClass = selectedTaiClasses.length > 0 ? taiClassSet.has(place.taiClass) : true;
         const matchHakClass = selectedHakClasses.length > 0 ? hakClassSet.has(place.hakClass) : true;
