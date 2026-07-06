@@ -78,6 +78,47 @@ test('investigator sees unread announcement badge and marks it read', async ({ p
   expect(gasCalls.some(call => call.action === 'markAnnouncementRead')).toBe(true);
 });
 
+test('announcement service failure does not block login entry', async ({ page }) => {
+  await page.route('**/*', route => {
+    const request = route.request();
+    if (request.url().includes('script.google.com/macros/s/')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: false, error: 'Error: 未知的操作' })
+      });
+    }
+    return route.continue();
+  });
+
+  await page.goto(appUrl);
+  const result = await page.evaluate(async () => {
+    loadDataFromSupabase = async () => {};
+    initFilters = () => {};
+    switchTab = () => {};
+    await enterApp({
+      user_id: 'user-1',
+      account: 'lin@example.com',
+      email: 'lin@example.com',
+      name: 'Lin Investigator',
+      role: 'user'
+    }, { persist: false });
+    return {
+      appHidden: document.getElementById('app-section').classList.contains('hidden'),
+      loginHidden: document.getElementById('login-section').classList.contains('hidden'),
+      announcementLoadFailed: state.announcementLoadFailed,
+      unreadAnnouncementCount: state.unreadAnnouncementCount
+    };
+  });
+
+  expect(result).toEqual({
+    appHidden: false,
+    loginHidden: true,
+    announcementLoadFailed: true,
+    unreadAnnouncementCount: 0
+  });
+});
+
 test('admin creates targeted announcement through Apps Script', async ({ page }) => {
   const gasCalls = [];
 

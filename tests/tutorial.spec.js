@@ -54,37 +54,37 @@ test('investigator tutorial walks through demo recording flow without saving dat
   await expect(page.locator('#tutorial-overlay')).toBeVisible();
   await expect(page.locator('.tutorial-popover')).toContainText('任務清單');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('篩選地名');
   await expect(page.locator('#search-box')).toHaveValue('教學');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('選擇地名');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('輸入文字');
   await expect(page.locator('#taihan-input')).toHaveValue('教學示範地名');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('新增錄音');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('確認並重播錄音');
   await expect(page.locator('#audio-confirm-panel')).toBeVisible();
   await expect(page.locator('#audio-playback')).toBeVisible();
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('新增上傳錄音檔');
   await expect(page.locator('#file-btn')).toHaveClass(/tutorial-pulse/);
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('確認上傳');
   await expect(page.locator('#upload-btn')).toHaveClass(/tutorial-pulse/);
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('教學結束');
 
-  await page.locator('#tutorial-overlay').click({ position: { x: 20, y: 20 } });
+  await page.getByRole('button', { name: '完成' }).click();
   await expect(page.locator('#tutorial-overlay')).toHaveCount(0);
   await expect(page.locator('#place-list-container')).toContainText('Original Place');
   await expect(page.locator('#place-list-container')).not.toContainText('教學示範地名');

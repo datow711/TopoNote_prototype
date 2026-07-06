@@ -43,6 +43,7 @@ let state = {
     announcements: [],
     adminAnnouncements: [],
     unreadAnnouncementCount: 0,
+    announcementLoadFailed: false,
 };
 
 document.addEventListener('click', () => {
@@ -282,20 +283,28 @@ function normalizeAnnouncement(row = {}) {
 
 async function loadAnnouncementsForCurrentUser() {
     if (!state.userId) return;
-    const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-            action: 'getAnnouncements',
-            account: state.userId,
-            role: state.userRole === 'admin' ? 'admin' : 'user'
-        })
-    });
-    const result = await response.json();
-    if (!result.success) throw new Error(result.error || 'Failed to load announcements');
-    const rows = result.announcements || [];
-    state.announcements = (rows || []).map(normalizeAnnouncement);
-    state.unreadAnnouncementCount = state.announcements.filter(item => !item.isRead).length;
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'getAnnouncements',
+                account: state.userId,
+                role: state.userRole === 'admin' ? 'admin' : 'user'
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to load announcements');
+        const rows = result.announcements || [];
+        state.announcements = (rows || []).map(normalizeAnnouncement);
+        state.unreadAnnouncementCount = state.announcements.filter(item => !item.isRead).length;
+        state.announcementLoadFailed = false;
+    } catch (err) {
+        console.warn('公告載入失敗，登入流程不中斷。', err);
+        state.announcements = [];
+        state.unreadAnnouncementCount = 0;
+        state.announcementLoadFailed = true;
+    }
 }
 
 async function loadAdminAnnouncements() {
@@ -313,6 +322,7 @@ async function loadAdminAnnouncements() {
     if (!result.success) throw new Error(result.error || 'Failed to load admin announcements');
     const rows = result.announcements || [];
     state.adminAnnouncements = (rows || []).map(normalizeAnnouncement);
+    state.announcementLoadFailed = false;
 }
 
 function normalizeUserRecord(user = {}) {
@@ -1039,6 +1049,7 @@ function logout() {
     state.announcements = [];
     state.adminAnnouncements = [];
     state.unreadAnnouncementCount = 0;
+    state.announcementLoadFailed = false;
 
     const userInfoDiv = document.getElementById('user-info-badge');
     if (userInfoDiv) userInfoDiv.remove();
@@ -1492,12 +1503,10 @@ async function openAnnouncementDialog() {
         await loadAdminAnnouncements().catch(err => {
             console.error('載入公告管理資料失敗', err);
             state.adminAnnouncements = [];
+            state.announcementLoadFailed = true;
         });
     } else {
-        await loadAnnouncementsForCurrentUser().catch(err => {
-            console.error('載入公告失敗', err);
-            alert('公告載入失敗，請稍後再試。');
-        });
+        await loadAnnouncementsForCurrentUser();
         renderUserInfo();
     }
 
@@ -1514,6 +1523,19 @@ async function openAnnouncementDialog() {
 }
 
 function renderUserAnnouncementDialog() {
+    if (state.announcementLoadFailed) {
+        return `
+            <div class="dialog-panel announcement-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="announcement-title">
+                <div class="announcement-dialog-header">
+                    <div>
+                        <h3 id="announcement-title">公告須知</h3>
+                        <p>公告服務暫時無法載入，請稍後再試。你仍可正常使用登錄功能。</p>
+                    </div>
+                    <button class="dialog-close-icon" type="button" onclick="closeAnnouncementDialog()" aria-label="關閉">×</button>
+                </div>
+            </div>
+        `;
+    }
     const unreadCount = state.announcements.filter(item => !item.isRead).length;
     const items = state.announcements.length === 0
         ? '<div class="empty-state compact">目前沒有公告。</div>'
@@ -1551,6 +1573,19 @@ function renderUserAnnouncementItem(item) {
 }
 
 function renderAdminAnnouncementDialog() {
+    if (state.announcementLoadFailed) {
+        return `
+            <div class="dialog-panel announcement-dialog-panel admin-announcement-panel" role="dialog" aria-modal="true" aria-labelledby="admin-announcement-title">
+                <div class="announcement-dialog-header">
+                    <div>
+                        <h3 id="admin-announcement-title">公告管理</h3>
+                        <p>公告管理服務暫時無法載入。若剛部署前端，請確認 root GAS 已推送並部署。</p>
+                    </div>
+                    <button class="dialog-close-icon" type="button" onclick="closeAnnouncementDialog()" aria-label="關閉">×</button>
+                </div>
+            </div>
+        `;
+    }
     const targetOptions = state.allUserRecords
         .filter(user => user.role !== 'admin')
         .map(user => {
