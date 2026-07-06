@@ -120,6 +120,9 @@ function doPost(e) {
     if (action === 'deleteInvestigatorUser') return handleDeleteInvestigatorUser(requestData);
     if (action === 'changeAdminPassword') return handleChangeAdminPassword(requestData);
     if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
+    if (action === 'getAnnouncements') return handleGetAnnouncements(requestData);
+    if (action === 'markAnnouncementRead') return handleMarkAnnouncementRead(requestData);
+    if (action === 'createAnnouncement') return handleCreateAnnouncement(requestData);
 
     throw new Error("未知的操作");
   } catch (error) {
@@ -255,6 +258,48 @@ function changeAdminPasswordInSupabase_(data) {
   }, config.serviceRoleKey);
 }
 
+function createAnnouncementInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('create_announcement', {
+    p_actor_account: data.actorAccount,
+    p_title: data.title,
+    p_body: data.body,
+    p_target_account: data.targetAccount || ''
+  }, config.serviceRoleKey);
+}
+
+function getAnnouncementsFromSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  var isAdmin = data.role === 'admin';
+  return callSupabaseRpc_(isAdmin ? 'get_admin_announcements' : 'get_visible_announcements', isAdmin ? {
+    p_actor_account: data.account,
+    p_limit: data.limit || 100
+  } : {
+    p_account: data.account,
+    p_limit: data.limit || 50
+  }, config.serviceRoleKey);
+}
+
+function markAnnouncementReadInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('mark_announcement_read', {
+    p_announcement_id: data.announcementId,
+    p_reader_account: data.readerAccount
+  }, config.serviceRoleKey);
+}
+
 function updateUserProfileInSheet_(data, profile) {
   if (!SHEET_ID) throw new Error('Missing script property: SHEET_ID');
 
@@ -380,6 +425,79 @@ function handleChangeAdminPassword(data) {
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
     supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleGetAnnouncements(data) {
+  var account = normalizeEmail_(data.account);
+  var role = String(data.role || '') === 'admin' ? 'admin' : 'user';
+
+  if (!account) {
+    throw new Error('Account is required');
+  }
+
+  var announcements = getAnnouncementsFromSupabase_({
+    account: account,
+    role: role,
+    limit: role === 'admin' ? 100 : 50
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    announcements: announcements || []
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleMarkAnnouncementRead(data) {
+  var readerAccount = normalizeEmail_(data.readerAccount);
+  var announcementId = String(data.announcementId || '').trim();
+
+  if (!readerAccount) {
+    throw new Error('Reader account is required');
+  }
+  if (!announcementId) {
+    throw new Error('Announcement id is required');
+  }
+
+  var readResult = markAnnouncementReadInSupabase_({
+    announcementId: announcementId,
+    readerAccount: readerAccount
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    read: readResult && readResult[0] ? readResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleCreateAnnouncement(data) {
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var adminPassword = String(data.adminPassword || '');
+  var title = String(data.title || '').trim();
+  var body = String(data.body || '').trim();
+  var targetAccount = normalizeEmail_(data.targetAccount);
+
+  if (!actorAccount || !adminPassword) {
+    throw new Error('Admin account and password are required');
+  }
+  if (!title) {
+    throw new Error('Announcement title is required');
+  }
+  if (!body) {
+    throw new Error('Announcement body is required');
+  }
+
+  verifyAdminPassword_(actorAccount, adminPassword);
+  var supabaseResult = createAnnouncementInSupabase_({
+    actorAccount: actorAccount,
+    title: title,
+    body: body,
+    targetAccount: targetAccount
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    announcement: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
   })).setMimeType(ContentService.MimeType.JSON);
 }
 

@@ -1399,6 +1399,45 @@ button:disabled {
     margin: 0;
 }
 
+.btn-announcements {
+    position: relative;
+    display: inline-flex;
+    width: auto;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    padding: 7px 12px;
+    border: 1px solid rgba(45, 115, 108, 0.2);
+    border-radius: 9999px;
+    background: #f3fbf7;
+    color: var(--secondary);
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.btn-announcements.has-unread {
+    border-color: rgba(210, 54, 54, 0.34);
+    background: #fff6f6;
+    color: var(--danger);
+}
+
+.announcement-unread-badge {
+    display: inline-flex;
+    min-width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    border-radius: 9999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+}
+
 #admin-user-manager {
     padding: 12px;
     margin-bottom: 8px;
@@ -1753,6 +1792,147 @@ button:disabled {
     width: min(520px, 100%);
 }
 
+.announcement-dialog-panel {
+    width: min(680px, 100%);
+    max-height: min(82vh, 760px);
+    overflow: auto;
+}
+
+.admin-announcement-panel {
+    width: min(820px, 100%);
+}
+
+.announcement-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.announcement-dialog-header h3,
+.announcement-dialog-header p {
+    margin: 0;
+}
+
+.dialog-close-icon {
+    width: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.announcement-list {
+    display: grid;
+    gap: 10px;
+}
+
+.announcement-item {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.announcement-item.is-unread {
+    border-color: rgba(210, 54, 54, 0.28);
+    background: #fffafa;
+}
+
+.announcement-item-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.announcement-item h4 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 16px;
+}
+
+.announcement-item p {
+    margin: 0;
+    color: var(--ink-soft);
+    white-space: normal;
+}
+
+.announcement-item-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.announcement-read-btn {
+    width: auto;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 14px;
+    font-size: 13px;
+}
+
+.announcement-read-state {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.announcement-compose {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: #f7fbfb;
+}
+
+.announcement-field {
+    display: grid;
+    gap: 5px;
+}
+
+.announcement-field span {
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.announcement-field input,
+.announcement-field select,
+.announcement-field textarea {
+    width: 100%;
+    margin: 0;
+}
+
+.announcement-field textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.announcement-submit-btn {
+    width: auto;
+    justify-self: end;
+    margin: 0;
+}
+
+.announcement-admin-history h4 {
+    margin: 0 0 10px;
+    color: var(--ink);
+    font-size: 15px;
+}
+
 .feedback-admin-card {
     display: grid;
     gap: 3px;
@@ -1881,6 +2061,7 @@ button:disabled {
 
     .btn-download-tasks,
     .btn-feedback,
+    .btn-announcements,
     .btn-logout {
         width: 100%;
         margin: 0;

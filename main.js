@@ -40,6 +40,9 @@ let state = {
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
     allUserRecords: [],
     adminUserSort: { key: '', direction: 'asc' },
+    announcements: [],
+    adminAnnouncements: [],
+    unreadAnnouncementCount: 0,
 };
 
 document.addEventListener('click', () => {
@@ -248,6 +251,67 @@ function escapeJsString(value) {
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'")
         .replace(/\r?\n/g, ' ');
+}
+
+function formatAnnouncementDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('zh-TW', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function normalizeAnnouncement(row = {}) {
+    return {
+        id: row.id,
+        title: row.title || '',
+        body: row.body || '',
+        targetAccount: row.target_account || '',
+        createdBy: row.created_by || '',
+        createdAt: row.created_at || '',
+        readAt: row.read_at || '',
+        isRead: row.is_read === true || !!row.read_at,
+        readCount: Number(row.read_count || 0)
+    };
+}
+
+async function loadAnnouncementsForCurrentUser() {
+    if (!state.userId) return;
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+            action: 'getAnnouncements',
+            account: state.userId,
+            role: state.userRole === 'admin' ? 'admin' : 'user'
+        })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Failed to load announcements');
+    const rows = result.announcements || [];
+    state.announcements = (rows || []).map(normalizeAnnouncement);
+    state.unreadAnnouncementCount = state.announcements.filter(item => !item.isRead).length;
+}
+
+async function loadAdminAnnouncements() {
+    if (state.userRole !== 'admin') return;
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+            action: 'getAnnouncements',
+            account: state.userEmail || state.userId,
+            role: 'admin'
+        })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Failed to load admin announcements');
+    const rows = result.announcements || [];
+    state.adminAnnouncements = (rows || []).map(normalizeAnnouncement);
 }
 
 function normalizeUserRecord(user = {}) {
@@ -925,6 +989,7 @@ async function enterApp(user, options = {}) {
     state.userSpecialty = '';
 
     await loadDataFromSupabase(state.userId);
+    await loadAnnouncementsForCurrentUser();
     if (persist) saveSession(normalizedUser);
     renderUserInfo();
     configureRoleUI();
@@ -970,6 +1035,9 @@ function logout() {
     state.renderedPlaceCount = 0;
     state.allUsers = [];
     state.allUserRecords = [];
+    state.announcements = [];
+    state.adminAnnouncements = [];
+    state.unreadAnnouncementCount = 0;
 
     const userInfoDiv = document.getElementById('user-info-badge');
     if (userInfoDiv) userInfoDiv.remove();
@@ -980,6 +1048,7 @@ function logout() {
     if (userManager) userManager.remove();
     const classFilterRow = document.getElementById('class-filter-row');
     if (classFilterRow) classFilterRow.remove();
+    closeAnnouncementDialog();
 
     document.getElementById('app-section').style.paddingBottom = '';
     configureRoleUI();
@@ -1021,12 +1090,21 @@ function renderUserInfo() {
     const adminPasswordButton = state.userRole === 'admin'
         ? '<button class="btn-change-password" type="button" onclick="openAdminPasswordDialog()">變更密碼</button>'
         : '';
+    const announcementLabel = state.userRole === 'admin' ? '公告管理' : '公告';
+    const unreadBadge = state.unreadAnnouncementCount > 0
+        ? `<span class="announcement-unread-badge" aria-label="${state.unreadAnnouncementCount} 則未讀公告">${state.unreadAnnouncementCount}</span>`
+        : '';
+    const announcementButton = `
+        <button class="btn-announcements ${state.unreadAnnouncementCount > 0 ? 'has-unread' : ''}" type="button" onclick="openAnnouncementDialog()">
+            <span>${announcementLabel}</span>${unreadBadge}
+        </button>`;
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
             <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
         </div>
         <div class="user-action-group">
+            ${announcementButton}
             ${taskDownloadButton}
             ${feedbackButton}
             ${adminPasswordButton}
@@ -1037,6 +1115,241 @@ function renderUserInfo() {
     if (identityLine) {
         identityLine.textContent = `${roleText}: ${displayName}`;
         identityLine.title = hoverTitle;
+    }
+}
+
+function closeAnnouncementDialog() {
+    document.getElementById('announcement-dialog')?.remove();
+}
+
+async function openAnnouncementDialog() {
+    closeAnnouncementDialog();
+
+    if (state.userRole === 'admin') {
+        await loadAdminAnnouncements().catch(err => {
+            console.error('載入公告管理資料失敗', err);
+            state.adminAnnouncements = [];
+        });
+    } else {
+        await loadAnnouncementsForCurrentUser().catch(err => {
+            console.error('載入公告失敗', err);
+            alert('公告載入失敗，請稍後再試。');
+        });
+        renderUserInfo();
+    }
+
+    const dialog = document.createElement('div');
+    dialog.id = 'announcement-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = state.userRole === 'admin'
+        ? renderAdminAnnouncementDialog()
+        : renderUserAnnouncementDialog();
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeAnnouncementDialog();
+    });
+    document.body.appendChild(dialog);
+}
+
+function renderUserAnnouncementDialog() {
+    const unreadCount = state.announcements.filter(item => !item.isRead).length;
+    const items = state.announcements.length === 0
+        ? '<div class="empty-state compact">目前沒有公告。</div>'
+        : state.announcements.map(renderUserAnnouncementItem).join('');
+    return `
+        <div class="dialog-panel announcement-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="announcement-title">
+            <div class="announcement-dialog-header">
+                <div>
+                    <h3 id="announcement-title">公告須知</h3>
+                    <p>${unreadCount > 0 ? `尚有 ${unreadCount} 則公告需要按下已讀。` : '所有公告都已讀。'}</p>
+                </div>
+                <button class="dialog-close-icon" type="button" onclick="closeAnnouncementDialog()" aria-label="關閉">×</button>
+            </div>
+            <div class="announcement-list">${items}</div>
+        </div>
+    `;
+}
+
+function renderUserAnnouncementItem(item) {
+    const targetText = item.targetAccount ? '專屬消息' : '全體公告';
+    const readAction = item.isRead
+        ? `<span class="announcement-read-state">已讀 ${escapeHtml(formatAnnouncementDate(item.readAt))}</span>`
+        : `<button class="btn-primary announcement-read-btn" type="button" onclick="markAnnouncementRead('${escapeJsString(item.id)}', this)">已讀</button>`;
+    return `
+        <article class="announcement-item ${item.isRead ? 'is-read' : 'is-unread'}">
+            <div class="announcement-item-meta">
+                <span>${escapeHtml(targetText)}</span>
+                <time>${escapeHtml(formatAnnouncementDate(item.createdAt))}</time>
+            </div>
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.body).replace(/\n/g, '<br>')}</p>
+            <div class="announcement-item-actions">${readAction}</div>
+        </article>
+    `;
+}
+
+function renderAdminAnnouncementDialog() {
+    const targetOptions = state.allUserRecords
+        .filter(user => user.role !== 'admin')
+        .map(user => {
+            const account = user.account || user.email || '';
+            const label = `${user.name || account} (${user.email || account})`;
+            return `<option value="${escapeHtml(account)}">${escapeHtml(label)}</option>`;
+        }).join('');
+    const items = state.adminAnnouncements.length === 0
+        ? '<div class="empty-state compact">目前尚未張貼公告。</div>'
+        : state.adminAnnouncements.map(renderAdminAnnouncementItem).join('');
+
+    return `
+        <div class="dialog-panel announcement-dialog-panel admin-announcement-panel" role="dialog" aria-modal="true" aria-labelledby="admin-announcement-title">
+            <div class="announcement-dialog-header">
+                <div>
+                    <h3 id="admin-announcement-title">公告管理</h3>
+                    <p>可張貼全體公告，或指定單一調查員的專屬消息。</p>
+                </div>
+                <button class="dialog-close-icon" type="button" onclick="closeAnnouncementDialog()" aria-label="關閉">×</button>
+            </div>
+            <div class="announcement-compose">
+                <label class="announcement-field">
+                    <span>發布對象</span>
+                    <select id="announcement-target">
+                        <option value="">全體調查員</option>
+                        ${targetOptions}
+                    </select>
+                </label>
+                <label class="announcement-field">
+                    <span>標題</span>
+                    <input id="announcement-title-input" type="text" maxlength="120">
+                </label>
+                <label class="announcement-field">
+                    <span>內容</span>
+                    <textarea id="announcement-body-input" rows="5"></textarea>
+                </label>
+                <label class="announcement-field">
+                    <span>管理員密碼</span>
+                    <input id="announcement-admin-password" type="password" autocomplete="current-password">
+                </label>
+                <div id="announcement-compose-status" class="feedback-status" aria-live="polite"></div>
+                <button class="btn-primary announcement-submit-btn" id="announcement-submit-btn" type="button" onclick="submitAnnouncement()">發布公告</button>
+            </div>
+            <div class="announcement-admin-history">
+                <h4>已發布公告</h4>
+                <div class="announcement-list">${items}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderAdminAnnouncementItem(item) {
+    const targetText = item.targetAccount ? `專屬：${item.targetAccount}` : '全體調查員';
+    return `
+        <article class="announcement-item is-read">
+            <div class="announcement-item-meta">
+                <span>${escapeHtml(targetText)}</span>
+                <time>${escapeHtml(formatAnnouncementDate(item.createdAt))}</time>
+            </div>
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.body).replace(/\n/g, '<br>')}</p>
+            <div class="announcement-read-state">已讀人數 ${item.readCount}</div>
+        </article>
+    `;
+}
+
+async function markAnnouncementRead(announcementId, button) {
+    if (!announcementId || !state.userId) return;
+    const originalText = button?.textContent || '已讀';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '處理中...';
+    }
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'markAnnouncementRead',
+                announcementId,
+                readerAccount: state.userId
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to mark announcement read');
+        await loadAnnouncementsForCurrentUser();
+        renderUserInfo();
+        const dialog = document.getElementById('announcement-dialog');
+        if (dialog) dialog.innerHTML = renderUserAnnouncementDialog();
+    } catch (err) {
+        console.error('公告已讀失敗', err);
+        alert('標記已讀失敗，請稍後再試。');
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
+async function submitAnnouncement() {
+    if (state.userRole !== 'admin') return;
+    const targetInput = document.getElementById('announcement-target');
+    const titleInput = document.getElementById('announcement-title-input');
+    const bodyInput = document.getElementById('announcement-body-input');
+    const passwordInput = document.getElementById('announcement-admin-password');
+    const status = document.getElementById('announcement-compose-status');
+    const button = document.getElementById('announcement-submit-btn');
+
+    const title = titleInput?.value.trim() || '';
+    const body = bodyInput?.value.trim() || '';
+    const adminPassword = passwordInput?.value || '';
+    if (!title) {
+        if (status) status.textContent = '請輸入公告標題。';
+        titleInput?.focus();
+        return;
+    }
+    if (!body) {
+        if (status) status.textContent = '請輸入公告內容。';
+        bodyInput?.focus();
+        return;
+    }
+    if (!adminPassword) {
+        if (status) status.textContent = '請輸入管理員密碼。';
+        passwordInput?.focus();
+        return;
+    }
+
+    const originalText = button?.textContent || '發布公告';
+    if (status) status.textContent = '';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '發布中...';
+    }
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'createAnnouncement',
+                actorAccount: state.userEmail || state.userId,
+                adminPassword,
+                title,
+                body,
+                targetAccount: targetInput?.value || ''
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Failed to create announcement');
+
+        await loadAdminAnnouncements();
+        const dialog = document.getElementById('announcement-dialog');
+        if (dialog) dialog.innerHTML = renderAdminAnnouncementDialog();
+    } catch (err) {
+        console.error('發布公告失敗', err);
+        if (status) status.textContent = `發布失敗：${err.message}`;
+    } finally {
+        const currentButton = document.getElementById('announcement-submit-btn');
+        if (currentButton) {
+            currentButton.disabled = false;
+            currentButton.textContent = originalText;
+        }
     }
 }
 
