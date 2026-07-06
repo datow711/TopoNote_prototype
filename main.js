@@ -55,6 +55,7 @@ let mediaRecorder;
 let audioChunks = [];
 let audioBlob = null;
 let uploadedFileName = ""; 
+let tutorialState = null;
 
 const SESSION_KEY = 'toponote_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1098,6 +1099,7 @@ function renderUserInfo() {
         <button class="btn-announcements ${state.unreadAnnouncementCount > 0 ? 'has-unread' : ''}" type="button" onclick="openAnnouncementDialog()">
             <span>${announcementLabel}</span>${unreadBadge}
         </button>`;
+    const tutorialButton = '<button class="btn-tutorial" type="button" onclick="startTutorial()">使用教學</button>';
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
@@ -1105,6 +1107,7 @@ function renderUserInfo() {
         </div>
         <div class="user-action-group">
             ${announcementButton}
+            ${tutorialButton}
             ${taskDownloadButton}
             ${feedbackButton}
             ${adminPasswordButton}
@@ -1120,6 +1123,366 @@ function renderUserInfo() {
 
 function closeAnnouncementDialog() {
     document.getElementById('announcement-dialog')?.remove();
+}
+
+const TUTORIAL_DEMO_PLACE = {
+    id: 'tutorial-demo-place',
+    sourceId: 'TUTORIAL-0001',
+    placeName: '教學示範地名',
+    county: '示範縣',
+    town: '示範鄉',
+    type: '聚落',
+    tAssignee: '教學調查員',
+    hAssignee: '',
+    assignedUsers: ['教學調查員'],
+    taiAudioCount: 0,
+    hakAudioCount: 0,
+    recordingStatus: '未錄音',
+    sourceTable: 'tutorial'
+};
+
+const TUTORIAL_AUDIO_DATA_URL = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+
+function cloneTutorialStateValue(value) {
+    if (value instanceof Set) return new Set(value);
+    if (Array.isArray(value)) return [...value];
+    if (value && typeof value === 'object') return { ...value };
+    return value;
+}
+
+function captureTutorialSnapshot() {
+    const keys = [
+        'assignedPlaces',
+        'allPlaces',
+        'filteredPlaces',
+        'selectedPlace',
+        'selectedTowns',
+        'availableTowns',
+        'selectedTypes',
+        'typeFiltersInitialized',
+        'availableTypes',
+        'selectedHakArea',
+        'selectedStatus',
+        'selectedStatuses',
+        'lastSelectedPlaceIndex',
+        'renderedPlaceCount',
+        'selectedAssignTaskIds',
+        'currentTab'
+    ];
+    const stateSnapshot = {};
+    keys.forEach(key => {
+        stateSnapshot[key] = cloneTutorialStateValue(state[key]);
+    });
+    return {
+        state: stateSnapshot,
+        inputs: {
+            county: document.getElementById('county-filter')?.value || '',
+            search: document.getElementById('search-box')?.value || '',
+            taihan: document.getElementById('taihan-input')?.value || '',
+            tl1: document.getElementById('tl1-input')?.value || '',
+            tainote: document.getElementById('tainote-input')?.value || '',
+            audioSrc: document.getElementById('audio-playback')?.getAttribute('src') || ''
+        },
+        audioBlob,
+        uploadedFileName
+    };
+}
+
+function restoreTutorialSnapshot() {
+    if (!tutorialState?.snapshot) return;
+    Object.entries(tutorialState.snapshot.state).forEach(([key, value]) => {
+        state[key] = cloneTutorialStateValue(value);
+    });
+    audioBlob = tutorialState.snapshot.audioBlob;
+    uploadedFileName = tutorialState.snapshot.uploadedFileName;
+    initFilters();
+    const county = document.getElementById('county-filter');
+    const search = document.getElementById('search-box');
+    if (county) county.value = tutorialState.snapshot.inputs.county || '';
+    updateTowns(state.selectedTowns || []);
+    if (search) search.value = tutorialState.snapshot.inputs.search || '';
+    applyFilters();
+    if (state.selectedPlace) {
+        const selectedItem = Array.from(document.querySelectorAll('.place-item')).find(item =>
+            item.textContent.includes(state.selectedPlace.placeName || '')
+        );
+        openRecordingUI(state.selectedPlace, selectedItem || null);
+    } else {
+        closeRecordingUI();
+    }
+    const playback = document.getElementById('audio-playback');
+    if (playback) {
+        if (tutorialState.snapshot.inputs.audioSrc) playback.src = tutorialState.snapshot.inputs.audioSrc;
+        else playback.removeAttribute('src');
+    }
+}
+
+function getTutorialSteps() {
+    return [
+        {
+            selector: '#tab-assigned',
+            title: '1. 任務清單',
+            body: '這裡是調查員被指派的地名。教學會用一筆示範地名，不會寫入正式資料。',
+            before: setupTutorialDemoList
+        },
+        {
+            selector: '.filter-section',
+            title: '2. 篩選地名',
+            body: '先用縣市、鄉鎮、類型和關鍵字縮小清單。示範會填入「教學」。',
+            before: setupTutorialFilters
+        },
+        {
+            selector: '.place-item',
+            title: '3. 選擇地名',
+            body: '點一筆地名後，下方會開啟登錄區。這一步會打開示範地名。',
+            before: setupTutorialSelectedPlace
+        },
+        {
+            selector: '.annotation-panel',
+            title: '4. 輸入文字',
+            body: '先輸入漢字、音標和備註。這些示範文字只是暫時顯示，不會儲存。',
+            before: setupTutorialTextInputs
+        },
+        {
+            selector: '#start-btn',
+            title: '5. 新增錄音',
+            body: '實際操作時按下開始錄音，錄完後按停止。教學不會要求麥克風權限。',
+            before: setupTutorialRecordingStart
+        },
+        {
+            selector: '#audio-confirm-panel',
+            title: '6. 確認並重播錄音',
+            body: '錄音後會出現音檔確認區，可以先重播檢查，再決定是否上傳。',
+            before: setupTutorialRecordedAudio
+        },
+        {
+            selector: '#file-btn',
+            title: '7. 新增上傳錄音檔',
+            body: '如果錄音在 LINE 或手機裡，也可以改用上傳音檔。教學只標示入口，不會開檔案選擇器。',
+            before: setupTutorialFileUpload
+        },
+        {
+            selector: '#upload-btn',
+            title: '8. 確認上傳',
+            body: '確認文字和音檔都正確後才按上傳。教學不會真的送出資料。',
+            before: setupTutorialUploadReady
+        },
+        {
+            selector: '#user-info-badge',
+            title: '教學結束',
+            body: '你可以開始登錄；之後也能再按「使用教學」重看一次。',
+            before: setupTutorialEnd
+        }
+    ];
+}
+
+function startTutorial() {
+    if (tutorialState) endTutorial({ restore: true });
+    closeAnnouncementDialog();
+    tutorialState = {
+        index: -1,
+        snapshot: captureTutorialSnapshot()
+    };
+    const overlay = document.createElement('div');
+    overlay.id = 'tutorial-overlay';
+    overlay.innerHTML = `
+        <div class="tutorial-highlight" aria-hidden="true"></div>
+        <div class="tutorial-arrow" aria-hidden="true"></div>
+        <div class="tutorial-popover" role="dialog" aria-live="polite">
+            <div class="tutorial-step-count"></div>
+            <h3></h3>
+            <p></p>
+            <div class="tutorial-actions">
+                <button class="tutorial-skip" type="button">略過</button>
+                <button class="tutorial-next" type="button">下一步</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', handleTutorialOverlayClick);
+    overlay.querySelector('.tutorial-skip')?.addEventListener('click', event => {
+        event.stopPropagation();
+        endTutorial({ restore: true });
+    });
+    overlay.querySelector('.tutorial-next')?.addEventListener('click', event => {
+        event.stopPropagation();
+        advanceTutorial();
+    });
+    window.addEventListener('resize', positionTutorialStep);
+    advanceTutorial();
+}
+
+function handleTutorialOverlayClick(event) {
+    if (event.target.closest('.tutorial-popover')) return;
+    advanceTutorial();
+}
+
+function advanceTutorial() {
+    if (!tutorialState) return;
+    tutorialState.index += 1;
+    const steps = getTutorialSteps();
+    if (tutorialState.index >= steps.length) {
+        endTutorial({ restore: true });
+        return;
+    }
+    document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
+    const step = steps[tutorialState.index];
+    if (typeof step.before === 'function') step.before();
+    renderTutorialStep(step, tutorialState.index, steps.length);
+}
+
+function renderTutorialStep(step, index, total) {
+    const overlay = document.getElementById('tutorial-overlay');
+    if (!overlay) return;
+    const popover = overlay.querySelector('.tutorial-popover');
+    overlay.querySelector('.tutorial-step-count').textContent = `${index + 1} / ${total}`;
+    overlay.querySelector('h3').textContent = step.title;
+    overlay.querySelector('p').textContent = step.body;
+    overlay.querySelector('.tutorial-next').textContent = index === total - 1 ? '完成' : '下一步';
+    positionTutorialStep();
+    popover?.focus?.();
+}
+
+function positionTutorialStep() {
+    if (!tutorialState) return;
+    const steps = getTutorialSteps();
+    const step = steps[tutorialState.index];
+    const overlay = document.getElementById('tutorial-overlay');
+    if (!overlay || !step) return;
+    const target = document.querySelector(step.selector);
+    const highlight = overlay.querySelector('.tutorial-highlight');
+    const popover = overlay.querySelector('.tutorial-popover');
+    const arrow = overlay.querySelector('.tutorial-arrow');
+    if (!target || !highlight || !popover || !arrow) return;
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    window.setTimeout(() => {
+        const rect = target.getBoundingClientRect();
+        const padding = 8;
+        const top = Math.max(8, rect.top - padding);
+        const left = Math.max(8, rect.left - padding);
+        const width = Math.min(window.innerWidth - left - 8, rect.width + padding * 2);
+        const height = Math.min(window.innerHeight - top - 8, rect.height + padding * 2);
+        highlight.style.top = `${top}px`;
+        highlight.style.left = `${left}px`;
+        highlight.style.width = `${width}px`;
+        highlight.style.height = `${height}px`;
+
+        const popoverWidth = Math.min(360, window.innerWidth - 24);
+        popover.style.width = `${popoverWidth}px`;
+        let popoverTop = top + height + 18;
+        if (popoverTop + 210 > window.innerHeight) popoverTop = Math.max(12, top - 220);
+        let popoverLeft = Math.min(window.innerWidth - popoverWidth - 12, Math.max(12, left));
+        popover.style.top = `${popoverTop}px`;
+        popover.style.left = `${popoverLeft}px`;
+
+        arrow.style.top = `${Math.max(12, Math.min(window.innerHeight - 24, top + height + 2))}px`;
+        arrow.style.left = `${Math.max(24, Math.min(window.innerWidth - 24, left + Math.min(width / 2, 140)))}px`;
+    }, 120);
+}
+
+function setupTutorialDemoList() {
+    document.getElementById('app-section')?.classList.remove('hidden');
+    state.currentTab = 'assigned';
+    document.getElementById('tab-assigned')?.classList.add('active');
+    document.getElementById('tab-other')?.classList.remove('active');
+    document.getElementById('tab-review')?.classList.remove('active');
+    document.getElementById('tab-users')?.classList.remove('active');
+    state.assignedPlaces = [TUTORIAL_DEMO_PLACE, ...state.assignedPlaces.filter(place => place.id !== TUTORIAL_DEMO_PLACE.id)];
+    state.allPlaces = state.allPlaces.filter(place => place.id !== TUTORIAL_DEMO_PLACE.id);
+    state.selectedPlace = null;
+    state.selectedStatuses = [...STATUS_FILTER_VALUES];
+    initFilters();
+    state.selectedTypes = [...state.availableTypes];
+    renderMultiFilterChips('type-container', 'types', '?券憿', state.availableTypes, state.selectedTypes, getTypeDisplayText);
+    syncStatusFilterChips();
+    document.getElementById('county-filter').value = '';
+    document.getElementById('search-box').value = '';
+    applyFilters();
+}
+
+function setupTutorialFilters() {
+    setupTutorialDemoList();
+    const county = document.getElementById('county-filter');
+    const search = document.getElementById('search-box');
+    if (county) {
+        county.value = TUTORIAL_DEMO_PLACE.county;
+        updateTowns([TUTORIAL_DEMO_PLACE.town]);
+    }
+    if (search) search.value = '教學';
+    applyFilters();
+}
+
+function setupTutorialSelectedPlace() {
+    setupTutorialFilters();
+    const item = document.querySelector('.place-item');
+    openRecordingUI(TUTORIAL_DEMO_PLACE, item);
+}
+
+function setupTutorialTextInputs() {
+    setupTutorialSelectedPlace();
+    switchAnnotationLanguage('?啗?');
+    const taihan = document.getElementById('taihan-input');
+    const tl1 = document.getElementById('tl1-input');
+    const tainote = document.getElementById('tainote-input');
+    if (taihan) taihan.value = '教學示範地名';
+    if (tl1) tl1.value = 'kau3-hak8 si7-huan7';
+    if (tainote) tainote.value = '這裡填寫調查備註。';
+}
+
+function setupTutorialRecordingStart() {
+    setupTutorialTextInputs();
+    document.querySelector('.audio-source-panel')?.classList.remove('hidden');
+    document.getElementById('audio-confirm-panel')?.classList.add('hidden');
+    document.getElementById('start-btn').style.display = 'block';
+    document.getElementById('file-btn').style.display = 'block';
+    document.getElementById('stop-btn').style.display = 'none';
+    const status = document.getElementById('status');
+    if (status) {
+        status.textContent = '教學示範：這一步不會啟用麥克風。';
+        status.style.color = '#2c3e50';
+    }
+}
+
+function setupTutorialRecordedAudio() {
+    setupTutorialTextInputs();
+    audioBlob = new Blob(['tutorial-audio'], { type: 'audio/wav' });
+    uploadedFileName = '';
+    const playback = document.getElementById('audio-playback');
+    if (playback) playback.src = TUTORIAL_AUDIO_DATA_URL;
+    showAudioConfirmation('教學示範錄音', null);
+    const status = document.getElementById('status');
+    if (status) {
+        status.textContent = '教學示範：可以在這裡重播檢查音檔。';
+        status.style.color = 'green';
+    }
+}
+
+function setupTutorialFileUpload() {
+    setupTutorialRecordingStart();
+    document.getElementById('file-btn')?.classList.add('tutorial-pulse');
+}
+
+function setupTutorialUploadReady() {
+    setupTutorialRecordedAudio();
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.style.display = 'block';
+        uploadBtn.classList.add('tutorial-pulse');
+    }
+}
+
+function setupTutorialEnd() {
+    restoreTutorialSnapshot();
+}
+
+function endTutorial(options = {}) {
+    window.removeEventListener('resize', positionTutorialStep);
+    document.getElementById('tutorial-overlay')?.remove();
+    document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
+    const shouldRestore = options.restore !== false;
+    if (shouldRestore && tutorialState?.snapshot) restoreTutorialSnapshot();
+    tutorialState = null;
 }
 
 async function openAnnouncementDialog() {
