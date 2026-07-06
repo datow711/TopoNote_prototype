@@ -106,7 +106,7 @@ begin
 
   insert into public.announcement_reads as ar (announcement_id, reader_account, read_at)
   values (p_announcement_id, v_reader, now())
-  on conflict (announcement_id, reader_account)
+  on conflict on constraint announcement_reads_pkey
   do update set read_at = excluded.read_at
   returning ar.announcement_id, ar.reader_account, ar.read_at
   into announcement_id, reader_account, read_at;
