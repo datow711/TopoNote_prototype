@@ -255,6 +255,20 @@ function escapeJsString(value) {
         .replace(/\r?\n/g, ' ');
 }
 
+function filterSelectOptions(selectId, query) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const normalizedQuery = String(query || '').trim().toLowerCase();
+    Array.from(select.options).forEach(option => {
+        const haystack = [
+            option.textContent,
+            option.value,
+            option.title
+        ].filter(Boolean).join(' ').toLowerCase();
+        option.hidden = !!normalizedQuery && !haystack.includes(normalizedQuery);
+    });
+}
+
 function formatAnnouncementDate(value) {
     if (!value) return '';
     const date = new Date(value);
@@ -2759,6 +2773,15 @@ function initFilters() {
             const searchBox = document.getElementById('search-box');
             searchBox.parentNode.insertBefore(assigneeSelect, searchBox);
         }
+        let assigneeSearch = document.getElementById('assignee-filter-search');
+        if (!assigneeSearch) {
+            assigneeSearch = document.createElement('input');
+            assigneeSearch.id = 'assignee-filter-search';
+            assigneeSearch.type = 'text';
+            assigneeSearch.placeholder = '搜尋調查員姓名、email、手機...';
+            assigneeSearch.oninput = () => filterSelectOptions('assignee-filter', assigneeSearch.value);
+            assigneeSelect.parentNode.insertBefore(assigneeSearch, assigneeSelect);
+        }
         
         // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
@@ -2770,6 +2793,7 @@ function initFilters() {
         if (previousAssignee && Array.from(assigneeSelect.options).some(option => option.value === previousAssignee)) {
             assigneeSelect.value = previousAssignee;
         }
+        filterSelectOptions('assignee-filter', assigneeSearch.value);
 
         initClassFilters();
                                    
@@ -3453,6 +3477,7 @@ function renderLanguageAssignmentControls(place) {
                     <div class="language-assignment-row">
                         <span class="language-assignment-label">${row.label}</span>
                         <span class="language-assignment-current" title="${escapeHtml(row.assignee || '')}">${escapeHtml(displayName)}</span>
+                        <input type="text" class="language-assignee-search" placeholder="搜尋調查員" oninput="filterSelectOptions('${escapeJsString(selectId)}', this.value)">
                         <select id="${escapeHtml(selectId)}" class="language-assignee-select">
                             ${renderLanguageAssigneeOptions(row.assignee)}
                         </select>
@@ -4188,6 +4213,7 @@ function renderAdminBatchAssignUI() {
             <option value="台語">台語</option>
             <option value="客語">客語</option>
         </select>
+        <input id="assignee-input-search" type="text" placeholder="搜尋調查員..." oninput="filterSelectOptions('assignee-input', this.value)">
         <select id="assignee-input">
             <option value="">選擇調查員</option>
             ${options}

@@ -66,6 +66,11 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
   await expect(page.locator('#assignment-language-input')).toHaveValue('台語');
   await expect(page.locator('#unassign-submit-btn')).toBeVisible();
 
+  await page.locator('.language-assignee-search').first().fill('Lin');
+  await expect(page.locator('#language-assignee-123-tai option[value="Lin Investigator"]')).toHaveJSProperty('hidden', false);
+  await expect(page.locator('#language-assignee-123-tai option[value="Chen Investigator"]')).toHaveJSProperty('hidden', true);
+  await page.locator('.language-assignee-search').first().fill('');
+
   await page.selectOption('#language-assignee-123-tai', 'Lin Investigator');
   await page.locator('.language-assignment-row').filter({ hasText: '台語' }).getByRole('button', { name: '設定' }).click();
 
@@ -121,7 +126,8 @@ test('admin can select all filtered places without rendering every row', async (
     state.currentTab = 'assigned';
     state.placeRenderBatchSize = 1;
     state.allUsers = [
-      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' }
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' },
+      { account: 'chen@example.com', name: 'Chen Investigator', email: 'chen@example.com', phone: '0922' }
     ];
     state.assignedPlaces = [1, 2, 3].map(id => ({
       id,
@@ -148,6 +154,10 @@ test('admin can select all filtered places without rendering every row', async (
 
   await page.locator('#select-filtered-places').check();
   await expect(page.locator('#assign-count')).toHaveText('篩選結果3筆，3筆已選');
+
+  await page.locator('#assignee-input-search').fill('Lin');
+  await expect(page.locator('#assignee-input option[value="Lin Investigator"]')).toHaveJSProperty('hidden', false);
+  await expect(page.locator('#assignee-input option[value="Chen Investigator"]')).toHaveJSProperty('hidden', true);
 
   await page.selectOption('#assignee-input', 'Lin Investigator');
   await page.locator('#assign-submit-btn').click();
@@ -558,6 +568,12 @@ test('admin assignee filter supports assigned and per-language unassigned choice
   await expect(page.locator('#assignee-filter option[value="ASSIGNED"]')).toHaveText('✅ 只看有指派');
   await expect(page.locator('#assignee-filter option[value="TAI_UNASSIGNED"]')).toHaveText('台語未指派');
   await expect(page.locator('#assignee-filter option[value="HAK_UNASSIGNED"]')).toHaveText('客語未指派');
+
+  await page.locator('#assignee-filter-search').fill('Lin');
+  await expect(page.locator('#assignee-filter option[value="Lin Investigator"]')).toHaveJSProperty('hidden', false);
+  await expect(page.locator('#assignee-filter option[value="Chen Investigator"]')).toHaveJSProperty('hidden', true);
+  await expect(page.locator('#assignee-filter option[value="ASSIGNED"]')).toHaveJSProperty('hidden', true);
+  await page.locator('#assignee-filter-search').fill('');
 
   await page.selectOption('#assignee-filter', 'UNASSIGNED');
   await expect(page.locator('.place-item')).toHaveCount(1);

@@ -569,6 +569,7 @@ button:disabled {
     flex: 0 0 auto;
 }
 
+#assignee-filter-search,
 #assignee-filter {
     margin-bottom: 15px;
 }
@@ -880,7 +881,7 @@ button:disabled {
 
 .language-assignment-row {
     display: grid;
-    grid-template-columns: 42px minmax(76px, 0.7fr) minmax(150px, 1fr) auto auto;
+    grid-template-columns: 42px minmax(76px, 0.7fr) minmax(120px, 0.9fr) minmax(150px, 1fr) auto auto;
     align-items: center;
     gap: 6px;
     padding: 6px;
@@ -905,10 +906,15 @@ button:disabled {
     white-space: nowrap;
 }
 
+.language-assignee-search,
 .language-assignee-select {
     min-height: 32px;
     margin: 0;
     font-size: 12px;
+}
+
+.language-assignee-search {
+    min-width: 0;
 }
 
 .language-assign-btn,
@@ -1336,6 +1342,10 @@ button:disabled {
     width: min(260px, 42vw);
     margin: 0;
     border-color: transparent;
+}
+
+#admin-assign-bar #assignee-input-search {
+    width: min(220px, 34vw);
 }
 
 #admin-assign-bar button {
