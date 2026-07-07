@@ -255,6 +255,63 @@ test('admin filter state survives assignment refresh and chip filters default al
   await expect(page.locator('#town-filter-summary')).toHaveText('頭份市');
 });
 
+test('investigator view removes admin-only assignee search controls', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.typeFiltersInitialized = false;
+    state.classFiltersInitialized = false;
+    state.selectedTypes = [];
+    state.selectedTaiClasses = [];
+    state.selectedHakClasses = [];
+    state.allUsers = [
+      { account: 'lin@example.com', name: 'Lin Investigator', email: 'lin@example.com', phone: '0912' }
+    ];
+    state.allUserRecords = state.allUsers;
+    state.assignedPlaces = [
+      {
+        id: 1,
+        sourceId: 'uuid-1',
+        placeName: 'Place 1',
+        county: 'County',
+        town: 'Town',
+        type: 'Type',
+        taiClass: '',
+        hakClass: '',
+        assignedUsers: ['Lin Investigator'],
+        tAssignee: 'Lin Investigator',
+        hAssignee: '',
+        taiAudioCount: 0,
+        hakAudioCount: 0,
+        recordingStatus: 'No records'
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    initFilters();
+    renderPlaceList(state.assignedPlaces);
+    renderAdminBatchAssignUI();
+
+    state.userRole = 'user';
+    state.userId = 'lin@example.com';
+    configureRoleUI();
+    renderPlaceList(state.assignedPlaces);
+  });
+
+  await expect(page.locator('#assignee-filter-search')).toHaveCount(0);
+  await expect(page.locator('#assignee-filter')).toHaveCount(0);
+  await expect(page.locator('#admin-assign-bar')).toHaveCount(0);
+  await expect(page.locator('.language-assignee-search')).toHaveCount(0);
+});
+
 test('town filter supports multi-select choices within the selected county', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {

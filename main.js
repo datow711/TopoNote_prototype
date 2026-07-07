@@ -2440,6 +2440,7 @@ function configureRoleUI() {
     const tabUsers = document.getElementById('tab-users');
     const tabContainer = document.querySelector('.tab-container');
     const assigneeFilter = document.getElementById('assignee-filter');
+    const assigneeFilterSearch = document.getElementById('assignee-filter-search');
     const classFilterRow = document.getElementById('class-filter-row');
     const adminBar = document.getElementById('admin-assign-bar');
     const appSection = document.getElementById('app-section');
@@ -2477,6 +2478,7 @@ function configureRoleUI() {
         tabUsers.classList.add('hidden');
         tabUsers.classList.remove('active');
     }
+    if (assigneeFilterSearch) assigneeFilterSearch.remove();
     if (assigneeFilter) assigneeFilter.remove();
     if (classFilterRow) classFilterRow.remove();
     if (adminBar) adminBar.remove();
