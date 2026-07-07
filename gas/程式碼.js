@@ -84,6 +84,37 @@ function getAllPlacesData() {
   return places;
 }
 
+function handleLinkAudioRecords(data) {
+  var records = Array.isArray(data.records) ? data.records : [];
+  if (records.length === 0) {
+    throw new Error('No linked audio records provided');
+  }
+
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var recordSheet = ss.getSheetByName('Records');
+  if (!recordSheet) {
+    throw new Error('Records sheet not found');
+  }
+
+  records.forEach(function(record) {
+    recordSheet.appendRow([
+      new Date(),
+      record.uploaderId || '',
+      record.placeId || '',
+      record.placeName || '',
+      record.language || '',
+      record.phonetic || '',
+      record.url || '',
+      record.recordId || ''
+    ]);
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    count: records.length
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 // ==========================================
 // 🟢 API 路由：GET
 // ==========================================
@@ -114,6 +145,7 @@ function doPost(e) {
       throw new Error('legacy_login_disabled: current app login uses Supabase RPCs.');
     }
     if (action === 'upload') return handleUpload(requestData);
+    if (action === 'linkAudioRecords') return handleLinkAudioRecords(requestData);
     if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
     if (action === 'setInvestigatorActive') return handleSetInvestigatorActive(requestData);

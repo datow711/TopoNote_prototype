@@ -394,6 +394,29 @@ button:disabled {
     border-color: var(--accent-soft);
 }
 
+.record-link-btn {
+    width: auto;
+    min-height: 32px;
+    margin: 8px 0 0 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--accent-deep);
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.linked-audio-notice {
+    display: inline-block;
+    margin: 0 0 6px;
+    padding: 4px 8px;
+    border-radius: 9999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
 .record-edit-panel {
     display: grid;
     gap: 10px;
@@ -1672,6 +1695,66 @@ button:disabled {
 
 .user-edit-dialog-panel {
     width: min(720px, 100%);
+}
+
+.audio-link-dialog-panel {
+    width: min(760px, 100%);
+}
+
+.audio-link-dialog-panel input[type="text"] {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.audio-link-targets {
+    display: grid;
+    max-height: min(50vh, 420px);
+    overflow: auto;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.audio-link-target-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--hairline);
+    cursor: pointer;
+}
+
+.audio-link-target-row:last-child {
+    border-bottom: 0;
+}
+
+.audio-link-target-row input {
+    margin-top: 3px;
+}
+
+.audio-link-target-row strong,
+.audio-link-target-row small {
+    display: block;
+}
+
+.audio-link-target-row small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.audio-link-target-row.disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.audio-link-empty {
+    padding: 14px;
+    color: var(--muted);
+    text-align: center;
 }
 
 .user-edit-grid {

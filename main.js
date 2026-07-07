@@ -134,14 +134,30 @@ const TASK_EXPORT_FIELD_COLUMNS = [
 
 const TASK_EXPORT_COLUMNS = TASK_EXPORT_BASE_COLUMNS.concat(TASK_EXPORT_FIELD_COLUMNS);
 
-function parseRecordNote(note) {
+function parseRecordNotePayload(note) {
     if (!note) return {};
     try {
         const parsed = JSON.parse(note);
-        return parsed && parsed.annotations ? parsed.annotations : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
     } catch (err) {
-        return { legacyNote: note };
+        return { annotations: { legacyNote: note } };
     }
+}
+
+function parseRecordNote(note) {
+    const payload = parseRecordNotePayload(note);
+    return payload && payload.annotations ? payload.annotations : {};
+}
+
+function parseRecordLinkMeta(note) {
+    const payload = parseRecordNotePayload(note);
+    return payload.linkedAudio || payload.linked_audio || null;
+}
+
+function buildRecordNotePayload(annotations = {}, linkMeta = null) {
+    const payload = { annotations };
+    if (linkMeta) payload.linkedAudio = linkMeta;
+    return payload;
 }
 
 function getAnnotationInputId(field) {
@@ -2712,7 +2728,8 @@ async function loadDataFromSupabase(userName) {
         state.uploadedRecords = recordsData.map(r => ({
             recordId: r.id, placeId: r.task_id, language: r.language,
             uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id,
-            annotations: parseRecordNote(r.note)
+            annotations: parseRecordNote(r.note),
+            linkMeta: parseRecordLinkMeta(r.note)
         }));
 
     } catch (err) {
@@ -3437,10 +3454,9 @@ async function revokeReviewLanguage(taskId, language, button) {
 }
 
 function getPlaceByTaskId(taskId) {
-    const id = Number(taskId);
-    return state.assignedPlaces
-        .concat(state.allPlaces, state.reviewQueue)
-        .find(place => Number(place.id) === id) || null;
+    const id = String(taskId);
+    return getAllKnownPlacesForAudioLinking()
+        .find(place => String(place.id) === id) || null;
 }
 
 function getLanguageAssignee(place, language) {
@@ -3823,8 +3839,10 @@ function renderHistoryList(placeId) {
         return `
         <div class="history-item">
             <div class="history-meta"><span>🏷️ ${r.language}</span><span title="${escapeHtml(getUserEmail(r.uploaderId))}">👤 ${escapeHtml(getUserDisplayName(r.uploaderId))}</span></div>
+            ${renderLinkedAudioNotice(r)}
             ${renderAnnotationSummary(r.annotations)}
             ${canEdit ? `<button class="record-edit-btn" type="button" onclick="openRecordAnnotationEditor('${escapeJsString(r.recordId)}')">編輯文字</button>` : ''}
+            ${state.userRole === 'admin' ? `<button class="record-link-btn" type="button" onclick="openAudioLinkDialog('${escapeJsString(r.recordId)}')">連結到其他地名</button>` : ''}
             <div id="${escapeHtml(getRecordEditorId(r.recordId))}" class="record-edit-panel hidden"></div>
             <div id="player-${r.recordId}" style="margin-top: 10px;">
                 <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
@@ -3832,6 +3850,229 @@ function renderHistoryList(placeId) {
         </div>
     `;
     }).join('');
+}
+
+function renderLinkedAudioNotice(record) {
+    if (!record || !record.linkMeta) return '';
+    const sourceRecord = record.linkMeta.sourceRecordId ? `#${record.linkMeta.sourceRecordId}` : '';
+    const sourcePlace = record.linkMeta.sourcePlaceName || '';
+    const sourceText = [sourcePlace, sourceRecord].filter(Boolean).join(' ');
+    return `<div class="linked-audio-notice">共用來源音檔${sourceText ? `：${escapeHtml(sourceText)}` : ''}</div>`;
+}
+
+function getAllKnownPlacesForAudioLinking() {
+    const seen = new Set();
+    return state.assignedPlaces
+        .concat(state.allPlaces || [], state.reviewQueue || [])
+        .filter(place => {
+            const id = String(place?.id ?? '');
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+}
+
+function recordAlreadyLinkedToPlace(record, placeId) {
+    return state.uploadedRecords.some(existing =>
+        String(existing.placeId) === String(placeId) &&
+        String(existing.url || '') === String(record.url || '') &&
+        existing.language === record.language
+    );
+}
+
+async function appendLinkedAudioRecordsToSheet(records) {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+            action: 'linkAudioRecords',
+            records
+        })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Google Sheet audio record append failed');
+    return result;
+}
+
+function openAudioLinkDialog(recordId) {
+    if (state.userRole !== 'admin') return;
+    const record = findUploadedRecord(recordId);
+    if (!record) return alert('找不到這筆錄音紀錄。');
+
+    closeAudioLinkDialog();
+    const sourcePlace = getPlaceByTaskId(record.placeId);
+    const dialog = document.createElement('div');
+    dialog.id = 'audio-link-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel audio-link-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="audio-link-title">
+            <h3 id="audio-link-title">連結音檔到其他地名</h3>
+            <p>來源：${escapeHtml(sourcePlace?.placeName || record.placeId)}｜${escapeHtml(record.language)}｜${escapeHtml(getUserDisplayName(record.uploaderId))}</p>
+            <input id="audio-link-search" type="text" placeholder="搜尋地名、UUID、縣市、鄉鎮" oninput="renderAudioLinkTargetRows('${escapeJsString(recordId)}')">
+            <div id="audio-link-targets" class="audio-link-targets"></div>
+            <div id="audio-link-status" class="user-edit-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" onclick="closeAudioLinkDialog()">取消</button>
+                <button class="btn-primary" id="audio-link-submit-btn" type="button" onclick="submitAudioLink('${escapeJsString(recordId)}')">建立連結</button>
+            </div>
+        </div>
+    `;
+    dialog.addEventListener('click', event => {
+        if (event.target === dialog) closeAudioLinkDialog();
+    });
+    document.body.appendChild(dialog);
+    renderAudioLinkTargetRows(recordId);
+    document.getElementById('audio-link-search')?.focus();
+}
+
+function closeAudioLinkDialog() {
+    document.getElementById('audio-link-dialog')?.remove();
+}
+
+function renderAudioLinkTargetRows(recordId) {
+    const record = findUploadedRecord(recordId);
+    const container = document.getElementById('audio-link-targets');
+    if (!record || !container) return;
+
+    const query = String(document.getElementById('audio-link-search')?.value || '').trim().toLowerCase();
+    const rows = getAllKnownPlacesForAudioLinking()
+        .filter(place => String(place.id) !== String(record.placeId))
+        .filter(place => {
+            if (!query) return true;
+            return [
+                place.placeName,
+                place.sourceId,
+                place.id,
+                place.county,
+                place.town,
+                place.type
+            ].filter(Boolean).join(' ').toLowerCase().includes(query);
+        })
+        .slice(0, 80);
+
+    if (rows.length === 0) {
+        container.innerHTML = '<div class="audio-link-empty">沒有符合的地名。</div>';
+        return;
+    }
+
+    container.innerHTML = rows.map(place => {
+        const duplicated = recordAlreadyLinkedToPlace(record, place.id);
+        const uuid = place.sourceId || place.id;
+        const counts = `台 ${Number(place.taiAudioCount || 0)} / 客 ${Number(place.hakAudioCount || 0)}`;
+        return `
+            <label class="audio-link-target-row ${duplicated ? 'disabled' : ''}">
+                <input class="audio-link-target" type="checkbox" value="${escapeHtml(place.id)}" ${duplicated ? 'disabled' : ''}>
+                <span>
+                    <strong>${escapeHtml(place.placeName)}</strong>
+                    <small>${escapeHtml(uuid)}｜${escapeHtml(place.county || '')} ${escapeHtml(place.town || '')}｜${counts}${duplicated ? '｜已連結' : ''}</small>
+                </span>
+            </label>
+        `;
+    }).join('');
+}
+
+async function submitAudioLink(recordId) {
+    if (state.userRole !== 'admin') return;
+    const record = findUploadedRecord(recordId);
+    if (!record) return alert('找不到這筆錄音紀錄。');
+
+    const selectedIds = Array.from(document.querySelectorAll('.audio-link-target:checked'))
+        .map(input => input.value)
+        .filter(Boolean);
+    if (selectedIds.length === 0) return alert('請先選擇要連結的地名。');
+
+    const targets = selectedIds
+        .map(id => getPlaceByTaskId(id))
+        .filter(Boolean)
+        .filter(place => !recordAlreadyLinkedToPlace(record, place.id));
+    if (targets.length === 0) return alert('選取的地名都已經連結過這個音檔。');
+
+    const button = document.getElementById('audio-link-submit-btn');
+    const status = document.getElementById('audio-link-status');
+    if (button) {
+        button.disabled = true;
+        button.innerText = '建立中...';
+    }
+    if (status) status.innerText = '';
+
+    const sourcePlace = getPlaceByTaskId(record.placeId);
+    const linkMeta = {
+        sourceRecordId: record.recordId,
+        sourceTaskId: record.placeId,
+        sourcePlaceName: sourcePlace?.placeName || '',
+        linkedBy: state.userId || state.userEmail || state.userName || '',
+        linkedAt: new Date().toISOString()
+    };
+    const rows = targets.map(place => ({
+        task_id: place.id,
+        recorder_name: record.uploaderId,
+        audio_file_id: record.url,
+        phonetic_reading: record.phonetic || '',
+        language: record.language,
+        note: JSON.stringify(buildRecordNotePayload(record.annotations || {}, linkMeta))
+    }));
+
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(rows)
+        });
+        if (!response.ok) throw new Error(await response.text());
+
+        const insertedRows = await response.json();
+        const sheetRows = [];
+        rows.forEach((row, index) => {
+            const inserted = Array.isArray(insertedRows) ? insertedRows[index] : null;
+            const target = targets[index];
+            const insertedRecordId = inserted?.id || `${record.recordId}-link-${target.id}`;
+            state.uploadedRecords.push({
+                recordId: insertedRecordId,
+                placeId: target.id,
+                language: record.language,
+                uploaderId: record.uploaderId,
+                phonetic: record.phonetic || '',
+                url: record.url,
+                annotations: { ...(record.annotations || {}) },
+                linkMeta
+            });
+            sheetRows.push({
+                recordId: insertedRecordId,
+                placeId: target.id,
+                placeName: target.placeName || '',
+                language: record.language,
+                uploaderId: record.uploaderId,
+                phonetic: record.phonetic || '',
+                url: record.url
+            });
+            refreshPlaceRecordingStatus(target, record.language);
+        });
+
+        let sheetWarning = '';
+        try {
+            await appendLinkedAudioRecordsToSheet(sheetRows);
+        } catch (sheetErr) {
+            console.error('Google Sheet 音檔紀錄寫入失敗:', sheetErr);
+            sheetWarning = `\n\nGoogle Sheet 的 Records 分頁寫入失敗，Supabase 已建立紀錄。請稍後補同步或檢查 GAS：${sheetErr.message}`;
+        }
+
+        if (state.selectedPlace) renderHistoryList(state.selectedPlace.id);
+        applyFilters();
+        closeAudioLinkDialog();
+        alert(`已建立 ${targets.length} 筆音檔連結。${sheetWarning}`);
+    } catch (err) {
+        console.error('建立音檔連結失敗:', err);
+        if (status) status.innerText = `建立失敗：${err.message}`;
+        if (button) {
+            button.disabled = false;
+            button.innerText = '建立連結';
+        }
+    }
 }
 
 function getRecordEditorId(recordId) {
@@ -3926,7 +4167,7 @@ async function saveRecordAnnotationEdit(recordId, button) {
             },
             body: JSON.stringify({
                 phonetic_reading: phonetic || '',
-                note: JSON.stringify({ annotations })
+                note: JSON.stringify(buildRecordNotePayload(annotations, record.linkMeta || null))
             })
         });
 
@@ -4175,7 +4416,8 @@ function uploadAudio() {
                     uploaderId: recorderName,
                     phonetic: phonetic,
                     url: driveFileIdOrUrl,
-                    annotations: annotations
+                    annotations: annotations,
+                    linkMeta: null
                 });
                 refreshPlaceRecordingStatus(state.selectedPlace, lang);
                 renderHistoryList(state.selectedPlace.id); 

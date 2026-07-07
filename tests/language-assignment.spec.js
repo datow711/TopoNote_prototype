@@ -99,6 +99,144 @@ test('admin place cards assign and unassign by language', async ({ page }) => {
   ]);
 });
 
+test('admin links an existing audio record to other places as normal audio records', async ({ page }) => {
+  const postCalls = [];
+  const gasCalls = [];
+
+  await page.route('**/*', route => {
+    const request = route.request();
+    if (request.url().includes('script.google.com/macros/s/')) {
+      const body = JSON.parse(request.postData() || '{}');
+      gasCalls.push(body);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, count: Array.isArray(body.records) ? body.records.length : 0 })
+      });
+    }
+    return route.continue();
+  });
+
+  await page.route('**/rest/v1/audio_records', route => {
+    const request = route.request();
+    postCalls.push({
+      method: request.method(),
+      body: JSON.parse(request.postData() || '[]')
+    });
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify([{ id: 901 }])
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__alerts = [];
+    window.alert = message => window.__alerts.push(String(message));
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin User';
+    state.userEmail = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.assignedPlaces = [
+      {
+        id: 10,
+        sourceId: 'SRC-10',
+        placeName: 'Source Place',
+        county: 'County A',
+        town: 'Town A',
+        type: 'Type A',
+        recordingStatus: 'No records',
+        taiAudioCount: 1,
+        hakAudioCount: 0
+      },
+      {
+        id: 20,
+        sourceId: 'SRC-20',
+        placeName: 'Target Place',
+        county: 'County B',
+        town: 'Town B',
+        type: 'Type B',
+        recordingStatus: 'No records',
+        taiAudioCount: 0,
+        hakAudioCount: 0
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+    state.selectedPlace = state.assignedPlaces[0];
+    state.uploadedRecords = [
+      {
+        recordId: 501,
+        placeId: 10,
+        language: 'Tai',
+        uploaderId: 'Lin Investigator',
+        phonetic: 'tsu7',
+        url: 'drive-file-id',
+        annotations: {
+          taihan: 'source text',
+          tl1: 'tsu7'
+        },
+        linkMeta: null
+      }
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    document.getElementById('recording-section').style.display = 'block';
+    renderHistoryList(10);
+  });
+
+  await page.getByRole('button', { name: '連結到其他地名' }).click();
+  await page.locator('#audio-link-search').fill('Target');
+  await page.getByLabel(/Target Place/).check();
+  await page.getByRole('button', { name: '建立連結' }).click();
+
+  expect(postCalls).toHaveLength(1);
+  expect(postCalls[0].method).toBe('POST');
+  expect(postCalls[0].body).toHaveLength(1);
+  expect(postCalls[0].body[0].task_id).toBe(20);
+  expect(postCalls[0].body[0].audio_file_id).toBe('drive-file-id');
+  expect(postCalls[0].body[0].recorder_name).toBe('Lin Investigator');
+  expect(postCalls[0].body[0].language).toBe('Tai');
+  expect(JSON.parse(postCalls[0].body[0].note)).toMatchObject({
+    annotations: {
+      taihan: 'source text',
+      tl1: 'tsu7'
+    },
+    linkedAudio: {
+      sourceRecordId: 501,
+      sourceTaskId: 10,
+      sourcePlaceName: 'Source Place',
+      linkedBy: 'admin@example.com'
+    }
+  });
+  await expect.poll(() => gasCalls.length).toBe(1);
+  expect(gasCalls[0]).toEqual(expect.objectContaining({
+    action: 'linkAudioRecords',
+    records: [{
+      recordId: 901,
+      placeId: 20,
+      placeName: 'Target Place',
+      language: 'Tai',
+      uploaderId: 'Lin Investigator',
+      phonetic: 'tsu7',
+      url: 'drive-file-id'
+    }]
+  }));
+
+  const result = await page.evaluate(() => ({
+    linkedRecord: state.uploadedRecords.find(record => String(record.placeId) === '20'),
+    targetTaiCount: state.assignedPlaces.find(place => place.id === 20).taiAudioCount,
+    alerts: window.__alerts
+  }));
+
+  expect(result.linkedRecord.url).toBe('drive-file-id');
+  expect(result.linkedRecord.linkMeta.sourceRecordId).toBe(501);
+  expect(result.targetTaiCount).toBe(1);
+  expect(result.alerts.at(-1)).toContain('已建立 1 筆音檔連結');
+});
+
 test('admin can select all filtered places without rendering every row', async ({ page }) => {
   const rpcCalls = [];
 
