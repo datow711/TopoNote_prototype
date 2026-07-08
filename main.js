@@ -3105,7 +3105,9 @@ function placeMatchesAssigneeFilter(place, assigneeFilter) {
     if (assigneeFilter === "ASSIGNED") return hasAnyAssignee;
     if (assigneeFilter === "TAI_UNASSIGNED") return !place.tAssignee;
     if (assigneeFilter === "HAK_UNASSIGNED") return !place.hAssignee;
-    return assignedUsersInclude(assignedUsers, assigneeFilter);
+    return assignedUsersInclude(assignedUsers, assigneeFilter) ||
+        isSameUserIdentifier(place.tAssignee, assigneeFilter) ||
+        isSameUserIdentifier(place.hAssignee, assigneeFilter);
 }
 
 function placeMatchesStatusFilter(place, status) {
@@ -3880,6 +3882,46 @@ function recordAlreadyLinkedToPlace(record, placeId) {
     );
 }
 
+function getAudioLinkCandidatePlaces(record) {
+    return getAllKnownPlacesForAudioLinking()
+        .filter(place => String(place.id) !== String(record.placeId));
+}
+
+function getAudioLinkFilterOptions(record) {
+    const candidates = getAudioLinkCandidatePlaces(record);
+    const counties = [...new Set(candidates.map(place => place.county).filter(Boolean))].sort();
+    const assigneeValues = new Set();
+    candidates.forEach(place => {
+        normalizeAssignedUsers(place.assignedUsers, place.assignedTo).forEach(value => assigneeValues.add(value));
+        if (place.tAssignee) assigneeValues.add(place.tAssignee);
+        if (place.hAssignee) assigneeValues.add(place.hAssignee);
+    });
+    const users = mergeUserRecords([...(state.allUserRecords || []), ...(state.allUsers || [])])
+        .filter(user => user.role !== 'admin')
+        .map(user => ({
+            value: getUserAnnotatorName(user),
+            label: user.name || user.account || user.email || getUserAnnotatorName(user),
+            title: getUserHoverTitle(user)
+        }))
+        .filter(user => user.value && assigneeValues.has(user.value));
+    const knownValues = new Set(users.map(user => user.value));
+    assigneeValues.forEach(value => {
+        if (!knownValues.has(value)) {
+            users.push({
+                value,
+                label: getUserDisplayName(value),
+                title: getUserEmail(value)
+            });
+        }
+    });
+    users.sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-Hant'));
+    return { counties, users };
+}
+
+function getAudioLinkPlayerId(recordId) {
+    return `audio-link-player-${String(recordId || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
 async function appendLinkedAudioRecordsToSheet(records) {
     const response = await fetch(API_URL, {
         method: 'POST',
@@ -3901,6 +3943,8 @@ function openAudioLinkDialog(recordId) {
 
     closeAudioLinkDialog();
     const sourcePlace = getPlaceByTaskId(record.placeId);
+    const filterOptions = getAudioLinkFilterOptions(record);
+    const playerId = getAudioLinkPlayerId(recordId);
     const dialog = document.createElement('div');
     dialog.id = 'audio-link-dialog';
     dialog.className = 'dialog-backdrop';
@@ -3908,7 +3952,21 @@ function openAudioLinkDialog(recordId) {
         <div class="dialog-panel audio-link-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="audio-link-title">
             <h3 id="audio-link-title">連結音檔到其他地名</h3>
             <p>來源：${escapeHtml(sourcePlace?.placeName || record.placeId)}｜${escapeHtml(record.language)}｜${escapeHtml(getUserDisplayName(record.uploaderId))}</p>
-            <input id="audio-link-search" type="text" placeholder="搜尋地名、UUID、縣市、鄉鎮" oninput="renderAudioLinkTargetRows('${escapeJsString(recordId)}')">
+            <div class="audio-link-player-panel">
+                <button class="play-btn compact" type="button" onclick="fetchAndPlayAudioToContainer('${escapeJsString(record.url)}', '${escapeJsString(playerId)}')">播放來源音檔</button>
+                <div id="${escapeHtml(playerId)}" class="audio-link-player"></div>
+            </div>
+            <div class="audio-link-filters">
+                <select id="audio-link-county-filter" onchange="renderAudioLinkTargetRows('${escapeJsString(recordId)}')">
+                    <option value="">全部縣市</option>
+                    ${filterOptions.counties.map(county => `<option value="${escapeHtml(county)}">${escapeHtml(county)}</option>`).join('')}
+                </select>
+                <select id="audio-link-assignee-filter" onchange="renderAudioLinkTargetRows('${escapeJsString(recordId)}')">
+                    <option value="">全部調查員</option>
+                    ${filterOptions.users.map(user => `<option value="${escapeHtml(user.value)}" title="${escapeHtml(user.title || '')}">${escapeHtml(user.label)}</option>`).join('')}
+                </select>
+                <input id="audio-link-search" type="text" placeholder="搜尋地名、UUID、鄉鎮、類型" oninput="renderAudioLinkTargetRows('${escapeJsString(recordId)}')">
+            </div>
             <div id="audio-link-targets" class="audio-link-targets"></div>
             <div id="audio-link-status" class="user-edit-status" aria-live="polite"></div>
             <div class="dialog-actions">
@@ -3935,15 +3993,17 @@ function renderAudioLinkTargetRows(recordId) {
     if (!record || !container) return;
 
     const query = String(document.getElementById('audio-link-search')?.value || '').trim().toLowerCase();
-    const rows = getAllKnownPlacesForAudioLinking()
-        .filter(place => String(place.id) !== String(record.placeId))
+    const county = document.getElementById('audio-link-county-filter')?.value || '';
+    const assignee = document.getElementById('audio-link-assignee-filter')?.value || '';
+    const rows = getAudioLinkCandidatePlaces(record)
+        .filter(place => !county || place.county === county)
+        .filter(place => !assignee || placeMatchesAssigneeFilter(place, assignee))
         .filter(place => {
             if (!query) return true;
             return [
                 place.placeName,
                 place.sourceId,
                 place.id,
-                place.county,
                 place.town,
                 place.type
             ].filter(Boolean).join(' ').toLowerCase().includes(query);
@@ -4188,7 +4248,12 @@ async function saveRecordAnnotationEdit(recordId, button) {
 }
 
 async function fetchAndPlayAudio(driveUrl, recordId) {
-    const container = document.getElementById(`player-${recordId}`);
+    return fetchAndPlayAudioToContainer(driveUrl, `player-${recordId}`);
+}
+
+async function fetchAndPlayAudioToContainer(driveUrl, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
     container.innerHTML = "<span style='color:#e67e22; font-weight:bold;'>⏳ 檔案載入與轉碼中，請稍候...</span>";
     try {
         const response = await fetch(API_URL, {

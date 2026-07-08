@@ -1701,8 +1701,41 @@ button:disabled {
     width: min(760px, 100%);
 }
 
-.audio-link-dialog-panel input[type="text"] {
+.audio-link-dialog-panel input[type="text"],
+.audio-link-dialog-panel select {
     width: 100%;
+    margin: 0;
+}
+
+.audio-link-player-panel {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.audio-link-player-panel .play-btn {
+    margin: 0;
+}
+
+.audio-link-player {
+    min-width: 0;
+}
+
+.audio-link-player audio {
+    display: block;
+    width: 100%;
+}
+
+.audio-link-filters {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.8fr) minmax(150px, 1fr) minmax(220px, 1.4fr);
+    gap: 8px;
     margin-bottom: 10px;
 }
 
@@ -2211,6 +2244,11 @@ button:disabled {
     }
 
     .admin-class-filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .audio-link-player-panel,
+    .audio-link-filters {
         grid-template-columns: 1fr;
     }
 

@@ -108,6 +108,16 @@ test('admin links an existing audio record to other places as normal audio recor
     if (request.url().includes('script.google.com/macros/s/')) {
       const body = JSON.parse(request.postData() || '{}');
       gasCalls.push(body);
+      if (body.action === 'getAudio') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            dataUrl: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+          })
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -140,6 +150,11 @@ test('admin links an existing audio record to other places as normal audio recor
     state.userName = 'Admin User';
     state.userEmail = 'admin@example.com';
     state.currentTab = 'assigned';
+    state.allUserRecords = [
+      { account: 'target@example.com', name: 'Target User', email: 'target@example.com', role: 'user', is_active: true },
+      { account: 'other@example.com', name: 'Other User', email: 'other@example.com', role: 'user', is_active: true }
+    ];
+    state.allUsers = state.allUserRecords;
     state.assignedPlaces = [
       {
         id: 10,
@@ -159,6 +174,19 @@ test('admin links an existing audio record to other places as normal audio recor
         county: 'County B',
         town: 'Town B',
         type: 'Type B',
+        tAssignee: 'Target User',
+        recordingStatus: 'No records',
+        taiAudioCount: 0,
+        hakAudioCount: 0
+      },
+      {
+        id: 30,
+        sourceId: 'SRC-30',
+        placeName: 'Other Place',
+        county: 'County C',
+        town: 'Town C',
+        type: 'Type C',
+        tAssignee: 'Other User',
         recordingStatus: 'No records',
         taiAudioCount: 0,
         hakAudioCount: 0
@@ -188,9 +216,15 @@ test('admin links an existing audio record to other places as normal audio recor
   });
 
   await page.getByRole('button', { name: '連結到其他地名' }).click();
+  await page.getByRole('button', { name: '播放來源音檔' }).click();
+  await expect(page.locator('#audio-link-dialog audio')).toHaveCount(1);
+  await page.locator('#audio-link-county-filter').selectOption('County B');
+  await page.locator('#audio-link-assignee-filter').selectOption('Target User');
   await page.locator('#audio-link-search').fill('Target');
+  await expect(page.locator('#audio-link-targets')).toContainText('Target Place');
+  await expect(page.locator('#audio-link-targets')).not.toContainText('Other Place');
   await page.getByLabel(/Target Place/).check();
-  await page.getByRole('button', { name: '建立連結' }).click();
+  await page.locator('#audio-link-submit-btn').click();
 
   expect(postCalls).toHaveLength(1);
   expect(postCalls[0].method).toBe('POST');
@@ -211,8 +245,9 @@ test('admin links an existing audio record to other places as normal audio recor
       linkedBy: 'admin@example.com'
     }
   });
-  await expect.poll(() => gasCalls.length).toBe(1);
-  expect(gasCalls[0]).toEqual(expect.objectContaining({
+  await expect.poll(() => gasCalls.filter(call => call.action === 'linkAudioRecords').length).toBe(1);
+  const linkGasCall = gasCalls.find(call => call.action === 'linkAudioRecords');
+  expect(linkGasCall).toEqual(expect.objectContaining({
     action: 'linkAudioRecords',
     records: [{
       recordId: 901,
