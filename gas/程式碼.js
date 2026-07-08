@@ -152,6 +152,7 @@ function doPost(e) {
     if (action === 'deleteInvestigatorUser') return handleDeleteInvestigatorUser(requestData);
     if (action === 'changeAdminPassword') return handleChangeAdminPassword(requestData);
     if (action === 'updateUserProfile') return handleUpdateUserProfile(requestData);
+    if (action === 'unlinkAudioRecord') return handleUnlinkAudioRecord(requestData);
     if (action === 'getAnnouncements') return handleGetAnnouncements(requestData);
     if (action === 'markAnnouncementRead') return handleMarkAnnouncementRead(requestData);
     if (action === 'createAnnouncement') return handleCreateAnnouncement(requestData);
@@ -287,6 +288,19 @@ function changeAdminPasswordInSupabase_(data) {
   return callSupabaseRpc_('change_admin_password', {
     p_actor_account: data.actorAccount,
     p_new_password: data.newPassword
+  }, config.serviceRoleKey);
+}
+
+function softUnlinkAudioRecordInSupabase_(data) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) {
+    throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return callSupabaseRpc_('soft_unlink_audio_record', {
+    p_audio_record_id: Number(data.recordId),
+    p_actor_account: data.actorAccount,
+    p_reason: data.reason || ''
   }, config.serviceRoleKey);
 }
 
@@ -452,6 +466,32 @@ function handleChangeAdminPassword(data) {
   var supabaseResult = changeAdminPasswordInSupabase_({
     actorAccount: actorAccount,
     newPassword: newPassword
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    supabase: supabaseResult && supabaseResult[0] ? supabaseResult[0] : null
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleUnlinkAudioRecord(data) {
+  var actorAccount = normalizeEmail_(data.actorAccount);
+  var adminPassword = String(data.adminPassword || '');
+  var recordId = Number(data.recordId);
+  var reason = String(data.reason || '');
+
+  if (!actorAccount || !adminPassword) {
+    throw new Error('Admin account and password are required');
+  }
+  if (!recordId || recordId < 1) {
+    throw new Error('Valid audio record id is required');
+  }
+
+  verifyAdminPassword_(actorAccount, adminPassword);
+  var supabaseResult = softUnlinkAudioRecordInSupabase_({
+    recordId: recordId,
+    actorAccount: actorAccount,
+    reason: reason
   });
 
   return ContentService.createTextOutput(JSON.stringify({

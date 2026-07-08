@@ -823,12 +823,12 @@ function getRecordingStatus(taiCount, hakCount) {
     return '未錄音';
 }
 
-function refreshPlaceRecordingStatus(place, language) {
+function refreshPlaceRecordingStatus(place, language, delta = 1) {
     if (!place) return;
     if (language.includes('客')) {
-        place.hakAudioCount = Number(place.hakAudioCount || 0) + 1;
+        place.hakAudioCount = Math.max(0, Number(place.hakAudioCount || 0) + delta);
     } else {
-        place.taiAudioCount = Number(place.taiAudioCount || 0) + 1;
+        place.taiAudioCount = Math.max(0, Number(place.taiAudioCount || 0) + delta);
     }
     place.recordingStatus = getRecordingStatus(place.taiAudioCount, place.hakAudioCount);
 }
@@ -2674,7 +2674,7 @@ async function loadDataFromSupabase(userName) {
 
         const [tasksRes, recordsRes] = await Promise.all([
             fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_tasks_view?select=*`, { headers }),
-            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?select=*`, { headers })
+            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?select=*&unlinked_at=is.null`, { headers })
         ]);
 
         const tasksData = await tasksRes.json();
@@ -2729,7 +2729,8 @@ async function loadDataFromSupabase(userName) {
             recordId: r.id, placeId: r.task_id, language: r.language,
             uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id,
             annotations: parseRecordNote(r.note),
-            linkMeta: parseRecordLinkMeta(r.note)
+            linkMeta: parseRecordLinkMeta(r.note),
+            unlinkedAt: r.unlinked_at || null
         }));
 
     } catch (err) {
@@ -3845,6 +3846,7 @@ function renderHistoryList(placeId) {
             ${renderAnnotationSummary(r.annotations)}
             ${canEdit ? `<button class="record-edit-btn" type="button" onclick="openRecordAnnotationEditor('${escapeJsString(r.recordId)}')">編輯文字</button>` : ''}
             ${state.userRole === 'admin' ? `<button class="record-link-btn" type="button" onclick="openAudioLinkDialog('${escapeJsString(r.recordId)}')">連結到其他地名</button>` : ''}
+            ${state.userRole === 'admin' ? `<button class="record-unlink-btn" type="button" onclick="unlinkAudioRecordFromPlace('${escapeJsString(r.recordId)}')">移除錯誤連結</button>` : ''}
             <div id="${escapeHtml(getRecordEditorId(r.recordId))}" class="record-edit-panel hidden"></div>
             <div id="player-${r.recordId}" style="margin-top: 10px;">
                 <button class="play-btn" onclick="fetchAndPlayAudio('${r.url}', '${r.recordId}')">▶️ 點此從雲端載入音檔並播放</button>
@@ -3934,6 +3936,45 @@ async function appendLinkedAudioRecordsToSheet(records) {
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Google Sheet audio record append failed');
     return result;
+}
+
+async function unlinkAudioRecordFromPlace(recordId) {
+    if (state.userRole !== 'admin') return;
+    const record = findUploadedRecord(recordId);
+    if (!record) return alert('找不到這筆錄音紀錄。');
+
+    const place = getPlaceByTaskId(record.placeId);
+    const placeName = place ? place.placeName : record.placeId;
+    const reason = prompt('請輸入移除原因（可留空）：', '音檔上傳到錯誤地名');
+    if (reason === null) return;
+    const adminPassword = prompt('請輸入管理員密碼以移除這筆錯誤地名連結');
+    if (!adminPassword) return;
+    if (!confirm(`確定要移除「${placeName}」與這筆 ${record.language} 音檔的連結嗎？\n\n音檔與上傳紀錄會保留，只是不再算在這個地名底下。`)) return;
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'unlinkAudioRecord',
+                recordId: Number(record.recordId),
+                actorAccount: state.userId || state.userEmail || '',
+                adminPassword,
+                reason
+            })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'unlink failed');
+
+        state.uploadedRecords = state.uploadedRecords.filter(item => String(item.recordId) !== String(recordId));
+        refreshPlaceRecordingStatus(place, record.language, -1);
+        if (state.selectedPlace) renderHistoryList(state.selectedPlace.id);
+        applyFilters();
+        alert('已移除錯誤地名連結。音檔與原始上傳紀錄仍保留。');
+    } catch (err) {
+        console.error('移除音檔連結失敗:', err);
+        alert(`移除音檔連結失敗：${err.message}`);
+    }
 }
 
 function openAudioLinkDialog(recordId) {

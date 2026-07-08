@@ -272,6 +272,105 @@ test('admin links an existing audio record to other places as normal audio recor
   expect(result.alerts.at(-1)).toContain('已建立 1 筆音檔連結');
 });
 
+test('admin soft unlinks an audio record from the wrong place through Apps Script', async ({ page }) => {
+  const gasCalls = [];
+
+  await page.route('**/*', route => {
+    const request = route.request();
+    if (request.url().includes('script.google.com/macros/s/')) {
+      const body = JSON.parse(request.postData() || '{}');
+      gasCalls.push(body);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          supabase: {
+            record_id: 501,
+            task_id: 10,
+            language: 'Tai'
+          }
+        })
+      });
+    }
+    return route.continue();
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__alerts = [];
+    window.alert = message => window.__alerts.push(String(message));
+    window.__prompts = ['wrong place', 'admin-secret'];
+    window.prompt = () => window.__prompts.shift();
+    window.confirm = () => true;
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin User';
+    state.userEmail = 'admin@example.com';
+    state.allUserRecords = [
+      { account: 'admin@example.com', name: 'Admin User', email: 'admin@example.com', role: 'admin', is_active: true }
+    ];
+    state.assignedPlaces = [
+      {
+        id: 10,
+        sourceId: 'SRC-10',
+        placeName: 'Wrong Place',
+        county: 'County A',
+        town: 'Town A',
+        type: 'Type A',
+        recordingStatus: 'No records',
+        taiAudioCount: 1,
+        hakAudioCount: 0
+      }
+    ];
+    state.allPlaces = [];
+    state.reviewQueue = [];
+    state.selectedPlace = state.assignedPlaces[0];
+    state.uploadedRecords = [
+      {
+        recordId: 501,
+        placeId: 10,
+        language: 'Tai',
+        uploaderId: 'Lin Investigator',
+        phonetic: 'tsu7',
+        url: 'drive-file-id',
+        annotations: { taihan: 'source text', tl1: 'tsu7' },
+        linkMeta: null
+      }
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    document.getElementById('recording-section').style.display = 'block';
+    renderHistoryList(10);
+  });
+
+  await page.getByRole('button', { name: '移除錯誤連結' }).click();
+
+  await expect.poll(() => gasCalls.length).toBe(1);
+  expect(gasCalls[0]).toEqual(expect.objectContaining({
+    action: 'unlinkAudioRecord',
+    recordId: 501,
+    actorAccount: 'admin@example.com',
+    adminPassword: 'admin-secret',
+    reason: 'wrong place'
+  }));
+
+  await expect.poll(() => page.evaluate(() => state.uploadedRecords.length)).toBe(0);
+
+  const result = await page.evaluate(() => ({
+    recordCount: state.uploadedRecords.length,
+    taiAudioCount: state.assignedPlaces[0].taiAudioCount,
+    recordingStatus: state.assignedPlaces[0].recordingStatus,
+    historyText: document.getElementById('history-list').textContent,
+    alerts: window.__alerts
+  }));
+
+  expect(result.recordCount).toBe(0);
+  expect(result.taiAudioCount).toBe(0);
+  expect(result.historyText).toContain('尚未有任何錄音');
+  expect(result.alerts.at(-1)).toContain('已移除錯誤地名連結');
+});
+
 test('admin can select all filtered places without rendering every row', async ({ page }) => {
   const rpcCalls = [];
 
