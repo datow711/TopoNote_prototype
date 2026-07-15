@@ -784,6 +784,7 @@ function normalizeTask(t) {
         sourceId: t.source_id,
         sourceTable: t.source_table,
         placeName: t.place_name,
+        info: t.info || '',
         county: t.county,
         town: t.town,
         village: t.village,
@@ -4083,6 +4084,13 @@ function openRecordingUI(place, element) {
     const recSection = document.getElementById('recording-section');
     recSection.style.display = 'block';
     document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName}`;
+    const infoPanel = document.getElementById('selected-place-info');
+    const infoContent = document.getElementById('selected-place-info-content');
+    const info = String(place.info || '').trim();
+    if (infoPanel && infoContent) {
+        infoContent.textContent = info;
+        infoPanel.classList.toggle('hidden', !info);
+    }
     
     resetRecordingState(getDefaultAnnotationLanguage(place)); renderHistoryList(place.id);
     recSection.scrollIntoView({ behavior: 'smooth' });

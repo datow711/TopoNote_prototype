@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260715-upload-report-groups">
+    <link rel="stylesheet" href="style.css?v=20260715-place-info">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -75,6 +75,10 @@
 
         <div class="card" id="recording-section">
             <h3 id="selected-place-title" style="margin-top:0; color:var(--secondary);">未選擇地名</h3>
+            <div id="selected-place-info" class="selected-place-info hidden">
+                <strong>地名補充資訊：</strong>
+                <span id="selected-place-info-content"></span>
+            </div>
             
             <div class="language-tabs" role="radiogroup" aria-label="錄音語言">
                 <label class="language-tab active" data-lang="台語">
@@ -159,6 +163,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="main.js?v=20260715-upload-report-groups"></script>
+    <script src="main.js?v=20260715-place-info"></script>
 </body>
 </html>

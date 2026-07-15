@@ -109,6 +109,7 @@ Root GAS 需要的 Script Properties 至少包括：
 - 縣市、複選鄉鎮、地名分類、台語／客語分類、客語區、錄音狀態與文字搜尋。
 - 台語與客語分語種指派、解除指派、批次選取。
 - 現場 MediaRecorder 錄音與手機／LINE 音檔上傳。
+- 選取地名後，錄音區標題下方會顯示 `info` 的「地名補充資訊」；空白時隱藏，多行內容保留換行。
 - 音檔先經 Root GAS 存 Drive，再由前端新增 `audio_records`。
 - 原上傳者可只修改音檔文字內容，不需重傳音檔。
 - 管理員可將既有音檔連結到其他地名，也可軟解除錯誤連結。
@@ -179,6 +180,13 @@ third_phase_places ──► final_tasks
 本地 `db/` 有 27 個增量 SQL，但沒有完整初始 schema dump。不要假設從這些 migration 可百分之百重建線上資料庫；重要變更前要先 readback 線上 object definitions、grants、RLS 與 policies。
 
 ## 近期變更（舊 handoff 尚未完整涵蓋）
+
+### 2026-07-15 地名補充資訊
+
+- `app_tasks_view.info` 已加入前端 task model。
+- 選取地名後，在錄音區標題與語言 tabs 之間顯示「地名補充資訊：{info}」。
+- `info` 為空白或只有空白字元時不顯示；多行文字保留換行並允許長文字自動折行。
+- 新增 `tests/place-info.spec.js` 驗證多行與空白情況。
 
 ### 2026-07-15 管理員錄音上傳報告
 

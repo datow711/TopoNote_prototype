@@ -861,6 +861,33 @@ button:disabled {
     font-weight: 400;
 }
 
+.selected-place-info {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
+    margin: -2px 0 12px;
+    padding: 9px 12px;
+    border-left: 3px solid var(--accent-deep);
+    border-radius: 8px;
+    background: var(--surface-feature);
+    color: var(--ink-soft);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.selected-place-info strong {
+    color: var(--accent-deep);
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+#selected-place-info-content {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .place-meta {
     display: flex;
     flex-wrap: wrap;
@@ -2643,6 +2670,11 @@ button:disabled {
     .upload-report-user-copy {
         align-items: flex-start;
         flex-direction: column;
+        gap: 1px;
+    }
+
+    .selected-place-info {
+        grid-template-columns: 1fr;
         gap: 1px;
     }
 
