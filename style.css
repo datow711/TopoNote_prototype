@@ -1536,6 +1536,34 @@ button:disabled {
     margin-bottom: 12px;
 }
 
+.upload-report-mode-switch {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(100px, 1fr));
+    gap: 4px;
+    margin-bottom: 4px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--surface-strong);
+}
+
+.upload-report-mode-btn {
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 14px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.upload-report-mode-btn.active {
+    border-color: var(--hairline);
+    background: var(--canvas);
+    color: var(--accent-deep);
+    box-shadow: 0 1px 4px rgba(0, 30, 43, 0.08);
+}
+
 .upload-report-header h2,
 .upload-report-day-heading h3 {
     margin: 0;
@@ -1588,19 +1616,26 @@ button:disabled {
     font-weight: 750;
 }
 
-.upload-report-user-list {
+.upload-report-user-list,
+.upload-report-uploader-list {
     display: grid;
     gap: 6px;
 }
 
-.upload-report-user {
+.upload-report-uploader-list {
+    margin-top: 10px;
+}
+
+.upload-report-user,
+.upload-report-uploader-group {
     overflow: hidden;
     border: 1px solid var(--hairline);
     border-radius: 9px;
     background: var(--canvas);
 }
 
-.upload-report-user summary {
+.upload-report-user summary,
+.upload-report-uploader-group > summary {
     display: flex;
     min-height: 44px;
     align-items: center;
@@ -1611,11 +1646,13 @@ button:disabled {
     list-style: none;
 }
 
-.upload-report-user summary::-webkit-details-marker {
+.upload-report-user summary::-webkit-details-marker,
+.upload-report-uploader-group > summary::-webkit-details-marker {
     display: none;
 }
 
-.upload-report-user summary::before {
+.upload-report-user summary::before,
+.upload-report-uploader-group > summary::before {
     flex: 0 0 auto;
     color: var(--accent-deep);
     content: "＋";
@@ -1623,7 +1660,8 @@ button:disabled {
     font-weight: 900;
 }
 
-.upload-report-user[open] summary::before {
+.upload-report-user[open] summary::before,
+.upload-report-uploader-group[open] > summary::before {
     content: "−";
 }
 
@@ -1633,6 +1671,12 @@ button:disabled {
     flex: 1;
     align-items: baseline;
     gap: 8px;
+}
+
+.upload-report-user-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .upload-report-user-copy strong {
@@ -1656,6 +1700,41 @@ button:disabled {
 .upload-report-detail-wrap {
     overflow-x: auto;
     border-top: 1px solid var(--hairline);
+}
+
+.upload-report-uploader-dates {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-top: 1px solid var(--hairline);
+    background: var(--surface);
+}
+
+.upload-report-uploader-date {
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+}
+
+.upload-report-uploader-date-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px;
+    background: var(--surface-strong);
+}
+
+.upload-report-uploader-date-heading h4 {
+    margin: 0;
+    font-size: 13px;
+}
+
+.upload-report-uploader-date-heading span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
 }
 
 .upload-report-detail-table {
@@ -2554,6 +2633,17 @@ button:disabled {
     .upload-report-day-heading {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .upload-report-mode-switch {
+        display: grid;
+        width: 100%;
+    }
+
+    .upload-report-user-copy {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 1px;
     }
 
     .user-detail-toggle {

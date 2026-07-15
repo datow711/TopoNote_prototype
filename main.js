@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
 const STATUS_FILTER_VALUES = ['未錄音', '台語已有錄音', '客語已有錄音', '台語完成', '客語完成', '全部完成'];
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], reviewQueue: [],
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [],
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -1054,6 +1054,7 @@ function logout() {
     state.allPlaces = [];
     state.uploadedRecords = [];
     state.uploadReportRecords = [];
+    state.uploadReportGroupMode = 'date';
     state.reviewQueue = [];
     state.selectedPlace = null;
     state.currentTab = 'assigned';
@@ -2568,12 +2569,16 @@ function getUploadReportPlace(record) {
     };
 }
 
-function buildUploadReportGroups(records = state.uploadReportRecords) {
-    const sortedRecords = [...records].sort((left, right) => {
+function sortUploadReportRecords(records = []) {
+    return [...records].sort((left, right) => {
         const rightTime = new Date(right.createdAt || 0).getTime() || 0;
         const leftTime = new Date(left.createdAt || 0).getTime() || 0;
         return rightTime - leftTime;
     });
+}
+
+function buildUploadReportGroups(records = state.uploadReportRecords) {
+    const sortedRecords = sortUploadReportRecords(records);
     const dateGroups = new Map();
 
     sortedRecords.forEach(record => {
@@ -2603,61 +2608,127 @@ function buildUploadReportGroups(records = state.uploadReportRecords) {
     }));
 }
 
+function buildUploadReportUploaderGroups(records = state.uploadReportRecords) {
+    const uploaders = new Map();
+    sortUploadReportRecords(records).forEach(record => {
+        const uploader = getUploadReportUploader(record);
+        if (!uploaders.has(uploader.key)) {
+            uploaders.set(uploader.key, { ...uploader, records: [] });
+        }
+        uploaders.get(uploader.key).records.push(record);
+    });
+    return [...uploaders.values()];
+}
+
+function renderUploadReportUploaderLabel(uploader) {
+    const primary = uploader.name || uploader.id;
+    const secondary = uploader.name ? uploader.id : '';
+    return `
+        <span class="upload-report-user-copy">
+            <strong>${escapeHtml(primary)}</strong>
+            ${secondary ? `<small>${escapeHtml(secondary)}</small>` : ''}
+        </span>
+    `;
+}
+
+function renderUploadReportRows(records) {
+    return records.map(record => {
+        const place = getUploadReportPlace(record);
+        const location = [place.county, place.town].filter(Boolean).join(' ');
+        const detailMeta = [location, record.unlinkedAt ? '已解除連結' : ''].filter(Boolean).join('・');
+        const taskLabel = place.sourceId || record.placeId || '';
+        return `
+            <tr>
+                <td>${escapeHtml(formatUploadReportTime(record.createdAt))}</td>
+                <td>
+                    <strong>${escapeHtml(place.name)}</strong>
+                    ${detailMeta ? `<small>${escapeHtml(detailMeta)}</small>` : ''}
+                </td>
+                <td>${escapeHtml(record.language || '未標示')}</td>
+                <td>${escapeHtml(taskLabel)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderUploadReportTable(records) {
+    return `
+        <div class="upload-report-detail-wrap">
+            <table class="upload-report-detail-table">
+                <thead>
+                    <tr><th>時間</th><th>地名</th><th>語種</th><th>任務 ID</th></tr>
+                </thead>
+                <tbody>${renderUploadReportRows(records)}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderUploadReportByDate(groups) {
+    return groups.map(group => `
+        <section class="upload-report-day" data-upload-date="${escapeHtml(group.key)}">
+            <div class="upload-report-day-heading">
+                <h3>${escapeHtml(group.label)}</h3>
+                <span>${group.uploaders.length} 個上傳者・${group.records.length} 筆錄音</span>
+            </div>
+            <div class="upload-report-user-list">
+                ${group.uploaders.map(uploader => `
+                    <details class="upload-report-user" data-uploader-id="${escapeHtml(uploader.id)}">
+                        <summary>
+                            ${renderUploadReportUploaderLabel(uploader)}
+                            <span class="upload-report-count">${uploader.records.length} 筆</span>
+                        </summary>
+                        ${renderUploadReportTable(uploader.records)}
+                    </details>
+                `).join('')}
+            </div>
+        </section>
+    `).join('');
+}
+
+function renderUploadReportByUploader(uploaders) {
+    return `
+        <div class="upload-report-uploader-list">
+            ${uploaders.map(uploader => `
+                <details class="upload-report-uploader-group" data-uploader-id="${escapeHtml(uploader.id)}">
+                    <summary>
+                        ${renderUploadReportUploaderLabel(uploader)}
+                        <span class="upload-report-count">${uploader.records.length} 筆</span>
+                    </summary>
+                    <div class="upload-report-uploader-dates">
+                        ${buildUploadReportGroups(uploader.records).map(group => `
+                            <section class="upload-report-uploader-date" data-upload-date="${escapeHtml(group.key)}">
+                                <div class="upload-report-uploader-date-heading">
+                                    <h4>${escapeHtml(group.label)}</h4>
+                                    <span>${group.records.length} 筆</span>
+                                </div>
+                                ${renderUploadReportTable(group.records)}
+                            </section>
+                        `).join('')}
+                    </div>
+                </details>
+            `).join('')}
+        </div>
+    `;
+}
+
+function setUploadReportGroupMode(mode) {
+    if (state.userRole !== 'admin' || !['date', 'uploader'].includes(mode)) return;
+    state.uploadReportGroupMode = mode;
+    renderUploadReport();
+}
+
 function renderUploadReport() {
     if (state.userRole !== 'admin') return;
     const container = document.getElementById('place-list-container');
     const groups = buildUploadReportGroups();
+    const uploaderGroups = buildUploadReportUploaderGroups();
     const total = state.uploadReportRecords.length;
+    const mode = state.uploadReportGroupMode === 'uploader' ? 'uploader' : 'date';
 
     const body = groups.length === 0
         ? '<div class="empty-state compact">目前沒有錄音上傳紀錄。</div>'
-        : groups.map(group => `
-            <section class="upload-report-day" data-upload-date="${escapeHtml(group.key)}">
-                <div class="upload-report-day-heading">
-                    <h3>${escapeHtml(group.label)}</h3>
-                    <span>${group.uploaders.length} 個 ID・${group.records.length} 筆錄音</span>
-                </div>
-                <div class="upload-report-user-list">
-                    ${group.uploaders.map(uploader => `
-                        <details class="upload-report-user" data-uploader-id="${escapeHtml(uploader.id)}">
-                            <summary>
-                                <span class="upload-report-user-copy">
-                                    <strong>${escapeHtml(uploader.id)}</strong>
-                                    ${uploader.name ? `<small>${escapeHtml(uploader.name)}</small>` : ''}
-                                </span>
-                                <span class="upload-report-count">${uploader.records.length} 筆</span>
-                            </summary>
-                            <div class="upload-report-detail-wrap">
-                                <table class="upload-report-detail-table">
-                                    <thead>
-                                        <tr><th>時間</th><th>地名</th><th>語種</th><th>任務 ID</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        ${uploader.records.map(record => {
-                                            const place = getUploadReportPlace(record);
-                                            const location = [place.county, place.town].filter(Boolean).join(' ');
-                                            const detailMeta = [location, record.unlinkedAt ? '已解除連結' : ''].filter(Boolean).join('・');
-                                            const taskLabel = place.sourceId || record.placeId || '';
-                                            return `
-                                                <tr>
-                                                    <td>${escapeHtml(formatUploadReportTime(record.createdAt))}</td>
-                                                    <td>
-                                                        <strong>${escapeHtml(place.name)}</strong>
-                                                        ${detailMeta ? `<small>${escapeHtml(detailMeta)}</small>` : ''}
-                                                    </td>
-                                                    <td>${escapeHtml(record.language || '未標示')}</td>
-                                                    <td>${escapeHtml(taskLabel)}</td>
-                                                </tr>
-                                            `;
-                                        }).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </details>
-                    `).join('')}
-                </div>
-            </section>
-        `).join('');
+        : (mode === 'uploader' ? renderUploadReportByUploader(uploaderGroups) : renderUploadReportByDate(groups));
 
     container.innerHTML = `
         <section id="admin-upload-report" class="card">
@@ -2667,6 +2738,10 @@ function renderUploadReport() {
                     <p>以台北時間按日彙整；不重複計算共用音檔連結，最新紀錄在最上方。</p>
                 </div>
                 <span class="upload-report-total">共 ${total} 筆</span>
+            </div>
+            <div class="upload-report-mode-switch" role="group" aria-label="報告分類方式">
+                <button type="button" class="upload-report-mode-btn ${mode === 'date' ? 'active' : ''}" aria-pressed="${mode === 'date'}" onclick="setUploadReportGroupMode('date')">依日期</button>
+                <button type="button" class="upload-report-mode-btn ${mode === 'uploader' ? 'active' : ''}" aria-pressed="${mode === 'uploader'}" onclick="setUploadReportGroupMode('uploader')">依上傳者</button>
             </div>
             ${body}
         </section>
