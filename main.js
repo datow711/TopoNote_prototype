@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
 const STATUS_FILTER_VALUES = ['未錄音', '台語已有錄音', '客語已有錄音', '台語完成', '客語完成', '全部完成'];
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], reviewQueue: [],
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], reviewQueue: [],
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -1053,6 +1053,7 @@ function logout() {
     state.assignedPlaces = [];
     state.allPlaces = [];
     state.uploadedRecords = [];
+    state.uploadReportRecords = [];
     state.reviewQueue = [];
     state.selectedPlace = null;
     state.currentTab = 'assigned';
@@ -2453,6 +2454,7 @@ function configureRoleUI() {
     const tabAssigned = document.getElementById('tab-assigned');
     const tabOther = document.getElementById('tab-other');
     const tabReview = document.getElementById('tab-review');
+    const tabUploads = document.getElementById('tab-uploads');
     const tabUsers = document.getElementById('tab-users');
     const tabContainer = document.querySelector('.tab-container');
     const assigneeFilter = document.getElementById('assignee-filter');
@@ -2473,6 +2475,10 @@ function configureRoleUI() {
             tabReview.classList.remove('hidden');
             tabReview.style.display = '';
         }
+        if (tabUploads) {
+            tabUploads.classList.remove('hidden');
+            tabUploads.style.display = '';
+        }
         if (tabUsers) {
             tabUsers.classList.remove('hidden');
             tabUsers.style.display = '';
@@ -2490,6 +2496,10 @@ function configureRoleUI() {
         tabReview.classList.add('hidden');
         tabReview.classList.remove('active');
     }
+    if (tabUploads) {
+        tabUploads.classList.add('hidden');
+        tabUploads.classList.remove('active');
+    }
     if (tabUsers) {
         tabUsers.classList.add('hidden');
         tabUsers.classList.remove('active');
@@ -2500,6 +2510,167 @@ function configureRoleUI() {
     if (adminBar) adminBar.remove();
     if (appSection) appSection.style.paddingBottom = '';
     if (filterSection) filterSection.classList.remove('hidden');
+}
+
+function getUploadReportDateParts(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return {
+        key: `${values.year}-${values.month}-${values.day}`,
+        label: date.toLocaleDateString('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short'
+        })
+    };
+}
+
+function formatUploadReportTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '未記錄';
+    return date.toLocaleTimeString('zh-TW', {
+        timeZone: 'Asia/Taipei',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+}
+
+function getUploadReportUploader(record) {
+    const rawId = String(record?.uploaderId || '').trim() || '未標示 ID';
+    const user = getUserRecordByAccount(rawId);
+    const displayId = (user && (user.email || user.account)) || rawId;
+    return {
+        key: (user && (user.id || normalizeIdentifier(displayId))) || normalizeIdentifier(rawId),
+        id: displayId,
+        name: user && user.name && normalizeIdentifier(user.name) !== normalizeIdentifier(displayId)
+            ? user.name
+            : ''
+    };
+}
+
+function getUploadReportPlace(record) {
+    const place = getPlaceByTaskId(record.placeId);
+    return {
+        name: place?.placeName || record.placeName || `任務 #${record.placeId || '未知'}`,
+        county: place?.county || '',
+        town: place?.town || '',
+        sourceId: place?.sourceId || ''
+    };
+}
+
+function buildUploadReportGroups(records = state.uploadReportRecords) {
+    const sortedRecords = [...records].sort((left, right) => {
+        const rightTime = new Date(right.createdAt || 0).getTime() || 0;
+        const leftTime = new Date(left.createdAt || 0).getTime() || 0;
+        return rightTime - leftTime;
+    });
+    const dateGroups = new Map();
+
+    sortedRecords.forEach(record => {
+        const dateParts = getUploadReportDateParts(record.createdAt);
+        const dateKey = dateParts?.key || 'unknown';
+        if (!dateGroups.has(dateKey)) {
+            dateGroups.set(dateKey, {
+                key: dateKey,
+                label: dateParts?.label || '未記錄日期',
+                records: [],
+                uploaders: new Map()
+            });
+        }
+
+        const dateGroup = dateGroups.get(dateKey);
+        const uploader = getUploadReportUploader(record);
+        dateGroup.records.push(record);
+        if (!dateGroup.uploaders.has(uploader.key)) {
+            dateGroup.uploaders.set(uploader.key, { ...uploader, records: [] });
+        }
+        dateGroup.uploaders.get(uploader.key).records.push(record);
+    });
+
+    return [...dateGroups.values()].map(group => ({
+        ...group,
+        uploaders: [...group.uploaders.values()]
+    }));
+}
+
+function renderUploadReport() {
+    if (state.userRole !== 'admin') return;
+    const container = document.getElementById('place-list-container');
+    const groups = buildUploadReportGroups();
+    const total = state.uploadReportRecords.length;
+
+    const body = groups.length === 0
+        ? '<div class="empty-state compact">目前沒有錄音上傳紀錄。</div>'
+        : groups.map(group => `
+            <section class="upload-report-day" data-upload-date="${escapeHtml(group.key)}">
+                <div class="upload-report-day-heading">
+                    <h3>${escapeHtml(group.label)}</h3>
+                    <span>${group.uploaders.length} 個 ID・${group.records.length} 筆錄音</span>
+                </div>
+                <div class="upload-report-user-list">
+                    ${group.uploaders.map(uploader => `
+                        <details class="upload-report-user" data-uploader-id="${escapeHtml(uploader.id)}">
+                            <summary>
+                                <span class="upload-report-user-copy">
+                                    <strong>${escapeHtml(uploader.id)}</strong>
+                                    ${uploader.name ? `<small>${escapeHtml(uploader.name)}</small>` : ''}
+                                </span>
+                                <span class="upload-report-count">${uploader.records.length} 筆</span>
+                            </summary>
+                            <div class="upload-report-detail-wrap">
+                                <table class="upload-report-detail-table">
+                                    <thead>
+                                        <tr><th>時間</th><th>地名</th><th>語種</th><th>任務 ID</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ${uploader.records.map(record => {
+                                            const place = getUploadReportPlace(record);
+                                            const location = [place.county, place.town].filter(Boolean).join(' ');
+                                            const detailMeta = [location, record.unlinkedAt ? '已解除連結' : ''].filter(Boolean).join('・');
+                                            const taskLabel = place.sourceId || record.placeId || '';
+                                            return `
+                                                <tr>
+                                                    <td>${escapeHtml(formatUploadReportTime(record.createdAt))}</td>
+                                                    <td>
+                                                        <strong>${escapeHtml(place.name)}</strong>
+                                                        ${detailMeta ? `<small>${escapeHtml(detailMeta)}</small>` : ''}
+                                                    </td>
+                                                    <td>${escapeHtml(record.language || '未標示')}</td>
+                                                    <td>${escapeHtml(taskLabel)}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    `).join('')}
+                </div>
+            </section>
+        `).join('');
+
+    container.innerHTML = `
+        <section id="admin-upload-report" class="card">
+            <div class="upload-report-header">
+                <div>
+                    <h2>錄音上傳報告</h2>
+                    <p>以台北時間按日彙整；不重複計算共用音檔連結，最新紀錄在最上方。</p>
+                </div>
+                <span class="upload-report-total">共 ${total} 筆</span>
+            </div>
+            ${body}
+        </section>
+    `;
 }
 
 function renderAdminUserManager() {
@@ -2652,9 +2823,10 @@ function syncAdminToolsForTab() {
     const appSection = document.getElementById('app-section');
     const filterSection = document.querySelector('.filter-section');
 
-    if (filterSection) filterSection.classList.toggle('hidden', state.currentTab === 'users');
+    const isStandaloneAdminTab = state.currentTab === 'review' || state.currentTab === 'users' || state.currentTab === 'uploads';
+    if (filterSection) filterSection.classList.toggle('hidden', state.currentTab === 'users' || state.currentTab === 'uploads');
 
-    if (state.currentTab === 'review' || state.currentTab === 'users') {
+    if (isStandaloneAdminTab) {
         if (adminBar) adminBar.style.display = 'none';
         if (appSection) appSection.style.paddingBottom = '';
         return;
@@ -2672,9 +2844,12 @@ async function loadDataFromSupabase(userName) {
             'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
         };
 
+        const recordsQuery = state.userRole === 'admin'
+            ? 'select=*'
+            : 'select=*&unlinked_at=is.null';
         const [tasksRes, recordsRes] = await Promise.all([
             fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_tasks_view?select=*`, { headers }),
-            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?select=*&unlinked_at=is.null`, { headers })
+            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?${recordsQuery}`, { headers })
         ]);
 
         const tasksData = await tasksRes.json();
@@ -2725,13 +2900,18 @@ async function loadDataFromSupabase(userName) {
                 .filter(place => !assignedUsersInclude(place.assignedUsers, state.userId) && !assignedUsersInclude(place.assignedUsers, state.userName) && place.sourceTable !== 'test_places');
         }
 
-        state.uploadedRecords = recordsData.map(r => ({
+        const normalizedRecords = recordsData.map(r => ({
             recordId: r.id, placeId: r.task_id, language: r.language,
             uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id,
+            createdAt: r.created_at || '',
             annotations: parseRecordNote(r.note),
             linkMeta: parseRecordLinkMeta(r.note),
             unlinkedAt: r.unlinked_at || null
         }));
+        state.uploadedRecords = normalizedRecords.filter(record => !record.unlinkedAt);
+        state.uploadReportRecords = state.userRole === 'admin'
+            ? normalizedRecords.filter(record => !record.linkMeta)
+            : [];
 
     } catch (err) {
         console.error("Supabase 載入失敗", err);
@@ -2748,9 +2928,14 @@ function switchTab(tab) {
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
     document.getElementById('tab-other').classList.toggle('active', tab === 'other');
     document.getElementById('tab-review')?.classList.toggle('active', tab === 'review');
+    document.getElementById('tab-uploads')?.classList.toggle('active', tab === 'uploads');
     document.getElementById('tab-users')?.classList.toggle('active', tab === 'users');
     syncAdminToolsForTab();
     document.getElementById('search-box').value = "";
+    if (tab === 'uploads') {
+        renderUploadReport();
+        return;
+    }
     if (tab === 'users') {
         renderAdminUserManager();
         return;
@@ -3119,6 +3304,10 @@ function placeMatchesStatusFilter(place, status) {
 
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
+    if (state.currentTab === 'uploads') {
+        renderUploadReport();
+        return;
+    }
     if (state.currentTab === 'users') {
         renderAdminUserManager();
         return;
@@ -4139,6 +4328,7 @@ async function submitAudioLink(recordId) {
                 uploaderId: record.uploaderId,
                 phonetic: record.phonetic || '',
                 url: record.url,
+                createdAt: inserted?.created_at || new Date().toISOString(),
                 annotations: { ...(record.annotations || {}) },
                 linkMeta
             });
@@ -4522,9 +4712,24 @@ function uploadAudio() {
                     uploaderId: recorderName,
                     phonetic: phonetic,
                     url: driveFileIdOrUrl,
+                    createdAt: insertedRecord && insertedRecord[0] ? (insertedRecord[0].created_at || new Date().toISOString()) : new Date().toISOString(),
                     annotations: annotations,
                     linkMeta: null
                 });
+                if (state.userRole === 'admin') {
+                    state.uploadReportRecords.push({
+                        recordId: insertedRecord && insertedRecord[0] ? insertedRecord[0].id : new Date().getTime(),
+                        placeId: state.selectedPlace.id,
+                        language: lang,
+                        uploaderId: recorderName,
+                        phonetic: phonetic,
+                        url: driveFileIdOrUrl,
+                        createdAt: insertedRecord && insertedRecord[0] ? (insertedRecord[0].created_at || new Date().toISOString()) : new Date().toISOString(),
+                        annotations: annotations,
+                        linkMeta: null,
+                        unlinkedAt: null
+                    });
+                }
                 refreshPlaceRecordingStatus(state.selectedPlace, lang);
                 renderHistoryList(state.selectedPlace.id); 
                 applyFilters(); 

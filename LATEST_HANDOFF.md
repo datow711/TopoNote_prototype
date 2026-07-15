@@ -115,6 +115,7 @@ Root GAS 需要的 Script Properties 至少包括：
 - 管理員逐語種審查、比較各錄音內容並填入最終審定欄位。
 - 調查員公告、未讀狀態及管理員定向公告。
 - 管理員使用者資料修改、啟停、刪除與改密碼。
+- 管理員錄音上傳報告：依台北日期與上傳 ID 彙整，最新在上，可展開查看地名明細；共用音檔連結不重複計數，軟解除的原始上傳仍保留於歷史報告。
 - 問題回報、任務清單 PDF/XLSX 匯出、無資料寫入的操作教學。
 
 ## 正常資料流
@@ -179,6 +180,15 @@ third_phase_places ──► final_tasks
 
 ## 近期變更（舊 handoff 尚未完整涵蓋）
 
+### 2026-07-15 管理員錄音上傳報告
+
+- 管理員新增「上傳報告」分頁，一般調查員不可見。
+- 前端讀取 `audio_records.created_at`，以 Asia/Taipei 日期分組並由新到舊排序。
+- 每日依使用者 ID 彙整筆數；姓名、account、email 會透過 `app_users_view` 資料合併為同一使用者。
+- 展開 ID 可查看時間、地名、語種與任務 ID，明細同樣由新到舊。
+- 報告只計算原始上傳，不把 `linkMeta` 共用音檔連結重複算成上傳；原始紀錄即使已軟解除連結仍保留並標示。
+- 新增 `tests/upload-report.spec.js`；2026-07-15 完整 Playwright 回歸測試為 20/20 通過。
+
 ### 2026-06-29 管理員改密碼
 
 - `db/2026-06-29_admin_password_change.sql`
@@ -230,15 +240,15 @@ third_phase_places ──► final_tasks
 - 兩個密碼欄的實際使用與資料狀況。
 - 不要在輸出或 log 顯示任何密碼值。
 
-### 3. npm／Playwright 安裝不完整
+### 3. npm／Playwright 測試環境
 
-2026-07-15 狀態：
+2026-07-15 已完成：
 
-- `node_modules/.bin` 缺少 `playwright`。
-- `npm ls --depth=0` 將 `@playwright/test` 標成 invalid，`playwright`／`playwright-core` 標成 extraneous。
-- `npm run test:ui` 因找不到 `playwright` 而無法啟動。
+- 依 `package-lock.json` 執行 `npm ci`，恢復 Playwright 1.60.0 依賴。
+- 安裝對應 Chromium 測試瀏覽器。
+- `npm run test:ui -- --reporter=line`：20/20 tests 通過。
 
-修復依賴會寫入 `node_modules`，必要時先取得同意再執行 `npm ci`。不要把本地 npm cache 或 `node_modules` commit 進 repo。
+不要把本地 npm cache、Playwright browser cache 或 `node_modules` commit 進 repo。
 
 ### 4. 架構文件落後於程式碼
 
@@ -276,6 +286,7 @@ Playwright specs：
 - `tests/admin-password-change.spec.js`
 - `tests/announcements.spec.js`
 - `tests/tutorial.spec.js`
+- `tests/upload-report.spec.js`
 
 主要覆蓋：
 
@@ -286,8 +297,9 @@ Playwright specs：
 - 管理員資料與密碼操作經 Root GAS wrapper。
 - 公告、已讀與公告失敗 fallback。
 - 不寫資料的操作教學。
+- 管理員上傳報告的日期／ID 彙整、明細排序與一般使用者權限。
 
-2026-07-15 已通過所有主要 JS 檔案的 `node --check`。UI tests 因 Playwright 安裝不完整而未實際執行。
+2026-07-15 已通過所有主要 JS 檔案的 `node --check`，完整 Playwright UI tests 為 20/20 通過。
 
 ## 變更類型的安全工作方式
 
