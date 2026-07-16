@@ -875,6 +875,78 @@ test('admin task loading includes test places beyond the first Supabase page', a
   expect(result.testSourceIds).toEqual(['TEST0001']);
 });
 
+test('admin type and assignee filters include test places with blank class values', async ({ page }) => {
+  await page.goto(appUrl);
+  const result = await page.evaluate(() => {
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.currentTab = 'assigned';
+    state.typeFiltersInitialized = false;
+    state.classFiltersInitialized = false;
+    state.selectedTypes = [];
+    state.selectedTaiClasses = [];
+    state.selectedHakClasses = [];
+    state.allPlaces = [];
+    state.allUsers = [
+      { account: 'test', name: '陳阿月', email: 'test', role: 'user', is_active: true }
+    ];
+    state.allUserRecords = state.allUsers;
+    state.assignedPlaces = [
+      {
+        id: 1,
+        sourceId: 'FORMAL0001',
+        sourceTable: 'third_phase_places',
+        placeName: 'Formal place',
+        county: 'Formal county',
+        town: 'Formal town',
+        type: 'Formal type',
+        taiClass: '現場調查',
+        hakClass: '電話調查',
+        assignedUsers: [],
+        assignedTo: '',
+        tAssignee: '',
+        hAssignee: '',
+        recordingStatus: 'No records',
+        taiAudioCount: 0,
+        hakAudioCount: 0
+      },
+      {
+        id: 23621,
+        sourceId: 'TEST0003',
+        sourceTable: 'test_places',
+        placeName: '測試地名',
+        county: '測試',
+        town: '測試',
+        type: '測試',
+        taiClass: '',
+        hakClass: '',
+        assignedUsers: ['陳阿月'],
+        assignedTo: '陳阿月',
+        tAssignee: '',
+        hAssignee: '陳阿月',
+        recordingStatus: 'No records',
+        taiAudioCount: 0,
+        hakAudioCount: 0
+      }
+    ];
+
+    document.getElementById('app-section').classList.remove('hidden');
+    initFilters();
+    state.selectedTypes = ['測試'];
+    renderAllMultiFilterChips();
+    document.getElementById('assignee-filter').value = '陳阿月';
+    applyFilters();
+
+    return {
+      filteredIds: state.filteredPlaces.map(place => place.sourceId),
+      renderedText: document.getElementById('place-list-container').textContent
+    };
+  });
+
+  expect(result.filteredIds).toEqual(['TEST0003']);
+  expect(result.renderedText).toContain('測試地名');
+});
+
 test('admin assignee filter supports assigned and per-language unassigned choices', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {

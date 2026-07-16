@@ -20,3 +20,16 @@
 - `git diff --check`
 - `npx.cmd playwright test tests/language-assignment.spec.js --reporter=line` (13 passed)
 - `npm.cmd run test:ui -- --reporter=line` (22 passed)
+
+## Follow-up Fix
+
+- Live test rows have `type/county/town = 測試` but blank `tai_class` and `hak_class`.
+- Admin class filters previously treated "all class chips selected" as an active class constraint, which excluded blank-class test places.
+- Updated class filtering so blank class values pass when the class filter is effectively all-selected; class constraints apply only after the admin narrows the selected class chips.
+- Added coverage for `type = 測試` plus test-account assignee filtering.
+- Follow-up verification:
+  - `node --check main.js`
+  - `node --check tests/language-assignment.spec.js`
+  - `git diff --check`
+  - `npx.cmd playwright test tests/language-assignment.spec.js --reporter=line` (14 passed)
+  - `npm.cmd run test:ui -- --reporter=line` (23 passed)

@@ -3,6 +3,9 @@
 [2026-07-16] [FIX]
 Fixed admin visibility for test places when Supabase REST pagination hides rows beyond the first page. Live read-only checks confirmed `test_places`, `final_tasks`, `app_tasks_view`, and `app_review_queue_view` still contain 10 test rows, but `app_tasks_view` has 6,842 formal rows before the 10 test rows. The frontend now pages Supabase REST reads with `Range` headers for task, audio, admin user, and review queue data; `main.js` was cache-busted and Playwright coverage now verifies `TEST0001` loads from the second page. Full UI regression passed 22/22.
 
+[2026-07-16] [FIX]
+Fixed admin filtering for test places with blank language class fields. Live read-only checks showed all `test_places` rows have `type/county/town = 測試` and blank `tai_class` / `hak_class`; the admin class filters were excluding those rows when all class chips were selected. Class filters now constrain only when the admin narrows the selected class chips, so `type = 測試` and test-account assignee filters can show the test rows. Full UI regression passed 23/23.
+
 [2026-06-29] [FEATURE]
 Added an admin self-service password change flow. The browser shows a `變更密碼` action only in admin mode, submits current and new password values to root GAS, and never calls the Supabase password RPC directly. Root GAS verifies the current admin password with `login_admin`, then calls service-role-only `change_admin_password`; live grants are `anon=false`, `authenticated=false`, `service_role=true`. Root GAS Web App deployment was updated to version 25.
 

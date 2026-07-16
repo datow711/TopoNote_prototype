@@ -3418,6 +3418,8 @@ function applyFilters() {
     const taiClassSet = new Set(selectedTaiClasses);
     const hakClassSet = new Set(selectedHakClasses);
     const hasTypeOptions = (state.availableTypes || []).length > 0;
+    const hasTaiClassFilter = selectedTaiClasses.length > 0 && selectedTaiClasses.length < (state.availableTaiClasses || []).length;
+    const hasHakClassFilter = selectedHakClasses.length > 0 && selectedHakClasses.length < (state.availableHakClasses || []).length;
     const hakArea = state.selectedHakArea;
     const selectedStatuses = Array.isArray(state.selectedStatuses) ? state.selectedStatuses : [...STATUS_FILTER_VALUES];
     const statusFilterSet = new Set(selectedStatuses);
@@ -3441,8 +3443,8 @@ function applyFilters() {
         const matchC = county ? place.county === county : true;
         const matchTw = hasTownFilter ? townSet.has(place.town) : true;
         const matchTy = hasTypeOptions && selectedTypes.length > 0 ? typeSet.has(place.type || place.Type) : true;
-        const matchTaiClass = selectedTaiClasses.length > 0 ? taiClassSet.has(place.taiClass) : true;
-        const matchHakClass = selectedHakClasses.length > 0 ? hakClassSet.has(place.hakClass) : true;
+        const matchTaiClass = hasTaiClassFilter ? taiClassSet.has(place.taiClass) : true;
+        const matchHakClass = hasHakClassFilter ? hakClassSet.has(place.hakClass) : true;
         const isHakArea = place.hakArea === true || String(place.hakArea).toUpperCase() === 'TRUE';
         const matchHakArea = hakArea === 'all' || (hakArea === 'hak' ? isHakArea : !isHakArea);
         
