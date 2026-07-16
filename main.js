@@ -72,6 +72,7 @@ const USER_PROFILE_SELECT = [
     'life_area_3',
     'survey_area_3'
 ].join(',');
+const SUPABASE_PAGE_SIZE = 1000;
 const USER_EDIT_FIELDS = [
     { key: 'email', label: 'Email', type: 'email', required: true },
     { key: 'name', label: '姓名', required: true },
@@ -158,6 +159,28 @@ function buildRecordNotePayload(annotations = {}, linkMeta = null) {
     const payload = { annotations };
     if (linkMeta) payload.linkedAudio = linkMeta;
     return payload;
+}
+
+async function fetchSupabaseRows(pathAndQuery, headers, pageSize = SUPABASE_PAGE_SIZE) {
+    const rows = [];
+    for (let offset = 0; ; offset += pageSize) {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+            headers: {
+                ...headers,
+                Range: `${offset}-${offset + pageSize - 1}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Supabase request failed (${response.status}) for ${pathAndQuery}`);
+        }
+        const pageRows = await response.json();
+        if (!Array.isArray(pageRows)) {
+            throw new Error(`Supabase request did not return an array for ${pathAndQuery}`);
+        }
+        rows.push(...pageRows);
+        if (pageRows.length < pageSize) break;
+    }
+    return rows;
 }
 
 function getAnnotationInputId(field) {
@@ -2923,26 +2946,21 @@ async function loadDataFromSupabase(userName) {
         const recordsQuery = state.userRole === 'admin'
             ? 'select=*'
             : 'select=*&unlinked_at=is.null';
-        const [tasksRes, recordsRes] = await Promise.all([
-            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_tasks_view?select=*`, { headers }),
-            fetch(`${CONFIG.SUPABASE_URL}/rest/v1/audio_records?${recordsQuery}`, { headers })
+        const [tasksData, recordsData] = await Promise.all([
+            fetchSupabaseRows('app_tasks_view?select=*', headers),
+            fetchSupabaseRows(`audio_records?${recordsQuery}`, headers)
         ]);
-
-        const tasksData = await tasksRes.json();
-        const recordsData = await recordsRes.json();
         const places = tasksData.map(normalizeTask);
 
         if (state.userRole === 'admin') {
             // 🛑 核心新增：管理員額外抓取全體調查員名單
-            const usersRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_users_view?select=${USER_PROFILE_SELECT}&order=name.asc`, { headers });
-            const usersData = await usersRes.json();
+            const usersData = await fetchSupabaseRows(`app_users_view?select=${USER_PROFILE_SELECT}&order=name.asc`, headers);
             // 將抓回來的名字存入 state
             state.allUserRecords = usersData.map(normalizeUserRecord);
             state.allUsers = state.allUserRecords
                 .filter(u => u.role !== 'admin' && u.is_active)
                 .map(u => normalizeUserRecord(u));
-            const reviewsRes = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/app_review_queue_view?select=*`, { headers });
-            const reviewsData = await reviewsRes.json();
+            const reviewsData = await fetchSupabaseRows('app_review_queue_view?select=*', headers);
             state.reviewQueue = reviewsData.map(normalizeReviewTask);
 
             state.assignedPlaces = places;

@@ -801,6 +801,80 @@ test('written annotation places are hidden from normal users but visible to admi
   expect(result.adminAssignedIds).toEqual([201, 202, 203]);
 });
 
+test('admin task loading includes test places beyond the first Supabase page', async ({ page }) => {
+  await page.goto(appUrl);
+  const result = await page.evaluate(async () => {
+    const firstPageRows = Array.from({ length: 1000 }, (_, index) => ({
+      task_id: index + 1,
+      source_id: `uuid-${index + 1}`,
+      source_table: 'third_phase_places',
+      place_name: `Formal place ${index + 1}`,
+      county: 'Formal county',
+      town: 'Formal town',
+      type: 'Formal type',
+      assigned_users: '',
+      assigned_to: '',
+      t_assignee: '',
+      h_assignee: '',
+      recording_status: 'No records',
+      tai_audio_count: 0,
+      hak_audio_count: 0
+    }));
+    const secondPageRows = [{
+      task_id: 23619,
+      source_id: 'TEST0001',
+      source_table: 'test_places',
+      place_name: 'Test place',
+      county: 'Test county',
+      town: 'Test town',
+      type: 'Test type',
+      assigned_users: '',
+      assigned_to: '',
+      t_assignee: '',
+      h_assignee: '',
+      recording_status: 'No records',
+      tai_audio_count: 0,
+      hak_audio_count: 0
+    }];
+
+    window.__taskRanges = [];
+    const originalFetch = window.fetch;
+    window.fetch = async (url, init = {}) => {
+      const urlText = String(url);
+      const range = init.headers?.Range || init.headers?.range || '';
+      if (urlText.includes('/rest/v1/app_tasks_view')) {
+        window.__taskRanges.push(range);
+        const rows = String(range).startsWith('0-') ? firstPageRows : secondPageRows;
+        return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/audio_records')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/app_users_view')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlText.includes('/rest/v1/app_review_queue_view')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return originalFetch(url, init);
+    };
+
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    await loadDataFromSupabase();
+
+    return {
+      ranges: window.__taskRanges,
+      testSourceIds: state.assignedPlaces
+        .filter(place => place.sourceTable === 'test_places')
+        .map(place => place.sourceId)
+    };
+  });
+
+  expect(result.ranges).toEqual(['0-999', '1000-1999']);
+  expect(result.testSourceIds).toEqual(['TEST0001']);
+});
+
 test('admin assignee filter supports assigned and per-language unassigned choices', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
