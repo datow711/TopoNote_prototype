@@ -283,6 +283,8 @@ select *
 from public.app_tasks_view
 where false;
 
+alter view public.app_review_queue_view set (security_invoker = true);
+
 create or replace view public.app_language_assignment_sheet_view as
 select
   ft.id as task_id,
@@ -334,7 +336,9 @@ where ft.is_active = true
     or coalesce(h_review.assignment_sheet_sync_pending, false)
   );
 
-revoke all on function public.mark_assignments_sheet_synced(bigint[]) from public;
+alter view public.app_language_assignment_sheet_view set (security_invoker = true);
+
+revoke all on function public.mark_assignments_sheet_synced(bigint[]) from public, anon, authenticated;
 grant execute on function public.mark_assignments_sheet_synced(bigint[]) to service_role;
 grant execute on function public.assign_task_language(integer[], text, text, text) to anon, authenticated, service_role;
 grant execute on function public.unassign_task_language(integer[], text, text) to anon, authenticated, service_role;
