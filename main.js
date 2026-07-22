@@ -447,16 +447,10 @@ function getInvestigatorWorkStats(user) {
     const recordingCount = state.uploadedRecords.filter(record =>
         doesUserMatchIdentifier(user, record.uploaderId)
     ).length;
-    const approvedCount = state.reviewQueue.reduce((count, place) => {
-        const taiApproved = place.tReviewState === '已完成標注' && doesUserMatchIdentifier(user, place.tAssignee);
-        const hakApproved = place.hReviewState === '已完成標注' && doesUserMatchIdentifier(user, place.hAssignee);
-        return count + (taiApproved ? 1 : 0) + (hakApproved ? 1 : 0);
-    }, 0);
 
     return {
         assignedCount: assignedTaskIds.size,
-        recordingCount,
-        approvedCount
+        recordingCount
     };
 }
 
@@ -472,7 +466,6 @@ function getAdminUserSortableValue(row, key) {
         phone: user.phone || '',
         assigned: stats.assignedCount,
         recordings: stats.recordingCount,
-        approved: stats.approvedCount,
         active: user.is_active ? 1 : 0
     };
     return values[key] ?? '';
@@ -2497,8 +2490,9 @@ function configureRoleUI() {
             tabOther.classList.remove('active');
         }
         if (tabReview) {
-            tabReview.classList.remove('hidden');
-            tabReview.style.display = '';
+            tabReview.classList.add('hidden');
+            tabReview.style.display = 'none';
+            tabReview.classList.remove('active');
         }
         if (tabUploads) {
             tabUploads.classList.remove('hidden');
@@ -2795,7 +2789,6 @@ function renderAdminUserManager() {
                 <span class="user-phone">${escapeHtml(user.phone || '未填手機')}</span>
                 <span class="user-work-stat">${renderInvestigatorStatChip('指派', workStats.assignedCount)}</span>
                 <span class="user-work-stat">${renderInvestigatorStatChip('錄音', workStats.recordingCount)}</span>
-                <span class="user-work-stat">${renderInvestigatorStatChip('通過', workStats.approvedCount)}</span>
                 <span class="user-active-text">${user.is_active ? 'active' : 'inactive'}</span>
                 <input type="checkbox" ${user.is_active ? 'checked' : ''} onchange="toggleInvestigatorActive('${user.id}', this.checked, this)">
                 <button class="edit-user-btn" type="button" onclick="openInvestigatorEditDialog('${escapeJsString(user.id)}')">編輯</button>
@@ -2821,7 +2814,6 @@ function renderAdminUserManager() {
                     <span>${renderAdminUserSortHeader('手機', 'phone')}</span>
                     <span>${renderAdminUserSortHeader('指派', 'assigned')}</span>
                     <span>${renderAdminUserSortHeader('錄音', 'recordings')}</span>
-                    <span>${renderAdminUserSortHeader('通過', 'approved')}</span>
                     <span>${renderAdminUserSortHeader('active', 'active')}</span>
                     <span></span>
                     <span></span>
@@ -2960,8 +2952,7 @@ async function loadDataFromSupabase(userName) {
             state.allUsers = state.allUserRecords
                 .filter(u => u.role !== 'admin' && u.is_active)
                 .map(u => normalizeUserRecord(u));
-            const reviewsData = await fetchSupabaseRows('app_review_queue_view?select=*', headers);
-            state.reviewQueue = reviewsData.map(normalizeReviewTask);
+            state.reviewQueue = [];
 
             state.assignedPlaces = places;
             state.allPlaces = []; 
@@ -3017,6 +3008,10 @@ async function loadDataFromSupabase(userName) {
 // 以下為 UI 切換與篩選器邏輯 (完全保持原樣，因為資料格式已對接)
 // ==========================================
 function switchTab(tab) {
+    if (tab === 'review') {
+        alert('APP 審查功能已暫停，後續流程重新設計後再開放。');
+        tab = 'assigned';
+    }
     if (state.currentTab !== tab) closeRecordingUI();
     state.currentTab = tab;
     document.getElementById('tab-assigned').classList.toggle('active', tab === 'assigned');
@@ -3669,6 +3664,8 @@ function renderReviewLanguageBlock(place, language, records) {
 }
 
 async function approveReviewLanguage(taskId, language, button) {
+    alert('APP 審查功能已暫停，未寫入資料。');
+    return;
     const languageKey = getReviewLanguageKey(language);
     const finalFields = collectFinalReviewFields(taskId, languageKey);
     if (!confirm(`確定通過這筆地名的${language}標注嗎？`)) return;
@@ -3707,6 +3704,8 @@ async function approveReviewLanguage(taskId, language, button) {
 }
 
 async function revokeReviewLanguage(taskId, language, button) {
+    alert('APP 審查功能已暫停，未寫入資料。');
+    return;
     if (!confirm(`確定撤回這筆地名的${language}審查通過狀態嗎？`)) return;
 
     const originalText = button.innerText;

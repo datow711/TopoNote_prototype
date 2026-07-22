@@ -125,7 +125,6 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
 
   await expect(page.getByText('指派 2 筆')).toBeVisible();
   await expect(page.getByText('錄音 2 筆')).toBeVisible();
-  await expect(page.getByText('通過 2 筆')).toBeVisible();
   await expect(page.locator('.user-detail-panel[hidden]')).toHaveCount(2);
 
   const userNames = page.locator('.user-status-row .user-name');

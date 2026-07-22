@@ -181,8 +181,7 @@ function runDailyPreworkSync() {
 
   try {
     var options = { silent: true, throwErrors: true };
-    steps.push(runSyncStep_('APP審查回寫至 Sheet', syncApprovedReviewsToSheets, options));
-    steps.push(runSyncStep_('APP語種指派回寫至 Sheet', syncTaskAssignmentsToSheets, options));
+    steps.push(runSyncStep_('APP錄音人指派回寫至 Sheet', syncTaskAssignmentsToSheets, options));
     steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
     steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
     steps.push(runSyncStep_('Users 同步至 Supabase', syncUsersToSupabase, options));
@@ -278,8 +277,7 @@ function onOpen() {
     .addSeparator()
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
-    .addItem('5. 回寫 APP 審查結果至工作表', 'syncApprovedReviewsToSheets')
-    .addItem('6. 回寫 APP 語種指派至工作表', 'syncTaskAssignmentsToSheets')
+    .addItem('5. 回寫 APP 錄音人指派至工作表', 'syncTaskAssignmentsToSheets')
     .addSeparator()
     .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
     .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
@@ -1038,7 +1036,7 @@ function syncTaskAssignmentsToSheets(options) {
   try {
     var rows = fetchTaskAssignmentSheetRows_();
     if (!rows || rows.length === 0) {
-      return notify_('沒有 APP 語種指派狀態可回寫。', options);
+      return notify_('沒有 APP 錄音人指派狀態可回寫。', options);
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1049,45 +1047,89 @@ function syncTaskAssignmentsToSheets(options) {
     var syncedReviewIds = [];
     var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
 
-    rows.forEach(function(row) {
-      var sheetName = row.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+    function getContext(sheetName) {
       var context = contextCache[sheetName];
+      if (context) return context;
 
+      var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+        ? getOrCreateTestEntriesSheet_()
+        : ss.getSheetByName(sheetName);
+      if (!sheet) return null;
+
+      var headerMap = getSheetHeaderMap_(sheet);
+      var requiredHeaders = ['UUID', 'T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
+      var missingHeaders = requiredHeaders.filter(function(header) {
+        return !headerMap[header];
+      });
+      if (missingHeaders.length > 0) {
+        skipped.push(sheetName + ' 缺少欄位 ' + missingHeaders.join(', '));
+        return null;
+      }
+
+      var lastRow = sheet.getLastRow();
+      var rowCount = Math.max(lastRow - 1, 0);
+      context = {
+        sheet: sheet,
+        headerMap: headerMap,
+        uuidRows: buildUuidRowMap_(sheet, headerMap),
+        rowCount: rowCount,
+        columns: {},
+        dirtyColumns: {}
+      };
+      ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'].forEach(function(header) {
+        context.columns[header] = rowCount > 0
+          ? sheet.getRange(2, headerMap[header], rowCount, 1).getValues()
+          : [];
+      });
+      contextCache[sheetName] = context;
+      return context;
+    }
+
+    function writeLanguageAssignment(context, rowIndex, stateValue, annotatorValue, stateHeader, annotatorHeader, updatedAtHeader, reviewId, sourceId, language) {
+      if (!stateValue) return false;
+      if (stateValue !== '已指派錄音人' && stateValue !== '未指派錄音人') {
+        skipped.push(sourceId + '：' + language + ' 狀態不是錄音人指派狀態，已略過');
+        return false;
+      }
+      if (stateValue === '已指派錄音人' && !annotatorValue) {
+        skipped.push(sourceId + '：' + language + ' 已指派但 Annotator 空白，已略過');
+        return false;
+      }
+
+      var changed = false;
+      if (String(context.columns[stateHeader][rowIndex][0] || '') !== stateValue) {
+        context.columns[stateHeader][rowIndex][0] = stateValue;
+        context.dirtyColumns[stateHeader] = true;
+        changed = true;
+        changedCells++;
+      }
+      if (String(context.columns[annotatorHeader][rowIndex][0] || '') !== annotatorValue) {
+        context.columns[annotatorHeader][rowIndex][0] = annotatorValue;
+        context.dirtyColumns[annotatorHeader] = true;
+        changed = true;
+        changedCells++;
+      }
+      if (changed) {
+        context.columns[updatedAtHeader][rowIndex][0] = 'APP錄音人指派|' + syncTime;
+        context.dirtyColumns[updatedAtHeader] = true;
+        changedCells++;
+      }
+      if (reviewId) syncedReviewIds.push(Number(reviewId));
+      return true;
+    }
+
+    rows.forEach(function(row) {
+      var tState = String(row.t_state || '').trim();
+      var tAnnotator = String(row.t_annotator || '').trim();
+      var hState = String(row.h_state || '').trim();
+      var hAnnotator = String(row.h_annotator || '').trim();
+      if (!tState && !hState) return;
+
+      var sheetName = row.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+      var context = getContext(sheetName);
       if (!context) {
-        var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
-          ? getOrCreateTestEntriesSheet_()
-          : ss.getSheetByName(sheetName);
-        if (!sheet) {
-          skipped.push(row.source_id + '：找不到工作表 ' + sheetName);
-          return;
-        }
-        var headerMap = getSheetHeaderMap_(sheet);
-        var requiredHeaders = ['UUID', 'T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
-        var missingHeaders = requiredHeaders.filter(function(header) {
-          return !headerMap[header];
-        });
-        if (missingHeaders.length > 0) {
-          skipped.push(sheetName + ' 缺少欄位 ' + missingHeaders.join(', '));
-          return;
-        }
-
-        ensureSheetCheckpoint_(sheet, 'assignment_writeback', options);
-        var lastRow = sheet.getLastRow();
-        var rowCount = Math.max(lastRow - 1, 0);
-        context = {
-          sheet: sheet,
-          headerMap: headerMap,
-          uuidRows: buildUuidRowMap_(sheet, headerMap),
-          rowCount: rowCount,
-          columns: {},
-          dirtyColumns: {}
-        };
-        ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'].forEach(function(header) {
-          context.columns[header] = rowCount > 0
-            ? sheet.getRange(2, headerMap[header], rowCount, 1).getValues()
-            : [];
-        });
-        contextCache[sheetName] = context;
+        skipped.push(row.source_id + '：找不到工作表 ' + sheetName);
+        return;
       }
 
       var rowNumber = context.uuidRows[String(row.source_id || '').trim()];
@@ -1096,63 +1138,18 @@ function syncTaskAssignmentsToSheets(options) {
         return;
       }
       var rowIndex = rowNumber - 2;
+      var processed = false;
 
-      var tState = String(row.t_state || '');
-      var tAnnotator = String(row.t_annotator || '');
-      var hState = String(row.h_state || '');
-      var hAnnotator = String(row.h_annotator || '');
-      var changed = false;
-
-      if (tState && (tState === '待指派' || tState === '尚未標注')) {
-        if (String(context.columns.T_State[rowIndex][0] || '') !== tState) {
-          context.columns.T_State[rowIndex][0] = tState;
-          context.dirtyColumns.T_State = true;
-          changed = true;
-          changedCells++;
-        }
-        if (String(context.columns.T_Annotator[rowIndex][0] || '') !== tAnnotator) {
-          context.columns.T_Annotator[rowIndex][0] = tAnnotator;
-          context.dirtyColumns.T_Annotator = true;
-          changed = true;
-          changedCells++;
-        }
-        if (changed) {
-          context.columns.T_UpdatedAt[rowIndex][0] = 'APP語種指派|' + syncTime;
-          context.dirtyColumns.T_UpdatedAt = true;
-          changedCells++;
-        }
-        if (row.t_review_id) syncedReviewIds.push(Number(row.t_review_id));
-      }
-
-      changed = false;
-      if (hState && (hState === '待指派' || hState === '尚未標注')) {
-        if (String(context.columns.H_State[rowIndex][0] || '') !== hState) {
-          context.columns.H_State[rowIndex][0] = hState;
-          context.dirtyColumns.H_State = true;
-          changed = true;
-          changedCells++;
-        }
-        if (String(context.columns.H_Annotator[rowIndex][0] || '') !== hAnnotator) {
-          context.columns.H_Annotator[rowIndex][0] = hAnnotator;
-          context.dirtyColumns.H_Annotator = true;
-          changed = true;
-          changedCells++;
-        }
-        if (changed) {
-          context.columns.H_UpdatedAt[rowIndex][0] = 'APP語種指派|' + syncTime;
-          context.dirtyColumns.H_UpdatedAt = true;
-          changedCells++;
-        }
-        if (row.h_review_id) syncedReviewIds.push(Number(row.h_review_id));
-      }
-
-      if (
-        (tState && (tState === '待指派' || tState === '尚未標注')) ||
-        (hState && (hState === '待指派' || hState === '尚未標注'))
-      ) {
-        updated++;
-      }
+      processed = writeLanguageAssignment(context, rowIndex, tState, tAnnotator, 'T_State', 'T_Annotator', 'T_UpdatedAt', row.t_review_id, row.source_id, '台語') || processed;
+      processed = writeLanguageAssignment(context, rowIndex, hState, hAnnotator, 'H_State', 'H_Annotator', 'H_UpdatedAt', row.h_review_id, row.source_id, '客語') || processed;
+      if (processed) updated++;
     });
+
+    if (updated === 0) {
+      var noOpMessage = '沒有可回寫的 APP 錄音人指派狀態。';
+      if (skipped.length > 0) noOpMessage += '\n略過：\n' + skipped.join('\n');
+      return notify_(noOpMessage, options);
+    }
 
     Object.keys(contextCache).forEach(function(sheetName) {
       var context = contextCache[sheetName];
@@ -1165,17 +1162,16 @@ function syncTaskAssignmentsToSheets(options) {
     syncedReviewIds.forEach(function(id) {
       if (id) uniqueReviewIds[String(id)] = Number(id);
     });
-    var marked = markReviewsSheetSynced_(Object.keys(uniqueReviewIds).map(function(key) {
+    var marked = markAssignmentsSheetSynced_(Object.keys(uniqueReviewIds).map(function(key) {
       return uniqueReviewIds[key];
     }));
-    var message = '✅ 已回寫 APP 語種指派至工作表：檢查 ' + updated + ' 筆，更新儲存格 ' + changedCells + ' 格，標記已同步 ' + marked + ' 筆。';
+    var message = '✅ 已回寫 APP 錄音人指派至工作表：檢查 ' + updated + ' 筆，更新儲存格 ' + changedCells + ' 格，標記已同步 ' + marked + ' 筆。';
     if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
     return notify_(message, options);
   } catch (e) {
-    return handleSyncError_('APP 語種指派回寫', e, options);
+    return handleSyncError_('APP 錄音人指派回寫', e, options);
   }
 }
-
 function fetchPendingReviewSheetSyncs_() {
   var supabase = getSupabaseConfig_();
   var url = supabase.url + '/rest/v1/app_sheet_sync_queue?select=*&order=source_table.asc,source_id.asc,language.asc';
@@ -1212,74 +1208,29 @@ function markReviewsSheetSynced_(reviewIds) {
   return Number(response.getContentText() || 0);
 }
 
-function syncApprovedReviewsToSheets(options) {
-  try {
-    var rows = fetchPendingReviewSheetSyncs_();
-    if (!rows || rows.length === 0) {
-      return notify_('沒有待回寫的 APP 審查結果。', options);
-    }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetCache = {};
-    var headerCache = {};
-    var syncedReviewIds = [];
-    var skipped = [];
+function markAssignmentsSheetSynced_(reviewIds) {
+  if (reviewIds.length === 0) return 0;
 
-    rows.forEach(function(review) {
-      var sheetName = review.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
-      var sheet = sheetCache[sheetName];
-
-      if (!sheet) {
-        sheet = sheetName === TEST_ENTRIES_SHEET_NAME
-          ? getOrCreateTestEntriesSheet_()
-          : ss.getSheetByName(sheetName);
-        if (!sheet) {
-          skipped.push(review.source_id + '：找不到工作表 ' + sheetName);
-          return;
-        }
-        sheetCache[sheetName] = sheet;
-        headerCache[sheetName] = getSheetHeaderMap_(sheet);
-        ensureSheetCheckpoint_(sheet, 'review_writeback', options);
-      }
-
-      var headerMap = headerCache[sheetName];
-      var rowNumber = findRowByUuid_(sheet, headerMap, review.source_id);
-
-      if (!rowNumber && review.source_table === 'test_places') {
-        appendBaseReviewRow_(sheet, headerMap, review);
-        rowNumber = sheet.getLastRow();
-      }
-
-      if (!rowNumber) {
-        skipped.push(review.source_id + '：' + sheetName + ' 找不到 UUID');
-        return;
-      }
-
-      var writtenAnnotationConflict = detectWrittenAnnotationReviewConflict_(sheet, headerMap, rowNumber, review);
-      if (writtenAnnotationConflict) {
-        writeReviewConflictWarning_(sheet, headerMap, rowNumber, writtenAnnotationConflict.warning);
-        skipped.push(review.source_id + '：' + review.language + ' 分級為書面標注，不走 APP 回寫，已略過。');
-        return;
-      }
-
-      var conflict = detectReviewSheetConflict_(sheet, headerMap, rowNumber, review);
-      if (conflict) {
-        writeReviewConflictWarning_(sheet, headerMap, rowNumber, conflict.warning);
-        skipped.push(review.source_id + '：' + review.language + ' 回寫衝突，Sheet 已有較新更新，已略過。');
-        return;
-      }
-
-      applyReviewUpdateToSheet_(sheet, headerMap, rowNumber, buildReviewSheetUpdate_(review));
-      syncedReviewIds.push(review.review_id);
-    });
-
-    var marked = markReviewsSheetSynced_(syncedReviewIds);
-    var message = '✅ APP 審查結果回寫完成：' + syncedReviewIds.length + ' 筆；已清除待同步標記：' + marked + ' 筆。';
-    if (skipped.length > 0) message += '\n略過：\n' + skipped.join('\n');
-    return notify_(message, options);
-  } catch (e) {
-    return handleSyncError_('APP 審查結果回寫', e, options);
+  var supabase = getSupabaseConfig_();
+  var url = supabase.url + '/rest/v1/rpc/mark_assignments_sheet_synced';
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: getSupabaseHeaders_(supabase),
+    payload: JSON.stringify({ p_review_ids: reviewIds }),
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(url, options);
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
   }
+  return Number(response.getContentText() || 0);
+}
+
+function syncApprovedReviewsToSheets(options) {
+  return notify_('APP 審查回寫功能已暫停。', options);
 }
 
 // ==========================================

@@ -1803,7 +1803,7 @@ button:disabled {
 .user-status-header,
 .user-status-row {
     display: grid;
-    grid-template-columns: 52px minmax(120px, 1fr) minmax(210px, 1.35fr) minmax(112px, 0.75fr) 86px 86px 86px 54px 24px 56px 56px;
+    grid-template-columns: 52px minmax(120px, 1fr) minmax(210px, 1.35fr) minmax(112px, 0.75fr) 86px 86px 54px 24px 56px 56px;
     align-items: center;
     gap: 8px;
 }
