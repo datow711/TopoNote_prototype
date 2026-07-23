@@ -12,6 +12,8 @@ var DAILY_PREWORK_SYNC_HOUR = 6;
 var DAILY_PREWORK_SYNC_MINUTE = 30;
 var CHECKPOINT_PREFIX = '__ckpt_';
 var CHECKPOINT_DEFAULT_RETENTION = 5;
+var RECORDS_SHEET_NAME = 'Records';
+var RECORDS_SHEET_HEADERS = ['紀錄時間', '上傳者ID', '序號', '地名', '語言', '音讀', '錄音檔連結', '錄音ID'];
 var WRITTEN_ANNOTATION_CLASS = '書面標注';
 var SATELLITE_LOCKED_BACKGROUND = '#666666';
 var SATELLITE_LOCKED_FONT_COLOR = '#eeeeee';
@@ -53,6 +55,33 @@ function getSupabaseHeaders_(supabase, extraHeaders) {
   return headers;
 }
 
+function fetchSupabaseRows_(path) {
+  var supabase = getSupabaseConfig_();
+  var rows = [];
+  var pageSize = 1000;
+  var baseUrl = supabase.url + '/rest/v1/' + path;
+
+  for (var start = 0; ; start += pageSize) {
+    var response = UrlFetchApp.fetch(baseUrl, {
+      method: 'get',
+      headers: getSupabaseHeaders_(supabase, {
+        'Range-Unit': 'items',
+        'Range': start + '-' + (start + pageSize - 1)
+      }),
+      muteHttpExceptions: true
+    });
+    var statusCode = response.getResponseCode();
+    if (statusCode < 200 || statusCode >= 300) {
+      throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
+    }
+
+    var page = JSON.parse(response.getContentText() || '[]');
+    rows = rows.concat(page);
+    if (page.length < pageSize) break;
+  }
+
+  return rows;
+}
 function notify_(message, options) {
   Logger.log(message);
   if (options && options.silent) return message;
@@ -278,6 +307,7 @@ function onOpen() {
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
     .addItem('5. 回寫 APP 錄音人指派至工作表', 'syncTaskAssignmentsToSheets')
+    .addItem('6. 重建 Records 錄音索引', 'rebuildRecordsSheetFromSupabase')
     .addSeparator()
     .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
     .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
@@ -1233,6 +1263,84 @@ function syncApprovedReviewsToSheets(options) {
   return notify_('APP 審查回寫功能已暫停。', options);
 }
 
+function normalizeRecordUrl_(value) {
+  return String(value || '').trim();
+}
+
+function buildExistingRecordIdsByUrl_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var map = {};
+  if (lastRow < 2) return map;
+
+  var values = sheet.getRange(2, 1, lastRow - 1, RECORDS_SHEET_HEADERS.length).getValues();
+  values.forEach(function(row) {
+    var url = normalizeRecordUrl_(row[6]);
+    var recordId = String(row[7] || '').trim();
+    if (url && recordId && !map[url]) map[url] = recordId;
+  });
+  return map;
+}
+
+function formatSupabaseTimestampForRecords_(value) {
+  if (!value) return '';
+  var date = new Date(value);
+  if (isNaN(date.getTime())) return String(value);
+  return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+}
+
+function rebuildRecordsSheetFromSupabase(options) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(RECORDS_SHEET_NAME) || ss.insertSheet(RECORDS_SHEET_NAME);
+    var existingRecordIdsByUrl = buildExistingRecordIdsByUrl_(sheet);
+
+    var tasks = fetchSupabaseRows_('app_tasks_view?select=task_id,source_id,source_table,place_name&order=task_id.asc');
+    var taskById = {};
+    tasks.forEach(function(task) {
+      taskById[String(task.task_id)] = task;
+    });
+
+    var records = fetchSupabaseRows_(
+      'audio_records?select=id,task_id,recorder_name,audio_file_id,phonetic_reading,language,created_at,unlinked_at&order=created_at.asc,id.asc'
+    );
+
+    var output = [RECORDS_SHEET_HEADERS];
+    var missingTaskMap = 0;
+    var replacedRecordIds = 0;
+    records.forEach(function(record) {
+      var task = taskById[String(record.task_id)] || {};
+      if (!task.source_id) missingTaskMap++;
+
+      var url = normalizeRecordUrl_(record.audio_file_id);
+      var recordId = existingRecordIdsByUrl[url] || String(record.id || '');
+      if (existingRecordIdsByUrl[url]) replacedRecordIds++;
+
+      output.push([
+        formatSupabaseTimestampForRecords_(record.created_at),
+        record.recorder_name || '',
+        task.source_id || record.task_id || '',
+        task.place_name || '',
+        record.language || '',
+        record.phonetic_reading || '',
+        url,
+        recordId
+      ]);
+    });
+
+    var oldRowCount = Math.max(sheet.getLastRow(), 1);
+    sheet.getRange(1, 1, oldRowCount, RECORDS_SHEET_HEADERS.length).clearContent();
+    sheet.getRange(1, 1, output.length, RECORDS_SHEET_HEADERS.length).setValues(output);
+    sheet.getRange(1, 1, 1, RECORDS_SHEET_HEADERS.length).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    sheet.autoResizeColumns(1, RECORDS_SHEET_HEADERS.length);
+
+    var message = '✅ Records 已從 Supabase 重建：寫入 ' + records.length + ' 筆錄音。序號欄使用 source_id UUID。保留舊錄音ID ' + replacedRecordIds + ' 筆。';
+    if (missingTaskMap > 0) message += '\n⚠️ 有 ' + missingTaskMap + ' 筆找不到 task 對應，序號暫用 task_id。';
+    return notify_(message, options);
+  } catch (e) {
+    return handleSyncError_('Records 重建', e, options);
+  }
+}
 // ==========================================
 // 5. 其他 Supabase 工具與匯出功能
 // ==========================================

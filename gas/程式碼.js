@@ -97,10 +97,11 @@ function handleLinkAudioRecords(data) {
   }
 
   records.forEach(function(record) {
+    var recordPlaceId = record.sourceId || resolveSourceIdForTask_(record.placeId) || record.placeId || '';
     recordSheet.appendRow([
       new Date(),
       record.uploaderId || '',
-      record.placeId || '',
+      recordPlaceId,
       record.placeName || '',
       record.language || '',
       record.phonetic || '',
@@ -211,6 +212,27 @@ function callSupabaseRpc_(rpcName, body, bearerKey) {
   return text ? JSON.parse(text) : null;
 }
 
+function resolveSourceIdForTask_(placeId) {
+  if (!placeId) return '';
+  try {
+    var config = getSupabaseConfig_();
+    var url = config.url + '/rest/v1/app_tasks_view?select=source_id&task_id=eq.' + encodeURIComponent(placeId) + '&limit=1';
+    var response = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: {
+        apikey: config.anonKey,
+        Authorization: 'Bearer ' + config.anonKey
+      },
+      muteHttpExceptions: true
+    });
+    if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) return '';
+    var rows = JSON.parse(response.getContentText() || '[]');
+    return rows && rows[0] && rows[0].source_id ? String(rows[0].source_id) : '';
+  } catch (e) {
+    Logger.log('resolveSourceIdForTask_ failed: ' + e.message);
+    return '';
+  }
+}
 function authorizeRootGasScopes() {
   UrlFetchApp.fetch('https://www.google.com/generate_204', {
     muteHttpExceptions: true
@@ -670,6 +692,7 @@ function handleUpload(data) {
   var base64Data = data.audioBase64;
   var filename = data.filename;
   var placeId = data.placeId;     
+  var sourceId = data.sourceId || '';
   var placeName = data.placeName;
   var uploaderId = data.userId || "未登入";
   var language = data.language || ""; 
@@ -689,12 +712,13 @@ function handleUpload(data) {
   
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var recordSheet = ss.getSheetByName('Records');
-  recordSheet.appendRow([new Date(), uploaderId, placeId, placeName, language, phonetic, fileUrl, recordId]);
+  var recordPlaceId = sourceId || resolveSourceIdForTask_(placeId) || placeId;
+  recordSheet.appendRow([new Date(), uploaderId, recordPlaceId, placeName, language, phonetic, fileUrl, recordId]);
   
   return ContentService.createTextOutput(JSON.stringify({ 
     success: true, 
     fileUrl: fileUrl,
-    recordData: { placeId: placeId, language: language, phonetic: phonetic, url: fileUrl, recordId: recordId, uploaderId: uploaderId }
+    recordData: { placeId: placeId, sourceId: sourceId, language: language, phonetic: phonetic, url: fileUrl, recordId: recordId, uploaderId: uploaderId }
   })).setMimeType(ContentService.MimeType.JSON);
 }
 

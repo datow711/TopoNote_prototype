@@ -4437,6 +4437,7 @@ async function submitAudioLink(recordId) {
             sheetRows.push({
                 recordId: insertedRecordId,
                 placeId: target.id,
+                sourceId: target.sourceId || '',
                 placeName: target.placeName || '',
                 language: record.language,
                 uploaderId: record.uploaderId,
@@ -4760,7 +4761,7 @@ function uploadAudio() {
 
         const payload = {
             action: 'upload',
-            userId: state.userId, placeId: String(state.selectedPlace.id), placeName: state.selectedPlace.placeName,
+            userId: state.userId, placeId: String(state.selectedPlace.id), sourceId: state.selectedPlace.sourceId || '', placeName: state.selectedPlace.placeName,
             filename: finalFileName, audioBase64: reader.result, language: lang, phonetic: phonetic
         };
 
