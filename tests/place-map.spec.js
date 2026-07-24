@@ -198,7 +198,13 @@ test('mobile place map panel covers the full viewport and keeps both close contr
     return Math.round(panelBox.x);
   }).toBeLessThanOrEqual(1);
   const panelBox = await page.locator('#place-map-panel').boundingBox();
+  const collapseBox = await page.locator('.place-map-collapse').boundingBox();
+  const canvasBox = await page.locator('#place-map-canvas').boundingBox();
+  const collapseZIndex = await page.locator('.place-map-collapse').evaluate(el => Number(getComputedStyle(el).zIndex));
   expect(panelBox.width).toBeGreaterThanOrEqual(388);
+  expect(collapseBox.x).toBeLessThanOrEqual(1);
+  expect(collapseBox.x + collapseBox.width).toBeLessThanOrEqual(canvasBox.x + 1);
+  expect(collapseZIndex).toBeGreaterThanOrEqual(1000);
   await expect(page.locator('.place-map-collapse')).toBeVisible();
   await expect(page.locator('.place-map-close')).toBeVisible();
 });

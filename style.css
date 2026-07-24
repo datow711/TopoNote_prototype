@@ -2924,7 +2924,7 @@ button:disabled {
         left: 0;
         width: 100vw;
         max-width: none;
-        padding: 10px 10px 10px 18px;
+        padding: 10px 10px 10px 34px;
         border-left: 0;
         box-shadow: -8px 0 28px rgba(0, 30, 43, 0.22);
         animation: placeMapSlideInMobile 180ms ease-out;
@@ -2936,7 +2936,7 @@ button:disabled {
         position: absolute;
         top: 50%;
         left: 0;
-        z-index: 2;
+        z-index: 1200;
         width: 28px;
         min-height: 52px;
         border-left: 0;
