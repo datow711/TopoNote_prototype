@@ -20,6 +20,7 @@ async function installFakeLeaflet(page) {
       },
       invalidateSize() {
         this.invalidated = true;
+        this.invalidateCount = (this.invalidateCount || 0) + 1;
         return this;
       },
       getZoom() {
@@ -204,7 +205,10 @@ test('mobile place map panel covers the full viewport and keeps both close contr
   expect(panelBox.width).toBeGreaterThanOrEqual(388);
   expect(collapseBox.x).toBeLessThanOrEqual(1);
   expect(collapseBox.x + collapseBox.width).toBeLessThanOrEqual(canvasBox.x + 1);
+  expect(canvasBox.width).toBeGreaterThan(300);
+  expect(canvasBox.height).toBeGreaterThan(300);
   expect(collapseZIndex).toBeGreaterThanOrEqual(1000);
+  await expect.poll(() => page.evaluate(() => window.__fakeLeafletMap.invalidateCount || 0)).toBeGreaterThanOrEqual(2);
   await expect(page.locator('.place-map-collapse')).toBeVisible();
   await expect(page.locator('.place-map-close')).toBeVisible();
 });

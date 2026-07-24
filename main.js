@@ -4240,12 +4240,17 @@ async function openPlaceMapView(options = {}) {
             state.placeMap.layer = L.layerGroup().addTo(state.placeMap.map);
         }
 
-        setTimeout(() => state.placeMap.map?.invalidateSize(), 0);
+        schedulePlaceMapResize();
         renderPlaceMapMarkers(options);
     } catch (err) {
         console.error('地圖載入失敗:', err);
         setPlaceMapStatus(`地圖載入失敗：${err.message}`);
     }
+}
+
+function schedulePlaceMapResize() {
+    requestAnimationFrame(() => state.placeMap.map?.invalidateSize());
+    setTimeout(() => state.placeMap.map?.invalidateSize(), 240);
 }
 
 function closePlaceMapView() {
