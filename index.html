@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260715-place-info">
+    <link rel="stylesheet" href="style.css?v=20260724-place-details">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -76,8 +76,15 @@
         <div class="card" id="recording-section">
             <h3 id="selected-place-title" style="margin-top:0; color:var(--secondary);">未選擇地名</h3>
             <div id="selected-place-info" class="selected-place-info hidden">
-                <strong>地名補充資訊：</strong>
-                <span id="selected-place-info-content"></span>
+                <div class="selected-place-info-main">
+                    <strong>地名補充資訊：</strong>
+                    <span id="selected-place-info-content"></span>
+                </div>
+                <div class="selected-place-info-actions">
+                    <button id="selected-place-history-btn" class="place-detail-btn hidden" type="button" aria-expanded="false" aria-controls="selected-place-name-history" onclick="toggleSelectedPlaceNameHistory()">歷史沿革</button>
+                    <div id="selected-place-name-history" class="selected-place-detail-panel hidden"></div>
+                    <button id="selected-place-location-btn" class="place-detail-btn" type="button">地理位置</button>
+                </div>
             </div>
             
             <div class="language-tabs" role="radiogroup" aria-label="錄音語言">
@@ -163,6 +170,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="main.js?v=20260724-aac-playback"></script>
+    <script src="main.js?v=20260724-place-details"></script>
 </body>
 </html>

@@ -801,6 +801,8 @@ function normalizeTask(t) {
         sourceTable: t.source_table,
         placeName: t.place_name,
         info: t.info || '',
+        nameHistory: t.name_history || '',
+        location: t.location || '',
         county: t.county,
         town: t.town,
         village: t.village,
@@ -4104,6 +4106,17 @@ function updateSelectedAssignCount() {
     countEl.innerText = `篩選結果${filteredCount}筆，${selectedCount}筆已選`;
 }
 
+function toggleSelectedPlaceNameHistory() {
+    const historyPanel = document.getElementById('selected-place-name-history');
+    const historyButton = document.getElementById('selected-place-history-btn');
+    if (!historyPanel || !historyButton) return;
+
+    const isExpanded = !historyPanel.classList.contains('hidden');
+    historyPanel.classList.toggle('hidden', isExpanded);
+    historyButton.setAttribute('aria-expanded', String(!isExpanded));
+    historyButton.textContent = isExpanded ? '歷史沿革' : '收合歷史沿革';
+}
+
 function openRecordingUI(place, element) {
     state.selectedPlace = place;
     document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
@@ -4114,10 +4127,20 @@ function openRecordingUI(place, element) {
     document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName}`;
     const infoPanel = document.getElementById('selected-place-info');
     const infoContent = document.getElementById('selected-place-info-content');
+    const historyButton = document.getElementById('selected-place-history-btn');
+    const locationButton = document.getElementById('selected-place-location-btn');
+    const historyPanel = document.getElementById('selected-place-name-history');
     const info = String(place.info || '').trim();
-    if (infoPanel && infoContent) {
+    const nameHistory = String(place.nameHistory || '').trim();
+    if (infoPanel && infoContent && historyButton && locationButton && historyPanel) {
         infoContent.textContent = info;
-        infoPanel.classList.toggle('hidden', !info);
+        historyPanel.textContent = nameHistory;
+        historyPanel.classList.add('hidden');
+        historyButton.classList.toggle('hidden', !nameHistory);
+        historyButton.setAttribute('aria-expanded', 'false');
+        historyButton.textContent = '歷史沿革';
+        locationButton.dataset.location = String(place.location || '').trim();
+        infoPanel.classList.toggle('hidden', !info && !nameHistory);
     }
     
     resetRecordingState(getDefaultAnnotationLanguage(place)); renderHistoryList(place.id);

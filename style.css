@@ -863,9 +863,7 @@ button:disabled {
 
 .selected-place-info {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    align-items: start;
-    gap: 4px;
+    gap: 8px;
     margin: -2px 0 12px;
     padding: 9px 12px;
     border-left: 3px solid var(--accent-deep);
@@ -876,16 +874,58 @@ button:disabled {
     line-height: 1.6;
 }
 
+.selected-place-info-main {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
+}
+
 .selected-place-info strong {
     color: var(--accent-deep);
     font-weight: 850;
     white-space: nowrap;
 }
 
-#selected-place-info-content {
+#selected-place-info-content,
+.selected-place-detail-panel {
     min-width: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+}
+
+.selected-place-info-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.place-detail-btn {
+    flex: 1 1 160px;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 12px;
+    border: 1px solid rgba(45, 115, 108, 0.22);
+    border-radius: 9999px;
+    background: var(--surface);
+    color: var(--accent-deep);
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.place-detail-btn:hover,
+.place-detail-btn:focus-visible {
+    border-color: var(--accent-deep);
+    background: rgba(234, 246, 242, 0.95);
+}
+
+.selected-place-detail-panel {
+    flex-basis: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(45, 115, 108, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
 }
 
 .place-meta {
