@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260724-place-map">
+    <link rel="stylesheet" href="style.css?v=20260724-place-map-mobile-full">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -176,6 +176,7 @@
             </div>
         </div>
         <aside id="place-map-panel" class="place-map-panel hidden" aria-hidden="true">
+            <button class="place-map-collapse" type="button" onclick="closePlaceMapView()" aria-label="收合地圖">▶</button>
             <div class="place-map-shell">
                 <div class="place-map-header">
                     <div>
@@ -196,6 +197,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="main.js?v=20260724-place-map"></script>
+    <script src="main.js?v=20260724-place-map-mobile-full"></script>
 </body>
 </html>

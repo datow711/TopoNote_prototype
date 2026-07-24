@@ -169,3 +169,36 @@ test('selected coordinate place shows straight-line distance after user location
   await expect(page.locator('#place-map-card')).toContainText('直線距離');
   await expect(page.locator('#place-map-card')).toContainText('目前定位精度較低，距離僅供參考');
 });
+
+test('mobile place map panel covers the full viewport and keeps both close controls', async ({ page }) => {
+  await installFakeLeaflet(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'user';
+    state.uploadedRecords = [];
+    document.getElementById('app-section').classList.remove('hidden');
+    renderPlaceList([
+      normalizeTask({
+        task_id: 401,
+        source_id: 'MAP-401',
+        place_name: 'Mobile map place',
+        county: 'Test county',
+        town: 'Test town',
+        village: 'Test village',
+        longitude: 121,
+        latitude: 23.5
+      })
+    ]);
+  });
+
+  await page.locator('#place-map-toggle').click();
+  await expect.poll(async () => {
+    const panelBox = await page.locator('#place-map-panel').boundingBox();
+    return Math.round(panelBox.x);
+  }).toBeLessThanOrEqual(1);
+  const panelBox = await page.locator('#place-map-panel').boundingBox();
+  expect(panelBox.width).toBeGreaterThanOrEqual(388);
+  await expect(page.locator('.place-map-collapse')).toBeVisible();
+  await expect(page.locator('.place-map-close')).toBeVisible();
+});
