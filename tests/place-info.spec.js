@@ -33,3 +33,35 @@ test('selected place shows multiline info and hides blank info', async ({ page }
   });
   await expect(panel).toBeHidden();
 });
+
+test('place list location badge includes village when available', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'user';
+    document.getElementById('app-section').classList.remove('hidden');
+    renderPlaceList([
+      {
+        id: 201,
+        sourceId: 'PLACE-201',
+        placeName: 'Place with village',
+        county: 'County',
+        town: 'Town',
+        village: 'Village',
+        type: 'Type'
+      },
+      {
+        id: 202,
+        sourceId: 'PLACE-202',
+        placeName: 'Place without village',
+        county: 'County',
+        town: 'Town',
+        village: '',
+        type: 'Type'
+      }
+    ]);
+  });
+
+  const locationBadges = page.locator('.place-item .place-meta .meta-badge:nth-child(2)');
+  await expect(locationBadges.nth(0)).toHaveText('County Town Village');
+  await expect(locationBadges.nth(1)).toHaveText('County Town');
+});

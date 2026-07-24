@@ -3974,7 +3974,7 @@ function appendPlaceListBatch() {
                     <div class="place-title">${place.placeName}</div>
                     <div class="place-meta">
                         <span class="meta-badge">UUID: ${displayUuid}</span>
-                        <span class="meta-badge">${place.county} ${place.town}</span>
+                        <span class="meta-badge">${[place.county, place.town, place.village].filter(Boolean).join(' ')}</span>
                         <span class="meta-badge">${typeName}</span>
                         ${classBadges}
                         <div class="meta-badge-row">${recordBadge} ${adminAssignBadge}</div>
