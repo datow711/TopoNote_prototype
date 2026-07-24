@@ -676,6 +676,9 @@ function syncThirdPhasePlacesToSupabase(options) {
       h_updated_at: String(getCellValue_(row, colMap, 'H_UpdatedAt') || ''),
       batch_id: String(getCellValue_(row, colMap, 'BatchID') || ''),
       sync_warning: String(getCellValue_(row, colMap, '同步警告') || ''),
+      location: String(getCellValue_(row, colMap, 'location') || ''),
+      name_history: String(getCellValue_(row, colMap, 'name_history') || ''),
+      std_name_code: String(getCellValue_(row, colMap, 'std_name_code') || ''),
       synced_at: new Date().toISOString()
     });
   }
