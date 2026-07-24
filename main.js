@@ -4594,6 +4594,44 @@ async function fetchAndPlayAudio(driveUrl, recordId) {
     return fetchAndPlayAudioToContainer(driveUrl, `player-${recordId}`);
 }
 
+const AUDIO_MIME_TYPES_BY_EXTENSION = Object.freeze({
+    aac: 'audio/aac',
+    amr: 'audio/amr',
+    caf: 'audio/x-caf',
+    m4a: 'audio/mp4',
+    mp3: 'audio/mpeg',
+    mp4: 'audio/mp4',
+    oga: 'audio/ogg',
+    ogg: 'audio/ogg',
+    opus: 'audio/ogg',
+    '3gp': 'audio/3gpp',
+    '3gpp': 'audio/3gpp',
+    wav: 'audio/wav',
+    webm: 'audio/webm'
+});
+
+function resolveAudioMimeType(fileName = '', mimeType = '') {
+    const extension = String(fileName).split('.').pop().toLowerCase();
+    const extensionMimeType = AUDIO_MIME_TYPES_BY_EXTENSION[extension] || '';
+    if (extensionMimeType) return extensionMimeType;
+
+    const normalizedMimeType = String(mimeType).split(';')[0].trim().toLowerCase();
+    const mimeAliases = {
+        'audio/x-aac': 'audio/aac',
+        'audio/vnd.dlna.adts': 'audio/aac',
+        'audio/x-m4a': 'audio/mp4',
+        'audio/x-wav': 'audio/wav'
+    };
+    return mimeAliases[normalizedMimeType] || normalizedMimeType || 'application/octet-stream';
+}
+
+function normalizeAudioDataUrl(dataUrl, fileName = '', mimeType = '') {
+    const value = String(dataUrl || '');
+    const currentMimeType = value.match(/^data:([^;,]+)/i)?.[1] || '';
+    const resolvedMimeType = resolveAudioMimeType(fileName, mimeType || currentMimeType);
+    return value.replace(/^data:[^;,]*/i, `data:${resolvedMimeType}`);
+}
+
 async function fetchAndPlayAudioToContainer(driveUrl, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -4605,7 +4643,16 @@ async function fetchAndPlayAudioToContainer(driveUrl, containerId) {
         });
         const result = await response.json();
         if (result.success) {
-            container.innerHTML = `<audio src="${result.dataUrl}" controls autoplay style="width: 100%; height: 35px;"></audio>`;
+            const audio = document.createElement('audio');
+            audio.src = normalizeAudioDataUrl(result.dataUrl, result.fileName, result.mimeType);
+            audio.controls = true;
+            audio.autoplay = true;
+            audio.style.width = '100%';
+            audio.style.height = '35px';
+            audio.addEventListener('error', () => {
+                container.innerHTML = '<span style="color:red;">\u274c \u700f\u89bd\u5668\u7121\u6cd5\u89e3\u78bc\u9019\u7b46\u97f3\u6a94\uff0c\u8acb\u78ba\u8a8d\u6a94\u6848\u672a\u640d\u58de\u5f8c\u518d\u8a66\u4e00\u6b21\u3002</span>';
+            }, { once: true });
+            container.replaceChildren(audio);
         } else {
             container.innerHTML = `<span style="color:red;">❌ 載入失敗：${result.error}</span>`;
         }
@@ -4702,8 +4749,12 @@ function handleFileUpload(event) {
         event.target.value = "";
         return alert("這個檔案不像音檔。請從 LINE 重新分享或儲存語音檔，再回來選擇。");
     }
-    audioBlob = file; uploadedFileName = file.name; 
-    document.getElementById('audio-playback').src = URL.createObjectURL(file);
+    const normalizedMimeType = resolveAudioMimeType(file.name, file.type);
+    audioBlob = file.type === normalizedMimeType
+        ? file
+        : new Blob([file], { type: normalizedMimeType });
+    uploadedFileName = file.name;
+    document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
     showAudioConfirmation('LINE/手機音檔', file);
     document.getElementById('status').innerText = `已選擇音檔：${file.name}，請先播放確認再上傳。`;
     document.getElementById('status').style.color = "green";

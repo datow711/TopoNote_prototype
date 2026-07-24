@@ -253,6 +253,7 @@ test('admin links an existing audio record to other places as normal audio recor
       recordId: 901,
       placeId: 20,
       placeName: 'Target Place',
+      sourceId: 'SRC-20',
       language: 'Tai',
       uploaderId: 'Lin Investigator',
       phonetic: 'tsu7',

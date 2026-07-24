@@ -688,6 +688,35 @@ function handleLogin(data) {
 // ==========================================
 // 🚀 處理錄音檔上傳 (支援任意格式)
 // ==========================================
+function resolveAudioMimeType_(fileName, mimeType) {
+  var extension = String(fileName || '').split('.').pop().toLowerCase();
+  var mimeTypesByExtension = {
+    aac: 'audio/aac',
+    amr: 'audio/amr',
+    caf: 'audio/x-caf',
+    m4a: 'audio/mp4',
+    mp3: 'audio/mpeg',
+    mp4: 'audio/mp4',
+    oga: 'audio/ogg',
+    ogg: 'audio/ogg',
+    opus: 'audio/ogg',
+    '3gp': 'audio/3gpp',
+    '3gpp': 'audio/3gpp',
+    wav: 'audio/wav',
+    webm: 'audio/webm'
+  };
+  if (mimeTypesByExtension[extension]) return mimeTypesByExtension[extension];
+
+  var normalizedMimeType = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  var mimeAliases = {
+    'audio/x-aac': 'audio/aac',
+    'audio/vnd.dlna.adts': 'audio/aac',
+    'audio/x-m4a': 'audio/mp4',
+    'audio/x-wav': 'audio/wav'
+  };
+  return mimeAliases[normalizedMimeType] || normalizedMimeType || 'application/octet-stream';
+}
+
 function handleUpload(data) {
   var base64Data = data.audioBase64;
   var filename = data.filename;
@@ -703,6 +732,7 @@ function handleUpload(data) {
   // 完美解析前端傳來的 Data URL (包含 mimeType)
   var splitBase = base64Data.split(',');
   var mimeType = splitBase[0].split(';')[0].replace('data:', ''); // 例如 "audio/mp3"
+  mimeType = resolveAudioMimeType_(filename, mimeType);
   var byteCharacters = Utilities.base64Decode(splitBase[1]);
   
   var blob = Utilities.newBlob(byteCharacters, mimeType, filename);
@@ -740,9 +770,16 @@ function handleGetAudio(data) {
     var mimeType = file.getMimeType();
     
     // 組合成可直接放進 <audio src> 的 Data URL
+    var fileName = file.getName();
+    mimeType = resolveAudioMimeType_(fileName, mimeType);
     var dataUrl = "data:" + mimeType + ";base64," + base64;
     
-    return ContentService.createTextOutput(JSON.stringify({ success: true, dataUrl: dataUrl }))
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      dataUrl: dataUrl,
+      fileName: fileName,
+      mimeType: mimeType
+    }))
                          .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
