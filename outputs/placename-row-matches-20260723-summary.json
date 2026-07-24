@@ -1,0 +1,38 @@
+{
+  "sheets": {
+    "Places": {
+      "inventory_unmapped_category": 14,
+      "inventory_no_master_key_match": 120,
+      "UNIQUE_1_TO_1": 48425,
+      "matched_keys": 55121,
+      "matched_inventory_rows": 63627,
+      "matched_master_rows": 55128,
+      "candidate_pairs": 63641,
+      "AMBIGUOUS_SAME_KEY": 6696,
+      "unique_candidate_pairs": 48425,
+      "ambiguous_candidate_pairs": 15216,
+      "unmatched_inventory_rows": 134
+    },
+    "地名總表": {
+      "inventory_unmapped_category": 14,
+      "inventory_no_master_key_match": 119,
+      "UNIQUE_1_TO_1": 48426,
+      "matched_keys": 55122,
+      "matched_inventory_rows": 63628,
+      "matched_master_rows": 55129,
+      "candidate_pairs": 63642,
+      "AMBIGUOUS_SAME_KEY": 6696,
+      "unique_candidate_pairs": 48426,
+      "ambiguous_candidate_pairs": 15216,
+      "unmatched_inventory_rows": 133
+    }
+  },
+  "type_code_to_label": {
+    "1": "行政區域",
+    "2": "聚落",
+    "3": "自然地理實體",
+    "4": "具有地標意義公共設施",
+    "5": "街道",
+    "6": "UNMAPPED_CODE"
+  }
+}
