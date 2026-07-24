@@ -1907,14 +1907,22 @@ async function submitAdminPasswordChange() {
     }
 }
 
+function comparePlaceText(leftValue, rightValue) {
+    return String(leftValue || '').localeCompare(String(rightValue || ''), 'zh-Hant', { numeric: true });
+}
+
+function comparePlacesByLocation(left, right, includeUuid = false) {
+    const fields = ['county', 'town', 'village', 'placeName'];
+    for (const field of fields) {
+        const comparison = comparePlaceText(left[field], right[field]);
+        if (comparison !== 0) return comparison;
+    }
+    if (!includeUuid) return 0;
+    return comparePlaceText(left.sourceId || left.id, right.sourceId || right.id);
+}
+
 function getAssignedTaskExportRows() {
-    return [...state.assignedPlaces].sort((a, b) => {
-        const countyCompare = String(a.county || '').localeCompare(String(b.county || ''), 'zh-Hant');
-        if (countyCompare !== 0) return countyCompare;
-        const townCompare = String(a.town || '').localeCompare(String(b.town || ''), 'zh-Hant');
-        if (townCompare !== 0) return townCompare;
-        return String(a.placeName || '').localeCompare(String(b.placeName || ''), 'zh-Hant');
-    });
+    return [...state.assignedPlaces].sort((left, right) => comparePlacesByLocation(left, right));
 }
 
 function getTaskExportCell(place, column) {
@@ -3456,10 +3464,11 @@ function applyFilters() {
         
         return matchK && matchC && matchTw && matchTy && matchTaiClass && matchHakClass && matchHakArea && matchStatus && matchAssignee;
     });
+    const sorted = [...filtered].sort((left, right) => comparePlacesByLocation(left, right, true));
     if (state.currentTab === 'review') {
-        return renderReviewQueue(filtered);
+        return renderReviewQueue(sorted);
     }
-    renderPlaceList(filtered);
+    renderPlaceList(sorted);
 }
 
 function getTaskRecords(taskId, language = '') {
