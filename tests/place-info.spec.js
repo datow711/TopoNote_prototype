@@ -20,7 +20,7 @@ test('selected place shows multiline info and hides blank info', async ({ page }
 
   const panel = page.locator('#selected-place-info');
   await expect(panel).toBeVisible();
-  await expect(panel.locator('strong')).toHaveText('地名補充資訊：');
+  await expect(page.locator('#selected-place-info-row strong')).toHaveText('地名補充資訊：');
   await expect(page.locator('#selected-place-info-content')).toHaveText('第一行補充說明\n第二行補充說明');
   await expect(page.locator('#selected-place-info-content')).toHaveCSS('white-space', 'pre-wrap');
 
@@ -76,6 +76,7 @@ test('selected place history expands name history and keeps location as placehol
       place_name: '歷史沿革測試地名',
       info: '補充資訊',
       name_history: '舊名一\n舊名二',
+      village: '測試村',
       location: '位置資料'
     });
     document.getElementById('app-section').classList.remove('hidden');
@@ -120,6 +121,6 @@ test('selected place history expands name history and keeps location as placehol
     }), null);
   });
   await expect(historyButton).toBeHidden();
-  await expect(locationButton).toBeVisible();
+  await expect(locationButton).toBeHidden();
   await expect(historyPanel).toBeHidden();
 });

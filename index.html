@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260724-place-details">
+    <link rel="stylesheet" href="style.css?v=20260724-place-map">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -69,6 +69,10 @@
                 <div class="status-chip selected" data-status-filter="全部完成" onclick="toggleStatusFilter('全部完成')">全部完成</div>
             </div>
             <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
+            <div class="map-toolbar">
+                <button id="place-map-toggle" class="btn-map-toggle hidden" type="button" onclick="openPlaceMapView()">地圖檢視</button>
+                <span id="place-map-summary" class="place-map-summary"></span>
+            </div>
         </div>
 
         <div class="place-list" id="place-list-container"></div>
@@ -76,14 +80,18 @@
         <div class="card" id="recording-section">
             <h3 id="selected-place-title" style="margin-top:0; color:var(--secondary);">未選擇地名</h3>
             <div id="selected-place-info" class="selected-place-info hidden">
-                <div class="selected-place-info-main">
+                <div id="selected-place-info-row" class="selected-place-info-main hidden">
                     <strong>地名補充資訊：</strong>
                     <span id="selected-place-info-content"></span>
+                </div>
+                <div id="selected-place-location-row" class="selected-place-info-main hidden">
+                    <strong>地理位置：</strong>
+                    <span id="selected-place-location-content"></span>
                 </div>
                 <div class="selected-place-info-actions">
                     <button id="selected-place-history-btn" class="place-detail-btn hidden" type="button" aria-expanded="false" aria-controls="selected-place-name-history" onclick="toggleSelectedPlaceNameHistory()">歷史沿革</button>
                     <div id="selected-place-name-history" class="selected-place-detail-panel hidden"></div>
-                    <button id="selected-place-location-btn" class="place-detail-btn" type="button">地理位置</button>
+                    <button id="selected-place-location-btn" class="place-detail-btn hidden" type="button" onclick="openSelectedPlaceMap()">查看位置</button>
                 </div>
             </div>
             
@@ -167,9 +175,27 @@
                 <div id="history-list"></div>
             </div>
         </div>
+        <aside id="place-map-panel" class="place-map-panel hidden" aria-hidden="true">
+            <div class="place-map-shell">
+                <div class="place-map-header">
+                    <div>
+                        <strong>地圖檢視</strong>
+                        <span id="place-map-header-summary">目前篩選結果</span>
+                    </div>
+                    <button class="place-map-close" type="button" onclick="closePlaceMapView()" aria-label="關閉地圖">×</button>
+                </div>
+                <div class="place-map-actions">
+                    <button id="place-map-locate-btn" class="place-map-action-btn" type="button" onclick="locateUserOnce()">顯示我的位置</button>
+                    <button id="place-map-selected-btn" class="place-map-action-btn" type="button" onclick="focusMapOnSelectedPlace()">回到選取地名</button>
+                </div>
+                <div id="place-map-status" class="place-map-status">尚未開啟地圖</div>
+                <div id="place-map-canvas" class="place-map-canvas"></div>
+                <div id="place-map-card" class="place-map-card hidden"></div>
+            </div>
+        </aside>
     </div>
 
     <script src="config.js"></script>
-    <script src="main.js?v=20260724-place-details"></script>
+    <script src="main.js?v=20260724-place-map"></script>
 </body>
 </html>

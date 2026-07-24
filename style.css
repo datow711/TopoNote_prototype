@@ -927,6 +927,175 @@ button:disabled {
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.72);
 }
+.map-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.btn-map-toggle {
+    width: auto;
+    min-height: 38px;
+    margin: 0;
+    padding: 8px 14px;
+    border: 1px solid rgba(45, 115, 108, 0.24);
+    background: var(--surface-feature);
+    color: var(--accent-deep);
+    font-size: 14px;
+    font-weight: 850;
+}
+
+.place-map-summary {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.place-map-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 950;
+    width: min(440px, 42vw);
+    padding: 12px;
+    background: rgba(247, 251, 248, 0.96);
+    border-left: 1px solid var(--hairline);
+    box-shadow: -18px 0 42px rgba(0, 30, 43, 0.18);
+}
+
+.place-map-shell {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(280px, 1fr) auto;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+}
+
+.place-map-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.place-map-header div {
+    display: grid;
+    gap: 2px;
+}
+
+.place-map-header strong {
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 850;
+}
+
+.place-map-header span,
+.place-map-status,
+.place-map-muted,
+.place-map-card-meta {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.place-map-close {
+    width: 34px;
+    min-height: 34px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--hairline);
+    border-radius: 9999px;
+    background: var(--canvas);
+    color: var(--ink-soft);
+    font-size: 22px;
+    line-height: 1;
+}
+
+.place-map-actions,
+.place-map-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.place-map-action-btn,
+.place-map-card-btn {
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 10px;
+    border: 1px solid rgba(45, 115, 108, 0.22);
+    background: var(--surface);
+    color: var(--accent-deep);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.place-map-card-btn.secondary {
+    border-color: var(--hairline);
+    color: var(--ink-soft);
+}
+
+.place-map-card-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.place-map-canvas {
+    min-height: 320px;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: #e8f0ec;
+}
+
+.place-map-card {
+    display: grid;
+    gap: 7px;
+    max-height: 36vh;
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-left: 4px solid var(--accent-deep);
+    border-radius: 8px;
+    background: var(--canvas);
+    box-shadow: var(--shadow);
+}
+
+.place-map-card strong {
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.35;
+}
+
+.place-map-card span,
+.place-map-card p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.place-map-nearby {
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.place-map-nearby button {
+    width: 100%;
+    min-height: 30px;
+    margin: 0;
+    padding: 5px 8px;
+    border-color: var(--hairline);
+    background: var(--canvas);
+    color: var(--ink-soft);
+    font-size: 12px;
+    text-align: left;
+}
 
 .place-meta {
     display: flex;

@@ -8,6 +8,15 @@ if ('serviceWorker' in navigator) {
 }
 
 const STATUS_FILTER_VALUES = ['未錄音', '台語已有錄音', '客語已有錄音', '台語完成', '客語完成', '全部完成'];
+const LEAFLET_VERSION = '1.9.4';
+const LEAFLET_CSS_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
+const LEAFLET_JS_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
+const LEAFLET_CSS_INTEGRITY = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+const LEAFLET_JS_INTEGRITY = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+const PLACE_MAP_MARKER_LIMIT = 500;
+const PLACE_MAP_DEFAULT_CENTER = [23.7, 121.0];
+const PLACE_MAP_DEFAULT_ZOOM = 7;
+const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [],
@@ -36,6 +45,17 @@ let state = {
     filteredPlaces: [],
     renderedPlaceCount: 0,
     placeRenderBatchSize: 100,
+    placeMap: {
+        isOpen: false,
+        leafletPromise: null,
+        map: null,
+        layer: null,
+        markers: new Map(),
+        userMarker: null,
+        userAccuracyCircle: null,
+        userPosition: null,
+        activePlaceId: null
+    },
     selectedAssignTaskIds: new Set(),
     allUsers: [], // 🌟 新增這行：用來存放所有調查員名單
     allUserRecords: [],
@@ -803,6 +823,8 @@ function normalizeTask(t) {
         info: t.info || '',
         nameHistory: t.name_history || '',
         location: t.location || '',
+        longitude: t.longitude ?? '',
+        latitude: t.latitude ?? '',
         county: t.county,
         town: t.town,
         village: t.village,
@@ -1061,6 +1083,8 @@ async function enterApp(user, options = {}) {
 }
 
 function logout() {
+    closePlaceMapView();
+    hideSelectedMapCard();
     clearSession();
     state.userId = '';
     state.userDbId = '';
@@ -3754,6 +3778,7 @@ async function revokeReviewLanguage(taskId, language, button) {
 function getPlaceByTaskId(taskId) {
     const id = String(taskId);
     return getAllKnownPlacesForAudioLinking()
+        .concat(state.filteredPlaces || [])
         .find(place => String(place.id) === id) || null;
 }
 
@@ -3912,6 +3937,8 @@ function renderPlaceList(places) {
     state.renderedPlaceCount = 0;
     state.lastSelectedPlaceIndex = null;
     state.selectedAssignTaskIds = new Set();
+    updatePlaceMapToolbar();
+    if (state.placeMap.isOpen) renderPlaceMapMarkers({ preserveView: true });
     if (state.filteredPlaces.length === 0) {
         container.innerHTML = '<div class="empty-state">沒有符合條件的地名</div>';
         updateSelectedAssignCount();
@@ -3951,6 +3978,8 @@ function appendPlaceListBatch() {
         const index = start + offset;
         const item = document.createElement('div');
         item.className = 'place-item';
+        item.dataset.taskId = String(place.id);
+        if (canShowPlaceMapButton(place)) item.classList.add('has-map');
         if (state.selectedPlace && state.selectedPlace.id === place.id) item.classList.add('active');
         
         let typeName = place.type || place.Type || '無類別';
@@ -4106,6 +4135,382 @@ function updateSelectedAssignCount() {
     countEl.innerText = `篩選結果${filteredCount}筆，${selectedCount}筆已選`;
 }
 
+function getPlaceCoordinates(place) {
+    const rawLat = place?.latitude;
+    const rawLng = place?.longitude;
+    if (rawLat === null || rawLat === undefined || rawLng === null || rawLng === undefined) return null;
+    if (String(rawLat).trim() === '' || String(rawLng).trim() === '') return null;
+    const lat = Number(rawLat);
+    const lng = Number(rawLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+}
+
+function hasVillageLocation(place) {
+    return Boolean(String(place?.village || '').trim());
+}
+
+function canShowPlaceMapButton(place) {
+    return Boolean(getPlaceCoordinates(place) || hasVillageLocation(place));
+}
+
+function getPlaceAdminText(place) {
+    return [place?.county, place?.town, place?.village].filter(Boolean).join(' ');
+}
+
+function getMapEligiblePlaces() {
+    return (state.filteredPlaces || []).filter(canShowPlaceMapButton);
+}
+
+function getMappablePlaces() {
+    return (state.filteredPlaces || []).filter(place => getPlaceCoordinates(place));
+}
+
+function updatePlaceMapToolbar() {
+    const button = document.getElementById('place-map-toggle');
+    const summary = document.getElementById('place-map-summary');
+    if (!button || !summary) return;
+
+    const eligibleCount = getMapEligiblePlaces().length;
+    const coordinateCount = getMappablePlaces().length;
+    button.classList.toggle('hidden', eligibleCount === 0);
+    summary.textContent = eligibleCount > 0
+        ? `目前篩選結果 ${coordinateCount} 筆可精準定位${eligibleCount > coordinateCount ? `，${eligibleCount - coordinateCount} 筆僅有村里` : ''}`
+        : '';
+}
+
+function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (state.placeMap.leafletPromise) return state.placeMap.leafletPromise;
+
+    state.placeMap.leafletPromise = new Promise((resolve, reject) => {
+        if (!document.getElementById('leaflet-css')) {
+            const link = document.createElement('link');
+            link.id = 'leaflet-css';
+            link.rel = 'stylesheet';
+            link.href = LEAFLET_CSS_URL;
+            link.integrity = LEAFLET_CSS_INTEGRITY;
+            link.crossOrigin = '';
+            document.head.appendChild(link);
+        }
+
+        const existingScript = document.getElementById('leaflet-js');
+        if (existingScript) {
+            existingScript.addEventListener('load', () => resolve(window.L), { once: true });
+            existingScript.addEventListener('error', reject, { once: true });
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.id = 'leaflet-js';
+        script.src = LEAFLET_JS_URL;
+        script.integrity = LEAFLET_JS_INTEGRITY;
+        script.crossOrigin = '';
+        script.onload = () => resolve(window.L);
+        script.onerror = () => reject(new Error('Leaflet 載入失敗'));
+        document.body.appendChild(script);
+    });
+
+    return state.placeMap.leafletPromise;
+}
+
+function ensurePlaceMapPanelOpen() {
+    const panel = document.getElementById('place-map-panel');
+    if (!panel) return false;
+    panel.classList.remove('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('place-map-open');
+    state.placeMap.isOpen = true;
+    return true;
+}
+
+async function openPlaceMapView(options = {}) {
+    if (!ensurePlaceMapPanelOpen()) return;
+    setPlaceMapStatus('地圖載入中...');
+
+    try {
+        const L = await loadLeaflet();
+        if (!state.placeMap.map) {
+            state.placeMap.map = L.map('place-map-canvas', { preferCanvas: true }).setView(PLACE_MAP_DEFAULT_CENTER, PLACE_MAP_DEFAULT_ZOOM);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(state.placeMap.map);
+            state.placeMap.layer = L.layerGroup().addTo(state.placeMap.map);
+        }
+
+        setTimeout(() => state.placeMap.map?.invalidateSize(), 0);
+        renderPlaceMapMarkers(options);
+    } catch (err) {
+        console.error('地圖載入失敗:', err);
+        setPlaceMapStatus(`地圖載入失敗：${err.message}`);
+    }
+}
+
+function closePlaceMapView() {
+    const panel = document.getElementById('place-map-panel');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('place-map-open');
+    state.placeMap.isOpen = false;
+}
+
+function setPlaceMapStatus(message) {
+    const status = document.getElementById('place-map-status');
+    if (status) status.textContent = message || '';
+}
+
+function renderPlaceMapMarkers(options = {}) {
+    const L = window.L;
+    const mapState = state.placeMap;
+    if (!mapState.map || !mapState.layer || !L) return;
+
+    mapState.layer.clearLayers();
+    mapState.markers = new Map();
+    const eligiblePlaces = getMapEligiblePlaces();
+    const mappablePlaces = getMappablePlaces();
+    const limitedPlaces = mappablePlaces.slice(0, PLACE_MAP_MARKER_LIMIT);
+    const overflowCount = Math.max(0, mappablePlaces.length - limitedPlaces.length);
+    const villageOnlyCount = eligiblePlaces.length - mappablePlaces.length;
+    const selectedId = state.selectedPlace ? String(state.selectedPlace.id) : '';
+    const bounds = L.latLngBounds([]);
+
+    limitedPlaces.forEach(place => {
+        const coords = getPlaceCoordinates(place);
+        if (!coords) return;
+        const isSelected = String(place.id) === selectedId;
+        const marker = L.circleMarker([coords.lat, coords.lng], {
+            radius: isSelected ? 8 : 5,
+            weight: isSelected ? 3 : 1,
+            color: isSelected ? '#006d5b' : '#1f546e',
+            fillColor: isSelected ? '#00ed64' : '#2d736c',
+            fillOpacity: isSelected ? 0.95 : 0.72
+        }).addTo(mapState.layer);
+        marker.bindTooltip(place.placeName || '未命名地名', { direction: 'top', sticky: true });
+        marker.on('click', () => selectPlaceFromMap(place.id));
+        mapState.markers.set(String(place.id), marker);
+        bounds.extend([coords.lat, coords.lng]);
+    });
+
+    const parts = [`${eligiblePlaces.length} 筆可開啟地圖`];
+    parts.push(`${mappablePlaces.length} 筆有經緯度`);
+    if (villageOnlyCount > 0) parts.push(`${villageOnlyCount} 筆僅有村里`);
+    if (overflowCount > 0) parts.push(`已先顯示前 ${PLACE_MAP_MARKER_LIMIT} 筆，請縮小篩選條件`);
+    setPlaceMapStatus(parts.join('｜'));
+    updatePlaceMapHeaderSummary(eligiblePlaces.length, mappablePlaces.length);
+
+    if (state.selectedPlace) {
+        renderSelectedMapCard(state.selectedPlace);
+        const coords = getPlaceCoordinates(state.selectedPlace);
+        if (coords && !options.preserveView) {
+            mapState.map.setView([coords.lat, coords.lng], Math.max(mapState.map.getZoom?.() || 15, 15));
+        } else if (!coords && mappablePlaces.length === 0 && !options.preserveView) {
+            mapState.map.setView(PLACE_MAP_DEFAULT_CENTER, PLACE_MAP_DEFAULT_ZOOM);
+        }
+    } else {
+        hideSelectedMapCard();
+        if (bounds.isValid() && !options.preserveView) {
+            mapState.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
+        } else if (!options.preserveView) {
+            mapState.map.setView(PLACE_MAP_DEFAULT_CENTER, PLACE_MAP_DEFAULT_ZOOM);
+        }
+    }
+}
+
+function updatePlaceMapHeaderSummary(eligibleCount, coordinateCount) {
+    const summary = document.getElementById('place-map-header-summary');
+    if (!summary) return;
+    summary.textContent = `目前篩選結果 ${eligibleCount} 筆，${coordinateCount} 筆可精準定位`;
+}
+
+function openSelectedPlaceMap() {
+    if (!state.selectedPlace) return;
+    openPlaceMapView({ focusPlace: state.selectedPlace });
+}
+
+function focusMapOnSelectedPlace() {
+    if (!state.selectedPlace) return;
+    const coords = getPlaceCoordinates(state.selectedPlace);
+    if (coords && state.placeMap.map) {
+        state.placeMap.map.setView([coords.lat, coords.lng], 16);
+    }
+    renderSelectedMapCard(state.selectedPlace);
+}
+
+function selectPlaceFromMap(taskId) {
+    const place = getPlaceByTaskId(taskId);
+    if (!place) return;
+    const item = scrollPlaceListToTask(taskId);
+    openRecordingUI(place, item);
+}
+
+function scrollPlaceListToTask(taskId) {
+    const container = document.getElementById('place-list-container');
+    if (!container) return null;
+    let item = container.querySelector(`.place-item[data-task-id="${CSS.escape(String(taskId))}"]`);
+    while (!item && (state.renderedPlaceCount || 0) < (state.filteredPlaces || []).length) {
+        appendPlaceListBatch();
+        item = container.querySelector(`.place-item[data-task-id="${CSS.escape(String(taskId))}"]`);
+    }
+    if (item) item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return item;
+}
+
+function renderSelectedMapCard(place) {
+    const card = document.getElementById('place-map-card');
+    if (!card || !place) return;
+    const coords = getPlaceCoordinates(place);
+    const adminText = getPlaceAdminText(place) || '未提供行政區';
+    const distanceText = getPlaceDistanceText(place);
+    const accuracyText = getUserAccuracyText();
+    const coordNotice = coords ? '' : '<p class="place-map-muted">此地名目前沒有經緯度，地圖無法精準標示；可先參考村里與地理位置文字。</p>';
+    const taskIdArg = escapeJsString(String(place.id));
+    const navigationButton = coords
+        ? `<button class="place-map-card-btn secondary" type="button" onclick="openExternalNavigation(${coords.lat}, ${coords.lng})">外部導航</button>`
+        : '<button class="place-map-card-btn secondary" type="button" disabled>外部導航</button>';
+    const nearbyButton = coords
+        ? `<button class="place-map-card-btn" type="button" onclick="showNearbyPlaces('${taskIdArg}')">顯示附近地名</button>`
+        : '<button class="place-map-card-btn" type="button" disabled>顯示附近地名</button>';
+
+    card.innerHTML = `
+        <strong>${escapeHtml(place.placeName || '未命名地名')}</strong>
+        <span>${escapeHtml(adminText)}</span>
+        ${place.location ? `<p>${escapeHtml(place.location)}</p>` : ''}
+        ${coordNotice}
+        <div class="place-map-card-meta">${escapeHtml(distanceText)}</div>
+        <div class="place-map-card-meta">${escapeHtml(accuracyText)}</div>
+        <div id="place-map-nearby" class="place-map-nearby hidden"></div>
+        <div class="place-map-card-actions">
+            <button class="place-map-card-btn" type="button" onclick="scrollPlaceListToTask('${taskIdArg}')">查看完整資料</button>
+            ${nearbyButton}
+            ${navigationButton}
+        </div>
+    `;
+    card.classList.remove('hidden');
+}
+
+function hideSelectedMapCard() {
+    document.getElementById('place-map-card')?.classList.add('hidden');
+}
+
+function updatePlaceMapSelection(place) {
+    if (!state.placeMap.isOpen || !state.placeMap.map) return;
+    renderPlaceMapMarkers({ preserveView: true });
+    const coords = getPlaceCoordinates(place);
+    if (coords) state.placeMap.map.setView([coords.lat, coords.lng], 16);
+    renderSelectedMapCard(place);
+}
+
+function isGeolocationAllowedHere() {
+    return window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+}
+
+function locateUserOnce() {
+    if (!isGeolocationAllowedHere()) {
+        setPlaceMapStatus('定位功能僅支援 HTTPS 或 localhost 環境。');
+        return;
+    }
+    if (!state.placeMap.map) return;
+    setPlaceMapStatus('正在取得你的位置...');
+    state.placeMap.map.once('locationfound', handleUserLocationFound);
+    state.placeMap.map.once('locationerror', event => {
+        setPlaceMapStatus(event.message ? `定位失敗：${event.message}` : '定位失敗，請確認瀏覽器定位權限。');
+    });
+    state.placeMap.map.locate({ setView: false, watch: false, enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+function handleUserLocationFound(event) {
+    const L = window.L;
+    if (!L || !state.placeMap.map) return;
+    const latlng = event.latlng;
+    const accuracy = Number(event.accuracy || 0);
+    state.placeMap.userPosition = { lat: latlng.lat, lng: latlng.lng, accuracy };
+
+    if (state.placeMap.userMarker) state.placeMap.userMarker.remove();
+    if (state.placeMap.userAccuracyCircle) state.placeMap.userAccuracyCircle.remove();
+
+    state.placeMap.userMarker = L.circleMarker(latlng, {
+        radius: 7,
+        weight: 2,
+        color: '#0b3d91',
+        fillColor: '#2f80ed',
+        fillOpacity: 0.9
+    }).addTo(state.placeMap.map).bindTooltip('我的位置');
+    state.placeMap.userAccuracyCircle = L.circle(latlng, {
+        radius: accuracy,
+        color: '#2f80ed',
+        fillColor: '#2f80ed',
+        fillOpacity: 0.08,
+        weight: 1
+    }).addTo(state.placeMap.map);
+
+    setPlaceMapStatus(`已取得位置，定位精度約 ${Math.round(accuracy)} 公尺。`);
+    if (state.selectedPlace) renderSelectedMapCard(state.selectedPlace);
+}
+
+function getPlaceDistanceText(place) {
+    const coords = getPlaceCoordinates(place);
+    const user = state.placeMap.userPosition;
+    if (!coords) return '尚無精準座標，無法計算距離';
+    if (!user) return '尚未定位，無法計算距離';
+    const distance = calculateDistanceMeters(user.lat, user.lng, coords.lat, coords.lng);
+    return `距離你約 ${formatDistance(distance)}（直線距離）`;
+}
+
+function getUserAccuracyText() {
+    const user = state.placeMap.userPosition;
+    if (!user) return '定位精度：尚未定位';
+    const accuracyText = `定位精度：約 ${Math.round(user.accuracy)} 公尺`;
+    return user.accuracy > LOW_ACCURACY_THRESHOLD_METERS
+        ? `${accuracyText}。目前定位精度較低，距離僅供參考`
+        : accuracyText;
+}
+
+function calculateDistanceMeters(lat1, lng1, lat2, lng2) {
+    const radius = 6371000;
+    const toRad = value => value * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * radius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(meters) {
+    if (!Number.isFinite(meters)) return '無法計算';
+    if (meters < 1000) return `${Math.round(meters)} 公尺`;
+    return `${(meters / 1000).toFixed(1)} 公里`;
+}
+
+function openExternalNavigation(lat, lng) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank', 'noopener');
+}
+
+function showNearbyPlaces(taskId) {
+    const panel = document.getElementById('place-map-nearby');
+    const source = getPlaceByTaskId(taskId);
+    const sourceCoords = getPlaceCoordinates(source);
+    if (!panel || !sourceCoords) return;
+
+    const rows = getMappablePlaces()
+        .filter(place => String(place.id) !== String(taskId))
+        .map(place => {
+            const coords = getPlaceCoordinates(place);
+            return {
+                place,
+                distance: calculateDistanceMeters(sourceCoords.lat, sourceCoords.lng, coords.lat, coords.lng)
+            };
+        })
+        .sort((left, right) => left.distance - right.distance)
+        .slice(0, 5);
+
+    panel.innerHTML = rows.length
+        ? rows.map(row => `<button type="button" onclick="selectPlaceFromMap('${escapeJsString(String(row.place.id))}')">${escapeHtml(row.place.placeName)}｜${escapeHtml(formatDistance(row.distance))}</button>`).join('')
+        : '<span>目前篩選結果內沒有其他可定位地名。</span>';
+    panel.classList.toggle('hidden');
+}
 function toggleSelectedPlaceNameHistory() {
     const historyPanel = document.getElementById('selected-place-name-history');
     const historyButton = document.getElementById('selected-place-history-btn');
@@ -4126,24 +4531,33 @@ function openRecordingUI(place, element) {
     recSection.style.display = 'block';
     document.getElementById('selected-place-title').innerText = `📍 正在處理：${place.placeName}`;
     const infoPanel = document.getElementById('selected-place-info');
+    const infoRow = document.getElementById('selected-place-info-row');
     const infoContent = document.getElementById('selected-place-info-content');
+    const locationRow = document.getElementById('selected-place-location-row');
+    const locationContent = document.getElementById('selected-place-location-content');
     const historyButton = document.getElementById('selected-place-history-btn');
     const locationButton = document.getElementById('selected-place-location-btn');
     const historyPanel = document.getElementById('selected-place-name-history');
     const info = String(place.info || '').trim();
+    const location = String(place.location || '').trim();
     const nameHistory = String(place.nameHistory || '').trim();
-    if (infoPanel && infoContent && historyButton && locationButton && historyPanel) {
+    const canOpenMap = canShowPlaceMapButton(place);
+    if (infoPanel && infoRow && infoContent && locationRow && locationContent && historyButton && locationButton && historyPanel) {
         infoContent.textContent = info;
+        locationContent.textContent = location;
         historyPanel.textContent = nameHistory;
         historyPanel.classList.add('hidden');
+        infoRow.classList.toggle('hidden', !info);
+        locationRow.classList.toggle('hidden', !location);
         historyButton.classList.toggle('hidden', !nameHistory);
+        locationButton.classList.toggle('hidden', !canOpenMap);
         historyButton.setAttribute('aria-expanded', 'false');
         historyButton.textContent = '歷史沿革';
-        locationButton.dataset.location = String(place.location || '').trim();
-        infoPanel.classList.toggle('hidden', !info && !nameHistory);
+        infoPanel.classList.toggle('hidden', !info && !location && !nameHistory && !canOpenMap);
     }
     
     resetRecordingState(getDefaultAnnotationLanguage(place)); renderHistoryList(place.id);
+    updatePlaceMapSelection(place);
     recSection.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -4152,6 +4566,10 @@ function closeRecordingUI() {
     document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
     const recSection = document.getElementById('recording-section');
     if (recSection) recSection.style.display = 'none';
+    if (state.placeMap.isOpen) {
+        hideSelectedMapCard();
+        renderPlaceMapMarkers({ preserveView: true });
+    }
 }
 
 function renderHistoryList(placeId) {
