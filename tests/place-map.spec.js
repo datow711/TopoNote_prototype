@@ -171,7 +171,7 @@ test('selected coordinate place shows straight-line distance after user location
   await expect(page.locator('#place-map-card')).toContainText('目前定位精度較低，距離僅供參考');
 });
 
-test('mobile place map panel covers the full viewport and keeps both close controls', async ({ page }) => {
+test('mobile place map panel covers the viewport and provides one accessible return control', async ({ page }) => {
   await installFakeLeaflet(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(appUrl);
@@ -199,16 +199,15 @@ test('mobile place map panel covers the full viewport and keeps both close contr
     return Math.round(panelBox.x);
   }).toBeLessThanOrEqual(1);
   const panelBox = await page.locator('#place-map-panel').boundingBox();
-  const collapseBox = await page.locator('.place-map-collapse').boundingBox();
   const canvasBox = await page.locator('#place-map-canvas').boundingBox();
-  const collapseZIndex = await page.locator('.place-map-collapse').evaluate(el => Number(getComputedStyle(el).zIndex));
+  const closeBox = await page.locator('.place-map-close').boundingBox();
   expect(panelBox.width).toBeGreaterThanOrEqual(388);
-  expect(collapseBox.x).toBeLessThanOrEqual(1);
-  expect(collapseBox.x + collapseBox.width).toBeLessThanOrEqual(canvasBox.x + 1);
   expect(canvasBox.width).toBeGreaterThan(300);
   expect(canvasBox.height).toBeGreaterThan(300);
-  expect(collapseZIndex).toBeGreaterThanOrEqual(1000);
+  expect(closeBox.width).toBeGreaterThanOrEqual(44);
+  expect(closeBox.height).toBeGreaterThanOrEqual(44);
   await expect.poll(() => page.evaluate(() => window.__fakeLeafletMap.invalidateCount || 0)).toBeGreaterThanOrEqual(2);
-  await expect(page.locator('.place-map-collapse')).toBeVisible();
-  await expect(page.locator('.place-map-close')).toBeVisible();
+  await expect(page.locator('.place-map-collapse')).toHaveCount(0);
+  await expect(page.locator('.place-map-close')).toHaveAccessibleName('返回清單');
+  await expect(page.locator('.place-map-close-label')).toHaveText('返回清單');
 });

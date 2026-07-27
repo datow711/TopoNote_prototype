@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260724-place-map-visible">
+    <link rel="stylesheet" href="style.css?v=20260727-mobile-quick-wins">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -176,14 +176,16 @@
             </div>
         </div>
         <aside id="place-map-panel" class="place-map-panel hidden" aria-hidden="true">
-            <button class="place-map-collapse" type="button" onclick="closePlaceMapView()" aria-label="收合地圖">▶</button>
             <div class="place-map-shell">
                 <div class="place-map-header">
                     <div>
                         <strong>地圖檢視</strong>
                         <span id="place-map-header-summary">目前篩選結果</span>
                     </div>
-                    <button class="place-map-close" type="button" onclick="closePlaceMapView()" aria-label="關閉地圖">×</button>
+                    <button class="place-map-close" type="button" onclick="closePlaceMapView()" aria-label="返回清單">
+                        <span aria-hidden="true">←</span>
+                        <span class="place-map-close-label">返回清單</span>
+                    </button>
                 </div>
                 <div class="place-map-actions">
                     <button id="place-map-locate-btn" class="place-map-action-btn" type="button" onclick="locateUserOnce()">顯示我的位置</button>
@@ -197,6 +199,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="main.js?v=20260724-place-map-visible"></script>
+    <script src="main.js?v=20260727-mobile-quick-wins"></script>
 </body>
 </html>

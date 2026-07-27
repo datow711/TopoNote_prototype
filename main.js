@@ -66,10 +66,21 @@ let state = {
     announcementLoadFailed: false,
 };
 
-document.addEventListener('click', () => {
-    if (!state.townDropdownOpen) return;
-    state.townDropdownOpen = false;
-    renderTownMultiSelect();
+document.addEventListener('click', event => {
+    const userMoreMenu = document.querySelector('.user-action-group');
+    if (userMoreMenu && !userMoreMenu.contains(event.target)) closeUserMoreMenu();
+
+    if (state.townDropdownOpen) {
+        state.townDropdownOpen = false;
+        renderTownMultiSelect();
+    }
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    closeUserMoreMenu();
+    document.getElementById('admin-assign-bar')?.classList.remove('is-open');
+    document.getElementById('admin-assign-toggle')?.setAttribute('aria-expanded', 'false');
 });
 
 let mediaRecorder;
@@ -1192,12 +1203,17 @@ function renderUserInfo() {
             <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
         </div>
         <div class="user-action-group">
-            ${announcementButton}
-            ${tutorialButton}
-            ${taskDownloadButton}
-            ${feedbackButton}
-            ${adminPasswordButton}
-            <button class="btn-logout" onclick="logout()">登出</button>
+            <div class="user-primary-actions">
+                ${announcementButton}
+                <button class="btn-user-more" type="button" aria-expanded="false" aria-controls="user-secondary-actions" onclick="toggleUserMoreMenu(event)">更多</button>
+            </div>
+            <div id="user-secondary-actions" class="user-secondary-actions">
+                ${tutorialButton}
+                ${taskDownloadButton}
+                ${feedbackButton}
+                ${adminPasswordButton}
+                <button class="btn-logout" onclick="logout()">登出</button>
+            </div>
         </div>
     `;
     const identityLine = userInfoDiv.querySelector('div > div');
@@ -1205,6 +1221,24 @@ function renderUserInfo() {
         identityLine.textContent = `${roleText}: ${displayName}`;
         identityLine.title = hoverTitle;
     }
+}
+
+function closeUserMoreMenu() {
+    const menu = document.getElementById('user-secondary-actions');
+    const button = document.querySelector('.btn-user-more');
+    if (!menu || !button) return;
+    menu.classList.remove('is-open');
+    button.setAttribute('aria-expanded', 'false');
+}
+
+function toggleUserMoreMenu(event) {
+    event?.stopPropagation();
+    const menu = document.getElementById('user-secondary-actions');
+    const button = document.querySelector('.btn-user-more');
+    if (!menu || !button) return;
+    const shouldOpen = !menu.classList.contains('is-open');
+    menu.classList.toggle('is-open', shouldOpen);
+    button.setAttribute('aria-expanded', String(shouldOpen));
 }
 
 function closeAnnouncementDialog() {
@@ -3996,7 +4030,9 @@ function appendPlaceListBatch() {
         if (state.userRole === 'admin') {
             // Checkbox：加上 onclick="event.stopPropagation()" 防止點擊時展開錄音介面
             const isChecked = state.selectedAssignTaskIds?.has(String(place.id)) ? 'checked' : '';
-            checkboxHTML = `<input type="checkbox" class="assign-checkbox" value="${place.id}" data-task-id="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" title="勾選；Shift + 左鍵可連續選取多筆" ${isChecked}>`;
+            checkboxHTML = `<label class="assign-checkbox-hitbox" onclick="event.stopPropagation()">
+                <input type="checkbox" class="assign-checkbox" value="${place.id}" data-task-id="${place.id}" data-list-index="${index}" onclick="toggleAdminPlaceSelection(event, ${index})" aria-label="選取 ${escapeHtml(place.placeName)}" title="勾選；Shift + 左鍵可連續選取多筆" ${isChecked}>
+            </label>`;
             languageAssignmentControls = renderLanguageAssignmentControls(place);
             
             if (place.tAssignee || place.hAssignee) {
@@ -4128,11 +4164,21 @@ function updateAdminSelectAllControl(selectedCount, filteredCount) {
 
 function updateSelectedAssignCount() {
     const countEl = document.getElementById('assign-count');
+    const mobileCountEl = document.getElementById('admin-assign-toggle-count');
+    const bar = document.getElementById('admin-assign-bar');
     const filteredCount = (state.filteredPlaces || []).length;
     const selectedCount = getSelectedAdminTaskIds().length;
     updateAdminSelectAllControl(selectedCount, filteredCount);
-    if (!countEl) return;
-    countEl.innerText = `篩選結果${filteredCount}筆，${selectedCount}筆已選`;
+    const countText = `篩選結果${filteredCount}筆，${selectedCount}筆已選`;
+    if (countEl) countEl.innerText = countText;
+    if (mobileCountEl) mobileCountEl.innerText = `${selectedCount} 筆已選`;
+    if (bar) {
+        bar.classList.toggle('has-selection', selectedCount > 0);
+        if (selectedCount === 0) {
+            bar.classList.remove('is-open');
+            document.getElementById('admin-assign-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+    }
 }
 
 function getPlaceCoordinates(place) {
@@ -5354,37 +5400,55 @@ function uploadAudio() {
     };
 }
 
+function toggleAdminAssignPanel() {
+    const bar = document.getElementById('admin-assign-bar');
+    const button = document.getElementById('admin-assign-toggle');
+    if (!bar || !button || !bar.classList.contains('has-selection')) return;
+    const shouldOpen = !bar.classList.contains('is-open');
+    bar.classList.toggle('is-open', shouldOpen);
+    button.setAttribute('aria-expanded', String(shouldOpen));
+}
+
 // 🌟 更新版：繪製底部批次指派工具列
 function renderAdminBatchAssignUI() {
     if (state.userRole !== 'admin') return;
     
     let bar = document.getElementById('admin-assign-bar');
+    const wasOpen = bar?.classList.contains('is-open') || false;
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'admin-assign-bar';
         document.body.appendChild(bar);
     }
     bar.style.display = 'flex';
+    bar.classList.toggle('is-open', wasOpen);
     document.getElementById('app-section').style.paddingBottom = "80px";
 
     // 🛑 核心修改：改用 state.allUsers 來產生建議選單
     let options = state.allUsers.map(u => `<option value="${escapeHtml(getUserAnnotatorName(u))}" title="${escapeHtml(getUserHoverTitle(u))}">${escapeHtml(u.name || u.account)}</option>`).join('');
 
     bar.innerHTML = `
+        <button id="admin-assign-toggle" class="admin-assign-toggle" type="button" aria-expanded="${wasOpen}" aria-controls="admin-assign-panel" onclick="toggleAdminAssignPanel()">
+            <span>批次語種指派</span>
+            <span id="admin-assign-toggle-count">0 筆已選</span>
+            <span class="admin-assign-toggle-icon" aria-hidden="true">⌃</span>
+        </button>
         <span class="assign-label">批次語種指派</span>
         <span id="assign-count" class="assign-count">0 筆已選</span>
-        <select id="assignment-language-input">
-            <option value="台語">台語</option>
-            <option value="客語">客語</option>
-        </select>
-        <input id="assignee-input-search" type="text" placeholder="搜尋調查員..." oninput="filterSelectOptions('assignee-input', this.value)">
-        <select id="assignee-input">
-            <option value="">選擇調查員</option>
-            ${options}
-        </select>
-        <button id="assign-submit-btn" class="assign-submit" onclick="batchAssignTasks()">確認指派</button>
-        <button id="unassign-submit-btn" class="unassign-submit" onclick="batchUnassignTasks()">撤回指派</button>
-        <span class="assign-hint">Shift + 左鍵可連續選取</span>
+        <div id="admin-assign-panel" class="admin-assign-panel">
+            <select id="assignment-language-input" aria-label="指派語言">
+                <option value="台語">台語</option>
+                <option value="客語">客語</option>
+            </select>
+            <input id="assignee-input-search" type="text" placeholder="搜尋調查員..." aria-label="搜尋調查員" oninput="filterSelectOptions('assignee-input', this.value)">
+            <select id="assignee-input" aria-label="選擇調查員">
+                <option value="">選擇調查員</option>
+                ${options}
+            </select>
+            <button id="assign-submit-btn" class="assign-submit" onclick="batchAssignTasks()">確認指派</button>
+            <button id="unassign-submit-btn" class="unassign-submit" onclick="batchUnassignTasks()">撤回指派</button>
+            <span class="assign-hint">Shift + 左鍵可連續選取</span>
+        </div>
     `;
     updateSelectedAssignCount();
 }
