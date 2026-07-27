@@ -66,6 +66,8 @@ let state = {
     announcementLoadFailed: false,
 };
 
+let mobileFilterReturnFocus = null;
+
 document.addEventListener('click', event => {
     const userMoreMenu = document.querySelector('.user-action-group');
     if (userMoreMenu && !userMoreMenu.contains(event.target)) closeUserMoreMenu();
@@ -78,9 +80,17 @@ document.addEventListener('click', event => {
 
 document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
+    if (document.getElementById('filter-panel')?.classList.contains('is-open')) {
+        closeMobileFilterPanel();
+        return;
+    }
     closeUserMoreMenu();
     document.getElementById('admin-assign-bar')?.classList.remove('is-open');
     document.getElementById('admin-assign-toggle')?.setAttribute('aria-expanded', 'false');
+});
+
+window.addEventListener('resize', () => {
+    if (!window.matchMedia('(max-width: 640px)').matches) closeMobileFilterPanel({ restoreFocus: false });
 });
 
 let mediaRecorder;
@@ -3123,6 +3133,7 @@ function initFilters() {
     }
     renderMultiFilterChips('type-container', 'types', '全部類別', state.availableTypes, state.selectedTypes, getTypeDisplayText);
     syncStatusFilterChips();
+    syncHakAreaFilterChips();
 
     if (state.userRole === 'admin') {
         let assigneeSelect = document.getElementById('assignee-filter');
@@ -3131,9 +3142,6 @@ function initFilters() {
             assigneeSelect = document.createElement('select');
             assigneeSelect.id = 'assignee-filter';
             assigneeSelect.onchange = handleFilterChange;
-            
-            const searchBox = document.getElementById('search-box');
-            searchBox.parentNode.insertBefore(assigneeSelect, searchBox);
         }
         let assigneeSearch = document.getElementById('assignee-filter-search');
         if (!assigneeSearch) {
@@ -3142,8 +3150,9 @@ function initFilters() {
             assigneeSearch.type = 'text';
             assigneeSearch.placeholder = '搜尋調查員姓名、email、手機...';
             assigneeSearch.oninput = () => filterSelectOptions('assignee-filter', assigneeSearch.value);
-            assigneeSelect.parentNode.insertBefore(assigneeSearch, assigneeSelect);
         }
+        const adminFilterControls = document.getElementById('admin-filter-controls') || document.querySelector('.filter-section');
+        adminFilterControls.append(assigneeSearch, assigneeSelect);
         
         // 🛑 核心修改：改用 state.allUsers 來產生下拉選單
         assigneeSelect.innerHTML = '<option value="">👥 所有調查員 (包含未指派)</option>' + 
@@ -3197,7 +3206,8 @@ function initClassFilters() {
                 <div class="class-chips" id="hak-class-container"></div>
             </div>
         `;
-        typeContainer.parentNode.insertBefore(classRow, typeContainer);
+        const classFilterSlot = document.getElementById('admin-class-filter-slot') || typeContainer.parentNode;
+        classFilterSlot.appendChild(classRow);
     }
 
     renderMultiFilterChips('tai-class-container', 'taiClasses', '全部台語分級', state.availableTaiClasses, state.selectedTaiClasses);
@@ -3237,6 +3247,130 @@ function getTownFilterSummary() {
     if (selected.length === 0) return '未選鄉鎮';
     if (selected.length === 1) return selected[0];
     return `已選 ${selected.length} 個鄉鎮`;
+}
+
+function getActiveMobileFilterLabels() {
+    const labels = [];
+    const county = document.getElementById('county-filter')?.value || '';
+    const availableTowns = state.availableTowns || [];
+    const selectedTowns = Array.isArray(state.selectedTowns) ? state.selectedTowns : [];
+    const availableTypes = state.availableTypes || [];
+    const selectedTypes = Array.isArray(state.selectedTypes) ? state.selectedTypes : [];
+    const selectedStatuses = Array.isArray(state.selectedStatuses) ? state.selectedStatuses : STATUS_FILTER_VALUES;
+
+    if (county) labels.push(county);
+    if (availableTowns.length > 0 && selectedTowns.length !== availableTowns.length) {
+        labels.push(selectedTowns.length === 1 ? selectedTowns[0] : `鄉鎮 ${selectedTowns.length} 項`);
+    }
+    if (availableTypes.length > 0 && selectedTypes.length !== availableTypes.length) {
+        labels.push(selectedTypes.length === 1 ? getTypeDisplayText(selectedTypes[0]) : `地名類別 ${selectedTypes.length} 項`);
+    }
+    if (state.selectedHakArea !== 'all') {
+        labels.push(state.selectedHakArea === 'hak' ? '客語區' : '非客語區');
+    }
+    if (selectedStatuses.length !== STATUS_FILTER_VALUES.length) {
+        labels.push(selectedStatuses.length === 1 ? selectedStatuses[0] : `錄音狀態 ${selectedStatuses.length} 項`);
+    }
+
+    if (state.userRole === 'admin') {
+        const selectedTaiClasses = Array.isArray(state.selectedTaiClasses) ? state.selectedTaiClasses : [];
+        const selectedHakClasses = Array.isArray(state.selectedHakClasses) ? state.selectedHakClasses : [];
+        if ((state.availableTaiClasses || []).length > 0 && selectedTaiClasses.length !== state.availableTaiClasses.length) {
+            labels.push(`台語分級 ${selectedTaiClasses.length} 項`);
+        }
+        if ((state.availableHakClasses || []).length > 0 && selectedHakClasses.length !== state.availableHakClasses.length) {
+            labels.push(`客語分級 ${selectedHakClasses.length} 項`);
+        }
+        const assignee = document.getElementById('assignee-filter');
+        if (assignee?.value) labels.push(assignee.options[assignee.selectedIndex]?.textContent.trim() || '調查員');
+    }
+
+    return labels;
+}
+
+function updateMobileFilterSummary(resultCount = (state.filteredPlaces || []).length) {
+    const labels = getActiveMobileFilterLabels();
+    const count = document.getElementById('mobile-filter-count');
+    const summary = document.getElementById('mobile-filter-summary');
+    const results = document.getElementById('mobile-filter-results');
+    if (count) {
+        count.textContent = String(labels.length);
+        count.classList.toggle('hidden', labels.length === 0);
+    }
+    if (summary) {
+        const visibleLabels = labels.slice(0, 2);
+        const remaining = labels.length - visibleLabels.length;
+        summary.textContent = labels.length === 0
+            ? '目前使用全部條件'
+            : `${visibleLabels.join('・')}${remaining > 0 ? `・另 ${remaining} 項` : ''}`;
+    }
+    if (results) results.textContent = `查看 ${resultCount} 筆結果`;
+}
+
+function openMobileFilterPanel() {
+    if (!window.matchMedia('(max-width: 640px)').matches) return;
+    const panel = document.getElementById('filter-panel');
+    const backdrop = document.getElementById('mobile-filter-backdrop');
+    const toggle = document.getElementById('mobile-filter-toggle');
+    if (!panel || !backdrop || !toggle) return;
+
+    mobileFilterReturnFocus = document.activeElement;
+    panel.classList.add('is-open');
+    backdrop.classList.add('is-open');
+    document.body.classList.add('mobile-filter-open');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'mobile-filter-title');
+    toggle.setAttribute('aria-expanded', 'true');
+    panel.querySelector('.mobile-filter-close')?.focus();
+}
+
+function closeMobileFilterPanel(options = {}) {
+    const panel = document.getElementById('filter-panel');
+    const backdrop = document.getElementById('mobile-filter-backdrop');
+    const toggle = document.getElementById('mobile-filter-toggle');
+    if (!panel || !backdrop || !toggle) return;
+
+    const wasOpen = panel.classList.contains('is-open');
+    panel.classList.remove('is-open');
+    backdrop.classList.remove('is-open');
+    document.body.classList.remove('mobile-filter-open');
+    panel.removeAttribute('role');
+    panel.removeAttribute('aria-modal');
+    panel.removeAttribute('aria-labelledby');
+    toggle.setAttribute('aria-expanded', 'false');
+    state.townDropdownOpen = false;
+    renderTownMultiSelect();
+
+    if (wasOpen && options.restoreFocus !== false) {
+        (mobileFilterReturnFocus || toggle).focus();
+    }
+    mobileFilterReturnFocus = null;
+}
+
+function clearMobileFilters() {
+    const county = document.getElementById('county-filter');
+    if (county) county.value = '';
+    updateTowns([]);
+    state.selectedTypes = [...(state.availableTypes || [])];
+    state.selectedTaiClasses = [...(state.availableTaiClasses || [])];
+    state.selectedHakClasses = [...(state.availableHakClasses || [])];
+    state.selectedHakArea = 'all';
+    state.selectedStatus = 'all';
+    state.selectedStatuses = [...STATUS_FILTER_VALUES];
+    state.townDropdownOpen = false;
+    const assignee = document.getElementById('assignee-filter');
+    const assigneeSearch = document.getElementById('assignee-filter-search');
+    if (assignee) assignee.value = '';
+    if (assigneeSearch) {
+        assigneeSearch.value = '';
+        filterSelectOptions('assignee-filter', '');
+    }
+    renderTownMultiSelect();
+    renderAllMultiFilterChips();
+    syncHakAreaFilterChips();
+    syncStatusFilterChips();
+    handleFilterChange();
 }
 
 function renderTownMultiSelect() {
@@ -3333,10 +3467,10 @@ function renderMultiFilterChips(containerId, filterKey, allLabel, values, select
 
     const selectedSet = new Set(selectedValues);
     const isAllSelected = values.length === 0 || selectedSet.size === values.length;
-    const allChip = `<button type="button" class="filter-chip ${isAllSelected ? 'selected' : ''}" onclick="selectAllMultiFilter('${filterKey}')">${escapeHtml(allLabel)}</button>`;
+    const allChip = `<button type="button" class="filter-chip ${isAllSelected ? 'selected' : ''}" aria-pressed="${isAllSelected}" onclick="selectAllMultiFilter('${filterKey}')">${escapeHtml(allLabel)}</button>`;
     const chips = values.map(value => {
         const selected = selectedSet.has(value);
-        return `<button type="button" class="filter-chip ${selected ? 'selected' : ''}" onclick="toggleMultiFilterValue('${filterKey}', '${escapeJsString(value)}')">${escapeHtml(displayFormatter(value))}</button>`;
+        return `<button type="button" class="filter-chip ${selected ? 'selected' : ''}" aria-pressed="${selected}" onclick="toggleMultiFilterValue('${filterKey}', '${escapeJsString(value)}')">${escapeHtml(displayFormatter(value))}</button>`;
     }).join('');
 
     container.innerHTML = allChip + chips;
@@ -3394,9 +3528,16 @@ function renderAllMultiFilterChips() {
 }
 function selectHakArea(hakArea, element) {
     state.selectedHakArea = hakArea;
-    document.querySelectorAll('.hak-area-chip').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected');
+    syncHakAreaFilterChips();
     handleFilterChange();
+}
+
+function syncHakAreaFilterChips() {
+    document.querySelectorAll('.hak-area-chip').forEach(chip => {
+        const selected = chip.dataset.hakAreaFilter === state.selectedHakArea;
+        chip.classList.toggle('selected', selected);
+        chip.setAttribute('aria-pressed', String(selected));
+    });
 }
 
 function syncStatusFilterChips() {
@@ -3407,6 +3548,7 @@ function syncStatusFilterChips() {
         const status = chip.dataset.statusFilter;
         const selected = status === 'all' ? allSelected : selectedSet.has(status);
         chip.classList.toggle('selected', selected);
+        chip.setAttribute('aria-pressed', String(selected));
     });
 }
 
@@ -3525,6 +3667,7 @@ function applyFilters() {
         return matchK && matchC && matchTw && matchTy && matchTaiClass && matchHakClass && matchHakArea && matchStatus && matchAssignee;
     });
     const sorted = [...filtered].sort((left, right) => comparePlacesByLocation(left, right, true));
+    updateMobileFilterSummary(sorted.length);
     if (state.currentTab === 'review') {
         return renderReviewQueue(sorted);
     }

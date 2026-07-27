@@ -84,7 +84,7 @@ test('investigator tutorial walks through demo recording flow without saving dat
   await page.getByRole('button', { name: '下一步' }).click();
   await expect(page.locator('.tutorial-popover')).toContainText('教學結束');
 
-  await page.getByRole('button', { name: '完成' }).click();
+  await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.locator('#tutorial-overlay')).toHaveCount(0);
   await expect(page.locator('#place-list-container')).toContainText('Original Place');
   await expect(page.locator('#place-list-container')).not.toContainText('教學示範地名');

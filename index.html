@@ -39,35 +39,83 @@
         </div>
 
         <div class="filter-section">
-            <div class="filter-row">
-                <select id="county-filter" onchange="resetTownFilters(); handleFilterChange()">
-                    <option value="">所有縣市</option>
-                </select>
-                <div class="town-multi-filter" id="town-filter">
-                    <button type="button" class="town-filter-button" id="town-filter-button" aria-haspopup="true" aria-expanded="false" onclick="toggleTownDropdown(event)">
-                        <span id="town-filter-summary">所有鄉鎮</span>
-                    </button>
-                    <div class="town-filter-menu hidden" id="town-filter-menu" onclick="event.stopPropagation()"></div>
+            <div class="mobile-filter-toolbar">
+                <button type="button" class="mobile-filter-toggle" id="mobile-filter-toggle" aria-expanded="false" aria-controls="filter-panel" onclick="openMobileFilterPanel()">
+                    <span>篩選條件</span>
+                    <span class="mobile-filter-count hidden" id="mobile-filter-count">0</span>
+                    <span class="mobile-filter-chevron" aria-hidden="true">調整</span>
+                </button>
+            </div>
+            <div class="mobile-filter-summary" id="mobile-filter-summary" aria-live="polite">目前使用全部條件</div>
+            <div class="mobile-filter-backdrop" id="mobile-filter-backdrop" onclick="closeMobileFilterPanel()"></div>
+
+            <div class="filter-panel" id="filter-panel">
+                <div class="mobile-filter-panel-header">
+                    <div>
+                        <strong id="mobile-filter-title">篩選條件</strong>
+                        <span>選取後立即更新結果</span>
+                    </div>
+                    <button type="button" class="mobile-filter-close" aria-label="關閉篩選條件" onclick="closeMobileFilterPanel()">×</button>
+                </div>
+
+                <div class="filter-panel-scroll">
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">行政區</h3>
+                        <div class="filter-row">
+                            <select id="county-filter" aria-label="縣市" onchange="resetTownFilters(); handleFilterChange()">
+                                <option value="">所有縣市</option>
+                            </select>
+                            <div class="town-multi-filter" id="town-filter">
+                                <button type="button" class="town-filter-button" id="town-filter-button" aria-haspopup="true" aria-expanded="false" onclick="toggleTownDropdown(event)">
+                                    <span id="town-filter-summary">所有鄉鎮</span>
+                                </button>
+                                <div class="town-filter-menu hidden" id="town-filter-menu" onclick="event.stopPropagation()"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group admin-filter-group" id="admin-class-filter-slot">
+                        <h3 class="mobile-filter-group-title">語言分級</h3>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">地名類別</h3>
+                        <div class="type-chips category-filter-group" id="type-container"></div>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">語區</h3>
+                        <div class="hak-area-chips" id="hak-area-container">
+                            <button type="button" class="hak-area-chip selected" aria-pressed="true" data-hak-area-filter="all" onclick="selectHakArea('all', this)">全部分區</button>
+                            <button type="button" class="hak-area-chip" aria-pressed="false" data-hak-area-filter="hak" onclick="selectHakArea('hak', this)">客語區</button>
+                            <button type="button" class="hak-area-chip" aria-pressed="false" data-hak-area-filter="non-hak" onclick="selectHakArea('non-hak', this)">非客語區</button>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">錄音狀態</h3>
+                        <div class="status-chips" id="status-container">
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="all" onclick="selectAllStatusFilters()">全部狀態</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="未錄音" onclick="toggleStatusFilter('未錄音')">未錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="台語已有錄音" onclick="toggleStatusFilter('台語已有錄音')">台語已有錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="客語已有錄音" onclick="toggleStatusFilter('客語已有錄音')">客語已有錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="台語完成" onclick="toggleStatusFilter('台語完成')">台語完成</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="客語完成" onclick="toggleStatusFilter('客語完成')">客語完成</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="全部完成" onclick="toggleStatusFilter('全部完成')">全部完成</button>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group admin-filter-group" id="admin-filter-controls">
+                        <h3 class="mobile-filter-group-title">調查員</h3>
+                    </section>
+                </div>
+
+                <div class="mobile-filter-panel-footer">
+                    <button type="button" class="mobile-filter-clear" onclick="clearMobileFilters()">清除條件</button>
+                    <button type="button" class="mobile-filter-results" id="mobile-filter-results" onclick="closeMobileFilterPanel()">查看 0 筆結果</button>
                 </div>
             </div>
-            
-            <div class="type-chips category-filter-group" id="type-container"></div>
 
-            <div class="hak-area-chips" id="hak-area-container">
-                <div class="hak-area-chip selected" onclick="selectHakArea('all', this)">全部分區</div>
-                <div class="hak-area-chip" onclick="selectHakArea('hak', this)">客語區</div>
-                <div class="hak-area-chip" onclick="selectHakArea('non-hak', this)">非客語區</div>
-            </div>
-            
-            <div class="status-chips" id="status-container">
-                <div class="status-chip selected" data-status-filter="all" onclick="selectAllStatusFilters()">全部狀態</div>
-                <div class="status-chip selected" data-status-filter="未錄音" onclick="toggleStatusFilter('未錄音')">未錄音</div>
-                <div class="status-chip selected" data-status-filter="台語已有錄音" onclick="toggleStatusFilter('台語已有錄音')">台語已有錄音</div>
-                <div class="status-chip selected" data-status-filter="客語已有錄音" onclick="toggleStatusFilter('客語已有錄音')">客語已有錄音</div>
-                <div class="status-chip selected" data-status-filter="台語完成" onclick="toggleStatusFilter('台語完成')">台語完成</div>
-                <div class="status-chip selected" data-status-filter="客語完成" onclick="toggleStatusFilter('客語完成')">客語完成</div>
-                <div class="status-chip selected" data-status-filter="全部完成" onclick="toggleStatusFilter('全部完成')">全部完成</div>
-            </div>
             <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
             <div class="map-toolbar">
                 <button id="place-map-toggle" class="btn-map-toggle hidden" type="button" onclick="openPlaceMapView()">地圖檢視</button>

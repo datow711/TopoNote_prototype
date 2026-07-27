@@ -128,9 +128,9 @@ test('admin edits investigator profile through Apps Script writeback', async ({ 
   await expect(page.locator('.user-detail-panel[hidden]')).toHaveCount(2);
 
   const userNames = page.locator('.user-status-row .user-name');
-  await page.getByRole('button', { name: '錄音' }).click();
+  await page.getByRole('button', { name: /^錄音排序/ }).click();
   await expect(userNames.first()).toHaveText('Old Investigator');
-  await page.getByRole('button', { name: '錄音' }).click();
+  await page.getByRole('button', { name: /^錄音排序/ }).click();
   await expect(userNames.first()).toHaveText('Zero Investigator');
 
   await page.locator('.user-status-row').filter({ hasText: 'Old Investigator' }).getByRole('button', { name: '編輯' }).click();
