@@ -127,7 +127,7 @@ textarea {
 
 button {
     width: 100%;
-    min-height: 44px;
+    min-height: 36px;
     margin-bottom: 10px;
     padding: 10px 16px;
     border: 1px solid transparent;
@@ -281,7 +281,7 @@ button:disabled {
 
 .audio-source-card button {
     width: 100%;
-    min-height: 44px;
+    min-height: 36px;
     margin: 0;
 }
 
@@ -879,7 +879,7 @@ button:disabled {
 .assign-checkbox-hitbox {
     display: grid;
     width: 44px;
-    min-height: 44px;
+    min-height: 36px;
     flex: 0 0 44px;
     place-items: center;
     margin: -8px 0 -8px -8px;
@@ -1965,7 +1965,7 @@ button:disabled {
 .upload-report-user summary,
 .upload-report-uploader-group > summary {
     display: flex;
-    min-height: 44px;
+    min-height: 36px;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
@@ -2830,7 +2830,7 @@ button:disabled {
     input[type="email"],
     input[type="password"],
     select {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .review-record-table {
@@ -2855,7 +2855,7 @@ button:disabled {
     }
 
     .tab-btn {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .tab-container.admin-tabs {
@@ -2877,14 +2877,14 @@ button:disabled {
     .language-assignee-select,
     .language-assign-btn,
     .language-unassign-btn {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .filter-chip,
     .type-chip,
     .hak-area-chip,
     .status-chip {
-        min-height: 44px;
+        min-height: 36px;
         padding: 9px 12px;
     }
 
@@ -2911,7 +2911,7 @@ button:disabled {
     .mobile-filter-toggle {
         display: grid;
         width: 100%;
-        min-height: 44px;
+        min-height: 36px;
         grid-template-columns: auto auto minmax(0, 1fr);
         align-items: center;
         gap: 8px;
@@ -3009,7 +3009,7 @@ button:disabled {
 
     .mobile-filter-close {
         width: 44px;
-        min-height: 44px;
+        min-height: 36px;
         padding: 0;
         border: 0;
         background: transparent;
@@ -3107,7 +3107,7 @@ button:disabled {
         display: grid;
         width: 100%;
         min-width: 0;
-        min-height: 44px;
+        min-height: 36px;
         grid-template-columns: 18px minmax(0, 1fr);
         align-items: center;
         gap: 7px;
@@ -3199,11 +3199,11 @@ button:disabled {
     }
 
     .language-tab {
-        min-height: 48px;
+        min-height: 36px
     }
 
     .place-select-all-row {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .audio-source-panel,
@@ -3221,7 +3221,7 @@ button:disabled {
 
     .audio-source-card button,
     .audio-confirm-actions button {
-        min-height: 48px;
+        min-height: 36px
     }
 
     .place-list {
@@ -3275,7 +3275,7 @@ button:disabled {
     .btn-user-more,
     .btn-logout {
         width: 100%;
-        min-height: 44px;
+        min-height: 36px;
         margin: 0;
     }
 
@@ -3315,7 +3315,7 @@ button:disabled {
     .admin-assign-toggle {
         display: grid;
         width: 100%;
-        min-height: 48px;
+        min-height: 36px
         grid-template-columns: auto 1fr auto;
         align-items: center;
         gap: 10px;
@@ -3367,7 +3367,7 @@ button:disabled {
     #admin-assign-panel input,
     #admin-assign-panel select,
     #admin-assign-panel button {
-        min-height: 44px;
+        min-height: 36px;
         margin: 0;
     }
 
@@ -3475,7 +3475,7 @@ button:disabled {
 
     .place-map-close {
         width: auto;
-        min-height: 44px;
+        min-height: 36px;
         padding: 8px 12px;
         font-size: 18px;
     }
@@ -3495,7 +3495,7 @@ button:disabled {
 
     .place-map-action-btn,
     .place-map-card-btn {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .place-map-canvas {
