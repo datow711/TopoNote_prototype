@@ -3516,3 +3516,28 @@ button:disabled {
         transform: translateX(0);
     }
 }
+
+/* Review workflow MVP */
+.respondent-key-panel {
+    display: grid;
+    gap: 6px;
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid #d7e5ef;
+    border-radius: 10px;
+    background: #f7fbfd;
+}
+.respondent-key-panel label { font-weight: 700; color: var(--secondary); }
+.respondent-key-panel small { color: #60717b; }
+.review-workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.review-workflow-panel { padding: 12px; border: 1px solid #e2e8ee; border-radius: 10px; background: #fff; }
+.review-workflow-panel h4 { margin: 0 0 8px; color: var(--secondary); }
+.review-workflow-fields { display: grid; gap: 6px; }
+.review-workflow-field { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed #e5e9ed; }
+.review-workflow-field span { color: #65727d; }
+.review-workflow-gate { display: inline-block; margin-top: 6px; }
+.review-workflow-gate.is-pass { color: #16834b; }
+.review-workflow-gate.is-blocked { color: #b45309; }
+.review-workflow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.review-workflow-actions button { min-height: 36px; }
+@media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-field { display: block; } }

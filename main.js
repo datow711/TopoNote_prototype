@@ -19,7 +19,7 @@ const PLACE_MAP_DEFAULT_ZOOM = 7;
 const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [],
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false,
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -196,9 +196,10 @@ function parseRecordLinkMeta(note) {
     return payload.linkedAudio || payload.linked_audio || null;
 }
 
-function buildRecordNotePayload(annotations = {}, linkMeta = null) {
+function buildRecordNotePayload(annotations = {}, linkMeta = null, respondentKey = '') {
     const payload = { annotations };
     if (linkMeta) payload.linkedAudio = linkMeta;
+    if (respondentKey) payload.respondentKey = respondentKey;
     return payload;
 }
 
@@ -990,7 +991,7 @@ async function login() {
     await performLogin({
         rpcName: 'login_investigator',
         body: { p_email: getLoginEmail() },
-        expectedRole: 'user',
+        expectedRole: 'nonadmin',
         button: document.getElementById('login-btn'),
         loadingText: '載入任務中...',
         resetText: '進入我的任務',
@@ -1045,7 +1046,8 @@ async function performLogin({ rpcName, body, expectedRole, button, loadingText, 
 
         if (users && users.length > 0) {
             const user = normalizeAuthenticatedUser(users[0], email);
-            if (expectedRole && user.role !== expectedRole) {
+            const roleMatches = expectedRole === 'nonadmin' ? user.role !== 'admin' : user.role === expectedRole;
+            if (expectedRole && !roleMatches) {
                 throw new Error(`role mismatch: expected ${expectedRole}, got ${user.role || 'empty'}`);
             }
             await enterApp(user);
@@ -1072,7 +1074,7 @@ function normalizeAuthenticatedUser(user, email) {
         user_id: user.user_id || user.id || '',
         account: normalized.account,
         user_name: user.user_name || normalized.account,
-        role: user.role === 'admin' ? 'admin' : 'user',
+        role: String(user.role || 'user').trim().toLowerCase() || 'user',
         email: normalized.email,
         name: normalized.name,
         phone: normalized.phone
@@ -1100,7 +1102,7 @@ async function enterApp(user, options = {}) {
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('app-section').classList.remove('hidden');
     initFilters();
-    switchTab('assigned');
+    switchTab(isProofreaderRole() ? 'review' : 'assigned');
 }
 
 function logout() {
@@ -1120,6 +1122,8 @@ function logout() {
     state.uploadReportRecords = [];
     state.uploadReportGroupMode = 'date';
     state.reviewQueue = [];
+    state.reviewWorkflowQueue = [];
+    state.reviewWorkflowAvailable = false;
     state.selectedPlace = null;
     state.currentTab = 'assigned';
     state.selectedTowns = [];
@@ -1186,13 +1190,13 @@ function renderUserInfo() {
     }
 
     // 判斷角色並顯示對應的文字
-    const roleText = state.userRole === 'admin' ? '👑 管理員' : '👤 調查員';
+    const roleText = state.userRole === 'admin' ? '👑 管理員' : (isProofreaderRole() ? '🛡️ 校對員' : '👤 調查員');
     const displayName = state.userName || state.userId;
     const hoverTitle = state.userEmail || state.userId;
-    const taskDownloadButton = state.userRole === 'admin'
+    const taskDownloadButton = state.userRole === 'admin' || isProofreaderRole()
         ? ''
         : '<button class="btn-download-tasks" type="button" onclick="openTaskDownloadDialog()">下載任務清單</button>';
-    const feedbackButton = state.userRole === 'admin'
+    const feedbackButton = state.userRole === 'admin' || isProofreaderRole()
         ? ''
         : '<button class="btn-feedback" type="button" onclick="openFeedbackDialog()">問題回報</button>';
     const adminPasswordButton = state.userRole === 'admin'
@@ -2546,6 +2550,14 @@ function downloadBlob(blob, filename) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function isProofreaderRole() {
+    return state.userRole === 'proofreader';
+}
+
+function isReviewWorkflowRole() {
+    return state.userRole === 'admin' || isProofreaderRole();
+}
+
 function configureRoleUI() {
     const tabAssigned = document.getElementById('tab-assigned');
     const tabOther = document.getElementById('tab-other');
@@ -2568,9 +2580,9 @@ function configureRoleUI() {
             tabOther.classList.remove('active');
         }
         if (tabReview) {
-            tabReview.classList.add('hidden');
-            tabReview.style.display = 'none';
-            tabReview.classList.remove('active');
+            tabReview.classList.remove('hidden');
+            tabReview.style.display = '';
+            tabReview.innerText = '審查工作台';
         }
         if (tabUploads) {
             tabUploads.classList.remove('hidden');
@@ -2580,6 +2592,17 @@ function configureRoleUI() {
             tabUsers.classList.remove('hidden');
             tabUsers.style.display = '';
         }
+        return;
+    }
+
+    if (isProofreaderRole()) {
+        if (tabContainer) tabContainer.classList.add('admin-tabs');
+        if (tabAssigned) { tabAssigned.innerText = '審查工作台'; tabAssigned.style.display = 'none'; }
+        if (tabOther) tabOther.style.display = 'none';
+        if (tabReview) { tabReview.classList.remove('hidden'); tabReview.style.display = ''; tabReview.innerText = '審查工作台'; }
+        if (tabUploads) { tabUploads.classList.add('hidden'); tabUploads.style.display = 'none'; }
+        if (tabUsers) { tabUsers.classList.add('hidden'); tabUsers.style.display = 'none'; }
+        if (filterSection) filterSection.classList.add('hidden');
         return;
     }
 
@@ -3031,9 +3054,14 @@ async function loadDataFromSupabase(userName) {
                 .filter(u => u.role !== 'admin' && u.is_active)
                 .map(u => normalizeUserRecord(u));
             state.reviewQueue = [];
+            state.reviewWorkflowQueue = [];
 
             state.assignedPlaces = places;
             state.allPlaces = []; 
+        } else if (isProofreaderRole()) {
+            state.reviewQueue = [];
+            state.assignedPlaces = places;
+            state.allPlaces = [];
         } else {
             const labelAccounts = [
                 state.userId,
@@ -3055,6 +3083,7 @@ async function loadDataFromSupabase(userName) {
                 ...labelUserRecords
             ]);
             state.reviewQueue = [];
+            state.reviewWorkflowQueue = [];
             const userVisiblePlaces = places.filter(place => !isWrittenAnnotationPlace(place));
             state.assignedPlaces = userVisiblePlaces
                 .filter(place => assignedUsersInclude(place.assignedUsers, state.userId) || assignedUsersInclude(place.assignedUsers, state.userName));
@@ -3068,6 +3097,7 @@ async function loadDataFromSupabase(userName) {
             uploaderId: r.recorder_name, phonetic: r.phonetic_reading, url: r.audio_file_id,
             createdAt: r.created_at || '',
             annotations: parseRecordNote(r.note),
+            respondentKey: r.respondent_key || parseRecordNotePayload(r.note).respondentKey || '',
             linkMeta: parseRecordLinkMeta(r.note),
             unlinkedAt: r.unlinked_at || null
         }));
@@ -3075,6 +3105,8 @@ async function loadDataFromSupabase(userName) {
         state.uploadReportRecords = state.userRole === 'admin'
             ? normalizedRecords.filter(record => !record.linkMeta)
             : [];
+
+        if (isReviewWorkflowRole()) await loadReviewWorkflowQueue({ silent: true });
 
     } catch (err) {
         console.error("Supabase 載入失敗", err);
@@ -3086,8 +3118,8 @@ async function loadDataFromSupabase(userName) {
 // 以下為 UI 切換與篩選器邏輯 (完全保持原樣，因為資料格式已對接)
 // ==========================================
 function switchTab(tab) {
-    if (tab === 'review') {
-        alert('APP 審查功能已暫停，後續流程重新設計後再開放。');
+    if (tab === 'review' && !isReviewWorkflowRole()) {
+        alert('目前帳號沒有校對權限。');
         tab = 'assigned';
     }
     if (state.currentTab !== tab) closeRecordingUI();
@@ -3105,6 +3137,11 @@ function switchTab(tab) {
     }
     if (tab === 'users') {
         renderAdminUserManager();
+        return;
+    }
+    if (tab === 'review') {
+        renderReviewWorkflowQueue();
+        if (!state.reviewWorkflowAvailable) loadReviewWorkflowQueue({ silent: false });
         return;
     }
     applyFilters();
@@ -3603,6 +3640,10 @@ function placeMatchesStatusFilter(place, status) {
 
 // 🌟 升級：執行篩選 (加入調查員條件)
 function applyFilters() {
+    if (state.currentTab === 'review') {
+        renderReviewWorkflowQueue();
+        return;
+    }
     if (state.currentTab === 'uploads') {
         renderUploadReport();
         return;
@@ -3672,6 +3713,221 @@ function applyFilters() {
         return renderReviewQueue(sorted);
     }
     renderPlaceList(sorted);
+}
+
+async function reviewWorkflowRpc(rpcName, body) {
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+        method: 'POST',
+        headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body || {})
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+}
+
+async function loadReviewWorkflowQueue({ silent = false } = {}) {
+    if (!isReviewWorkflowRole()) return [];
+    try {
+        const rows = await reviewWorkflowRpc('get_review_workflow_queue', {
+            p_actor_account: state.userId
+        });
+        state.reviewWorkflowQueue = Array.isArray(rows) ? rows : [];
+        state.reviewWorkflowAvailable = true;
+        if (state.currentTab === 'review') renderReviewWorkflowQueue();
+        return state.reviewWorkflowQueue;
+    } catch (error) {
+        state.reviewWorkflowQueue = [];
+        state.reviewWorkflowAvailable = false;
+        console.warn('審查 workflow 尚未可用:', error);
+        if (!silent) alert(`審查 workflow 尚未部署：${error.message}`);
+        if (state.currentTab === 'review') renderReviewWorkflowQueue();
+        return [];
+    }
+}
+
+function getReviewWorkflowFields(row) {
+    const fields = row?.annotation_fields || {};
+    if (typeof fields === 'string') {
+        try { return JSON.parse(fields) || {}; } catch (error) { return {}; }
+    }
+    return fields;
+}
+
+function renderReviewWorkflowFields(row) {
+    const fields = getReviewWorkflowFields(row);
+    const entries = Object.entries(fields).filter(([, value]) => String(value || '').trim());
+    if (entries.length === 0) return '<div class="review-workflow-empty">尚無標注版本（legacy 資料不會自動視為已審查）。</div>';
+    return `<div class="review-workflow-fields">${entries.map(([key, value]) => `
+        <div class="review-workflow-field"><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>
+    `).join('')}</div>`;
+}
+
+function getReviewWorkflowAudioEvidence(row) {
+    const evidence = row?.audio_evidence || [];
+    if (Array.isArray(evidence)) return evidence;
+    if (typeof evidence === 'string') {
+        try { return JSON.parse(evidence) || []; } catch (error) { return []; }
+    }
+    return [];
+}
+
+function renderReviewWorkflowAudioEvidence(row) {
+    const evidence = getReviewWorkflowAudioEvidence(row);
+    if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
+    const canAssess = state.userRole === 'admin';
+    return `<div class="review-workflow-audio-list">${evidence.map(item => `
+        <div class="review-workflow-audio-row">
+            <span>音檔 #${escapeHtml(item.audio_record_id)}｜${escapeHtml(item.recorder_name || '未知錄音人')}｜${escapeHtml(item.assessment_decision || '未審聽')}</span>
+            ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">播放</button>` : ''}
+            ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="submitReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)">判定</button>` : ''}
+            <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
+        </div>
+    `).join('')}</div>`;
+}
+
+async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
+    if (state.userRole !== 'admin') return;
+    const respondentKey = prompt('請輸入受訪者代號：', '');
+    if (!respondentKey) return;
+    const decision = prompt('請輸入判定：可用／不可用／待追問', '可用');
+    if (!['可用', '不可用', '待追問'].includes(decision)) return alert('判定只能是：可用、不可用、待追問。');
+    const reason = prompt('請輸入判定原因（可留空）：', '') || '';
+    await performReviewWorkflowAction('submit_audio_assessment', {
+        p_task_id: Number(taskId), p_language: language, p_audio_record_id: Number(audioRecordId),
+        p_assessor_account: state.userId, p_respondent_key: respondentKey.trim(),
+        p_decision: decision, p_reason: reason
+    }, button, '音檔判定已保存。');
+}
+function renderReviewWorkflowQueue() {
+    const container = document.getElementById('place-list-container');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!isReviewWorkflowRole()) {
+        container.innerHTML = '<div class="empty-state">目前帳號沒有校對權限。</div>';
+        return;
+    }
+    if (!state.reviewWorkflowAvailable) {
+        container.innerHTML = '<div class="empty-state">新審查 workflow 尚未部署；既有資料仍保留在原流程。</div>';
+        return;
+    }
+    if (!state.reviewWorkflowQueue.length) {
+        container.innerHTML = '<div class="empty-state">目前沒有分派給此帳號的審查案件。</div>';
+        return;
+    }
+
+    state.reviewWorkflowQueue.forEach(row => {
+        const gate = Number(row.distinct_respondent_count || 0) >= 2 && row.audio_gate_passed !== false;
+        const fields = getReviewWorkflowFields(row);
+        const isClaimOwner = row.claim_by && row.claim_by === state.userId;
+        const isAdmin = state.userRole === 'admin';
+        const claimAction = isClaimOwner
+            ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
+            : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
+        const approveDisabled = !Object.keys(fields).length || !gate || (!isAdmin && !isClaimOwner);
+        const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
+        const assignButton = isAdmin
+            ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
+            : '';
+        const item = document.createElement('article');
+        item.className = 'review-item review-workflow-item';
+        item.innerHTML = `
+            <div class="review-heading">
+                <div class="review-place-summary">
+                    <div class="place-title">${escapeHtml(row.place_name || '')}</div>
+                    <div class="place-meta">
+                        <span class="meta-badge">${escapeHtml(row.language || '')}</span>
+                        <span class="meta-badge">${escapeHtml(row.class_name || '未分類')}</span>
+                        <span class="meta-badge">${escapeHtml(row.county || '')} ${escapeHtml(row.town || '')}</span>
+                        <span class="review-state review-pending">${escapeHtml(row.state || '待指派')}</span>
+                        ${legacyBadge}
+                    </div>
+                </div>
+                <div class="review-action-group">${claimAction}${assignButton}</div>
+            </div>
+            <div class="review-workflow-grid">
+                <section class="review-workflow-panel">
+                    <h4>標注版本（校對員唯讀）</h4>
+                    ${renderReviewWorkflowFields(row)}
+                    <small>版本：${escapeHtml(row.current_version_no || 0)}｜建立者：${escapeHtml(row.annotation_created_by || '尚無')}</small>
+                </section>
+                <section class="review-workflow-panel">
+                    <h4>音檔判定（唯讀）</h4>
+                    <p>${escapeHtml(row.audio_review_state || '未審聽')}｜音檔 ${Number(row.audio_record_count || 0)} 筆｜已判定 ${Number(row.assessed_audio_count || 0)} 筆</p>
+                    <p>可用 ${Number(row.usable_audio_count || 0)} 筆｜不同受訪者 ${Number(row.distinct_respondent_count || 0)} 位</p>
+                    <strong class="review-workflow-gate ${gate ? 'is-pass' : 'is-blocked'}">${gate ? '已達兩位不同受訪者門檻' : '尚未達兩位不同受訪者門檻'}</strong>
+                    ${renderReviewWorkflowAudioEvidence(row)}
+                </section>
+            </div>
+            <div class="review-workflow-actions">
+                ${isClaimOwner || isAdmin ? `<button class="review-workflow-draft-btn" type="button" onclick="saveReviewWorkflowDraft(${row.case_id}, this)">存校對草稿</button>` : ''}
+                <button class="review-workflow-approve-btn" type="button" ${approveDisabled ? 'disabled' : ''} onclick="approveReviewWorkflowCase(${row.case_id}, this)">審核通過並建立回寫工作</button>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+async function performReviewWorkflowAction(rpcName, body, button, successMessage) {
+    const originalText = button?.innerText || '';
+    if (button) { button.disabled = true; button.innerText = '處理中...'; }
+    try {
+        await reviewWorkflowRpc(rpcName, body);
+        await loadReviewWorkflowQueue({ silent: true });
+        if (successMessage) alert(successMessage);
+    } catch (error) {
+        alert(`審查 workflow 操作失敗：${error.message}`);
+        if (button) { button.disabled = false; button.innerText = originalText; }
+    }
+}
+
+async function claimReviewWorkflowCase(caseId, button) {
+    if (!confirm('確定領取這筆案件 30 分鐘嗎？')) return;
+    await performReviewWorkflowAction('claim_review_case', {
+        p_case_id: Number(caseId), p_actor_account: state.userId
+    }, button, '已領取案件，claim 期限 30 分鐘。');
+}
+
+async function releaseReviewWorkflowCase(caseId, button) {
+    if (!confirm('確定釋放這筆案件嗎？')) return;
+    await performReviewWorkflowAction('release_review_case', {
+        p_case_id: Number(caseId), p_actor_account: state.userId
+    }, button, '案件已釋放。');
+}
+
+async function assignReviewWorkflowCase(caseId) {
+    if (state.userRole !== 'admin') return;
+    const assignee = prompt('請輸入校對員帳號或 email：');
+    if (!assignee) return;
+    try {
+        await reviewWorkflowRpc('assign_review_case', {
+            p_case_id: Number(caseId), p_assignee: assignee.trim(), p_actor_account: state.userId
+        });
+        await loadReviewWorkflowQueue({ silent: true });
+        alert('案件已改派。');
+    } catch (error) {
+        alert(`案件改派失敗：${error.message}`);
+    }
+}
+
+async function saveReviewWorkflowDraft(caseId, button) {
+    const note = prompt('請輸入校對草稿備註（可留空）：', '');
+    if (note === null) return;
+    await performReviewWorkflowAction('save_proofing_draft', {
+        p_case_id: Number(caseId), p_actor_account: state.userId,
+        p_payload: { note }
+    }, button, '校對草稿已保存。');
+}
+
+async function approveReviewWorkflowCase(caseId, button) {
+    if (!confirm('確定通過？系統只會建立 versioned Sheet writeback job，不會直接覆寫工作表。')) return;
+    await performReviewWorkflowAction('approve_review_case', {
+        p_case_id: Number(caseId), p_actor_account: state.userId
+    }, button, '審核完成，已建立可重試的回寫工作。');
 }
 
 function getTaskRecords(taskId, language = '') {
@@ -5045,7 +5301,7 @@ async function submitAudioLink(recordId) {
         audio_file_id: record.url,
         phonetic_reading: record.phonetic || '',
         language: record.language,
-        note: JSON.stringify(buildRecordNotePayload(record.annotations || {}, linkMeta))
+        note: JSON.stringify(buildRecordNotePayload(record.annotations || {}, linkMeta, record.respondentKey || ''))
     }));
 
     try {
@@ -5300,6 +5556,8 @@ async function fetchAndPlayAudioToContainer(driveUrl, containerId) {
 // 錄音介面狀態控制 (保持原樣)
 // ==========================================
 function resetRecordingState(preferredLanguage = getDefaultAnnotationLanguage()) {
+    const respondentInput = document.getElementById('respondent-key-input');
+    if (respondentInput) respondentInput.value = '';
     resetAnnotationInputs();
     switchAnnotationLanguage(preferredLanguage);
     const confirmPanel = document.getElementById('audio-confirm-panel');
@@ -5434,6 +5692,8 @@ function uploadAudio() {
     const uploadBtn = document.getElementById('upload-btn');
     const statusDiv = document.getElementById('status');
     const lang = document.querySelector('input[name="lang"]:checked').value;
+    const respondentKey = document.getElementById('respondent-key-input')?.value.trim() || '';
+    if (!respondentKey) return alert('請填寫受訪者代號，才能確認不同受訪者的音檔。');
     const annotations = collectAnnotationInputs();
     const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
     const hasAnnotation = Object.values(annotations).some(value => value);
@@ -5483,7 +5743,7 @@ function uploadAudio() {
                     audio_file_id: driveFileIdOrUrl,
                     phonetic_reading: phonetic,
                     language: lang,
-                    note: JSON.stringify({ annotations: annotations })
+                    note: JSON.stringify(buildRecordNotePayload(annotations, null, respondentKey))
                 };
 
                 const supaResponse = await fetch(supaUrl, {
@@ -5512,6 +5772,7 @@ function uploadAudio() {
                     url: driveFileIdOrUrl,
                     createdAt: insertedRecord && insertedRecord[0] ? (insertedRecord[0].created_at || new Date().toISOString()) : new Date().toISOString(),
                     annotations: annotations,
+                    respondentKey,
                     linkMeta: null
                 });
                 if (state.userRole === 'admin') {

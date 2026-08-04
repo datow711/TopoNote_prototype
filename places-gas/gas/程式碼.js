@@ -210,6 +210,7 @@ function runDailyPreworkSync() {
 
   try {
     var options = { silent: true, throwErrors: true };
+    steps.push(runSyncStep_('APP 審查 workflow 回寫 queue', syncReviewWorkflowWritebacks, options));
     steps.push(runSyncStep_('APP錄音人指派回寫至 Sheet', syncTaskAssignmentsToSheets, options));
     steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
     steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
@@ -1065,6 +1066,119 @@ function fetchTaskAssignmentSheetRows_() {
   return JSON.parse(response.getContentText());
 }
 
+function callReviewWorkflowWritebackRpc_(rpcName, body) {
+  var supabase = getSupabaseConfig_();
+  var response = UrlFetchApp.fetch(supabase.url + '/rest/v1/rpc/' + rpcName, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: getSupabaseHeaders_(supabase),
+    payload: JSON.stringify(body || {}),
+    muteHttpExceptions: true
+  });
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase RPC ' + rpcName + ' HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  var content = response.getContentText();
+  return content ? JSON.parse(content) : null;
+}
+
+function fetchReviewWorkflowWritebackJobs_() {
+  return fetchSupabaseRows_('app_review_workflow_writeback_queue?select=*&status=in.(queued,retry)&order=job_id.asc');
+}
+
+function buildReviewWorkflowSheetUpdate_(job, headerMap) {
+  var payload = job.payload || {};
+  if (typeof payload === 'string') payload = JSON.parse(payload || '{}');
+  var updateData = {};
+  var fieldNames = job.language === '台語'
+    ? ['TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote']
+    : ['Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote'];
+  fieldNames.forEach(function(header) {
+    if (Object.prototype.hasOwnProperty.call(payload, header) && headerMap[header]) {
+      updateData[header] = payload[header] == null ? '' : payload[header];
+    }
+  });
+  var stateHeader = job.language === '台語' ? 'T_State' : 'H_State';
+  var stampHeader = job.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
+  if (!headerMap[stateHeader] || !headerMap[stampHeader]) {
+    throw new Error('工作表缺少 workflow 狀態或來源 stamp 欄位');
+  }
+  if (Object.keys(updateData).length === 0) throw new Error('writeback payload 沒有可寫入欄位');
+  updateData[stateHeader] = '已完成標注';
+  updateData[stampHeader] = 'APP workflow回寫|job=' + job.job_id + '|version=' + job.version_no + '|' + new Date().toISOString();
+  return updateData;
+}
+
+function syncReviewWorkflowWritebacks(options) {
+  try {
+    var jobs = fetchReviewWorkflowWritebackJobs_();
+    if (!jobs || jobs.length === 0) return notify_('沒有新的 APP workflow 回寫工作。', options);
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var contexts = {};
+    var succeeded = 0;
+    var failed = 0;
+
+    function getContext(sheetName) {
+      if (contexts[sheetName]) return contexts[sheetName];
+      var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+        ? getOrCreateTestEntriesSheet_()
+        : ss.getSheetByName(sheetName);
+      if (!sheet) throw new Error('找不到工作表：' + sheetName);
+      var headerMap = getSheetHeaderMap_(sheet);
+      contexts[sheetName] = { sheet: sheet, headerMap: headerMap, uuidRows: buildUuidRowMap_(sheet, headerMap) };
+      return contexts[sheetName];
+    }
+
+    jobs.forEach(function(job) {
+      try {
+        var sheetName = job.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+        var context = getContext(sheetName);
+        var rowNumber = context.uuidRows[String(job.source_id || '').trim()];
+        if (!rowNumber) throw new Error('找不到來源 UUID：' + job.source_id);
+
+        var stampHeader = job.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
+        var currentStamp = context.sheet.getRange(rowNumber, context.headerMap[stampHeader]).getDisplayValue();
+        var expectedStamp = String(job.source_stamp || '').trim();
+        if (currentStamp && expectedStamp && String(currentStamp).trim() !== expectedStamp) {
+          throw new Error('Sheet source stamp conflict：目前=' + currentStamp + '，預期=' + expectedStamp);
+        }
+
+        var updateData = buildReviewWorkflowSheetUpdate_(job, context.headerMap);
+        Object.keys(updateData).forEach(function(header) {
+          context.sheet.getRange(rowNumber, context.headerMap[header]).setValue(updateData[header]);
+        });
+
+        var completed = callReviewWorkflowWritebackRpc_('complete_review_writeback', {
+          p_job_id: Number(job.job_id),
+          p_source_stamp: expectedStamp
+        });
+        if (completed !== true) throw new Error('回寫工作未能標記 succeeded');
+        succeeded++;
+      } catch (error) {
+        failed++;
+        try {
+          callReviewWorkflowWritebackRpc_('fail_review_writeback', {
+            p_job_id: Number(job.job_id),
+            p_error_code: 'places_gas_writeback_failed',
+            p_error_message: error.message,
+            p_details: { source_id: job.source_id, language: job.language }
+          });
+        } catch (recordError) {
+          Logger.log('workflow writeback error history failed: ' + recordError.message);
+        }
+        Logger.log('workflow writeback failed for job ' + job.job_id + ': ' + error.message);
+      }
+    });
+
+    var message = '✅ APP workflow 回寫完成：成功 ' + succeeded + ' 筆，失敗 ' + failed + ' 筆。';
+    if (failed > 0) message += ' 失敗工作已保留 retry/error history。';
+    return notify_(message, options);
+  } catch (e) {
+    return handleSyncError_('APP workflow 回寫', e, options);
+  }
+}
 function syncTaskAssignmentsToSheets(options) {
   try {
     var rows = fetchTaskAssignmentSheetRows_();
