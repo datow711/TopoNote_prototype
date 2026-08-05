@@ -62,9 +62,16 @@
       (assessments || []).filter(row => recordIds.has(String(row.audio_record_id))),
       row => `${row.audio_record_id}:${row.assessor_account || ''}`
     );
-    const usable = latestAssessments.filter(row => row.decision === AUDIO_DECISIONS.USABLE && normalizeRespondentKey(row.respondent_key));
-    const respondentKeys = new Set(usable.map(row => normalizeRespondentKey(row.respondent_key)));
-    const followUpCount = latestAssessments.filter(row => row.decision === AUDIO_DECISIONS.FOLLOW_UP).length;
+    const usable = latestAssessments.filter(row => row.decision === AUDIO_DECISIONS.USABLE);
+    const respondentKeys = new Set(
+      latestAssessments
+        .filter(row => row.decision === AUDIO_DECISIONS.USABLE)
+        .map(row => normalizeRespondentKey(row.respondent_key))
+        .filter(Boolean)
+    );
+    const followUpCount = latestAssessments.filter(
+      row => row.needs_followup === true || row.decision === AUDIO_DECISIONS.FOLLOW_UP
+    ).length;
     const unusableCount = latestAssessments.filter(row => row.decision === AUDIO_DECISIONS.UNUSABLE).length;
     return {
       recordCount: activeRecords.length,
@@ -74,22 +81,24 @@
       followUpCount,
       unusableCount,
       state: latestAssessments.length === 0 ? '未審聽' : followUpCount > 0 ? '待追問' : '已判定',
-      gatePassed: respondentKeys.size >= 2
+      // Respondent labels are optional audit data. They must not block
+      // assessment, proofing, or approval.
+      audioReady: latestAssessments.length >= activeRecords.length && activeRecords.length > 0
     };
   }
 
-  function deriveCaseState({ assignedTo, className, hasDraft, audioGatePassed, claimBy, claimUntil, proofed, now } = {}) {
+  function deriveCaseState({ assignedTo, className, hasDraft, claimBy, claimUntil, proofed, now } = {}) {
     if (proofed) return CASE_STATES.DONE;
     if (claimBy && isClaimActive(claimUntil, now)) return CASE_STATES.PROOFING;
     if (!assignedTo) return CASE_STATES.UNASSIGNED;
-    if (hasDraft || audioGatePassed) return CASE_STATES.PENDING_PROOFING;
+    if (hasDraft) return CASE_STATES.PENDING_PROOFING;
     return className === '書面標注' ? CASE_STATES.WRITTEN : CASE_STATES.RECORDING;
   }
 
-  function canApproveCase({ role, claimBy, actorAccount, annotationReady, audioGatePassed } = {}) {
+  function canApproveCase({ role, claimBy, actorAccount, annotationReady } = {}) {
     const reviewer = role === 'admin' || role === 'proofreader';
     const ownsClaim = role === 'admin' || (claimBy && claimBy === actorAccount);
-    return reviewer && ownsClaim && Boolean(annotationReady) && Boolean(audioGatePassed);
+    return reviewer && ownsClaim && Boolean(annotationReady);
   }
 
   const api = {

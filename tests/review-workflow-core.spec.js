@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const core = require('../review-workflow-core');
 
 test.describe('review workflow core rules', () => {
-  test('requires two usable recordings from different respondents', () => {
+  test('keeps respondent labels as audit data without blocking usable recordings', () => {
     const records = [
       { id: 1, audio_file_id: 'a' },
       { id: 2, audio_file_id: 'b' },
@@ -17,13 +17,13 @@ test.describe('review workflow core rules', () => {
     expect(core.summarizeAudioEvidence(records, assessments)).toMatchObject({
       usableCount: 3,
       distinctRespondentCount: 2,
-      gatePassed: true
+      audioReady: true
     });
   });
 
   test('legacy recordings remain unheard until an assessment event exists', () => {
     const summary = core.summarizeAudioEvidence([{ id: 1, audio_file_id: 'legacy' }], []);
-    expect(summary).toMatchObject({ recordCount: 1, assessedCount: 0, state: '未審聽', gatePassed: false });
+    expect(summary).toMatchObject({ recordCount: 1, assessedCount: 0, state: '未審聽', audioReady: false });
   });
 
   test('claim and approval rules keep proofreader read-only to evidence', () => {
@@ -32,15 +32,13 @@ test.describe('review workflow core rules', () => {
       role: 'proofreader',
       claimBy: 'proof@example.com',
       actorAccount: 'proof@example.com',
-      annotationReady: true,
-      audioGatePassed: true
+      annotationReady: true
     })).toBe(true);
     expect(core.canApproveCase({
       role: 'user',
       claimBy: 'proof@example.com',
       actorAccount: 'proof@example.com',
-      annotationReady: true,
-      audioGatePassed: true
+      annotationReady: true
     })).toBe(false);
   });
 
