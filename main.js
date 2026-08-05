@@ -3935,14 +3935,15 @@ function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEd
         ? `<button class="copy-field-btn review-workflow-fill-field-btn" type="button" onclick="fillReviewWorkflowDraftFieldFromAudio(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u586b\u5165</button>`
         : '';
     return `
-        <td class="review-compare-cell ${value ? 'has-value' : ''}">
+        <div class="review-workflow-source-field ${value ? 'has-value' : ''}">
+            <div class="review-workflow-source-field-label">${escapeHtml(field.label)}</div>
             <div class="compare-value">${escapeHtml(displayValue)}</div>
             ${fillButton}
-        </td>
+        </div>
     `;
 }
 
-function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
+function renderLegacyReviewWorkflowAudioSourceTable(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) {
         return '<div class="review-workflow-empty">\u6c92\u6709\u53ef\u986f\u793a\u7684\u97f3\u6a94\u3002</div>';
@@ -3992,9 +3993,56 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
     `;
 }
 
+function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
+    const evidence = getReviewWorkflowAudioEvidence(row);
+    if (evidence.length === 0) {
+        return '<div class="review-workflow-empty">\u6c92\u6709\u53ef\u986f\u793a\u7684\u97f3\u6a94\u3002</div>';
+    }
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    const compareFields = config.compareFields
+        .map(fieldKey => config.fields.find(field => field.key === fieldKey))
+        .filter(Boolean);
+    const sourceById = new Map(getReviewWorkflowAudioSources(row)
+        .map(source => [Number(source.audio_record_id), source]));
+    const canAssess = state.userRole === 'admin';
+    return `
+        <div class="review-workflow-source-list" data-review-source-table="${row.case_id}">
+            ${evidence.map((item, index) => {
+                const source = sourceById.get(Number(item.audio_record_id)) || null;
+                const recorder = item.recorder_name || '\u672a\u77e5\u9304\u97f3\u4eba';
+                const respondent = item.respondent_key || '\u5c1a\u672a\u6307\u5b9a';
+                const decision = item.assessment_decision || '\u672a\u5be9\u807d';
+                return `
+                    <article class="review-workflow-source-card">
+                        <div class="review-workflow-source-heading">
+                            <div class="review-workflow-source-summary">
+                                <strong>\u9304\u97f3 ${index + 1}</strong>
+                                <span class="review-workflow-source-id">#${escapeHtml(item.audio_record_id)}</span>
+                                <span class="review-workflow-source-separator">\uFF5C</span>
+                                <span>${escapeHtml(recorder)}</span>
+                                <span>\u53D7\u8A2A\u8005\uFF1A${escapeHtml(respondent)}</span>
+                                <span>\u5224\u5B9A\uFF1A${escapeHtml(decision)}</span>
+                            </div>
+                            <div class="review-workflow-source-actions">
+                                ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">\u64AD\u653e</button>` : ''}
+                                ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="submitReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)">\u5224\u5b9a</button>` : ''}
+                            </div>
+                        </div>
+                        <div class="review-workflow-source-grid">
+                            ${compareFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit)).join('')}
+                        </div>
+                        <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
+                    </article>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
 function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
     return renderReviewWorkflowAudioSourceTable(row, canEdit);
 }
+
 
 async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit) {
     if (row.audio_sources_loaded) return getReviewWorkflowAudioSources(row);

@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
 
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__alerts = [];
@@ -51,7 +52,10 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   await expect(page.locator('.review-workflow-item')).toContainText('兩位不同受訪者');
   await expect(page.locator('.review-workflow-item')).toContainText('標注版本（校對員唯讀）');
   await expect(page.locator('.review-workflow-item')).toContainText('音檔判定（唯讀）');
-  await expect(page.locator('.review-workflow-source-table tbody tr')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-source-card')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-source-field')).toHaveCount(6);
+  const sourceWidth = await page.locator('.review-workflow-source-list').evaluate(element => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+  expect(sourceWidth.scrollWidth).toBeLessThanOrEqual(sourceWidth.clientWidth);
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(0);
   await expect(page.locator('.review-workflow-approve-btn')).toBeVisible();
   await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();

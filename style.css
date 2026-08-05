@@ -3548,10 +3548,28 @@ button:disabled {
 .review-workflow-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
 .review-workflow-field { min-width: 0; }
 .review-workflow-field.is-multiline { grid-column: 1 / -1; }
-.review-workflow-source-table-wrap { margin-top: 10px; }
-.review-workflow-source-table { min-width: 760px; }
-.review-workflow-source-label { min-width: 170px; }
+.review-workflow-source-list { display: grid; gap: 12px; width: 100%; max-width: 100%; min-width: 0; margin-top: 10px; }
+.review-workflow-source-card { min-width: 0; overflow: hidden; border: 1px solid #dfe6eb; border-radius: 8px; background: #fff; }
+.review-workflow-source-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #dfe6eb; }
+.review-workflow-source-summary { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 2px 6px; color: #62717e; line-height: 1.4; }
+.review-workflow-source-summary strong { color: #172b38; font-size: 1.02rem; }
+.review-workflow-source-summary span { min-width: 0; overflow-wrap: anywhere; }
+.review-workflow-source-id { color: #536573; font-weight: 700; }
+.review-workflow-source-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.review-workflow-source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; }
+.review-workflow-source-field { min-width: 0; min-height: 112px; padding: 10px; border-right: 1px solid #e1e7eb; }
+.review-workflow-source-field:last-child { border-right: 0; }
+.review-workflow-source-field-label { margin-bottom: 8px; color: #5f7080; font-weight: 700; }
+.review-workflow-source-field .compare-value { min-width: 0; min-height: 2.7em; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; }
+.review-workflow-source-card > .review-player { padding: 0 12px 8px; }
 .review-workflow-fill-field-btn { display: inline-block; margin-top: 4px; }
+@media (max-width: 640px) {
+    .review-workflow-source-heading { grid-template-columns: minmax(0, 1fr); align-items: start; }
+    .review-workflow-source-actions { justify-content: flex-start; }
+    .review-workflow-source-grid { grid-template-columns: 1fr; }
+    .review-workflow-source-field { min-height: 0; border-right: 0; border-bottom: 1px solid #e1e7eb; }
+    .review-workflow-source-field:last-child { border-bottom: 0; }
+}
 .review-workflow-fill-field-btn.is-selected { background: #e5f6ec; color: #146c3b; }
 .review-workflow-fill-audio-btn,
 .review-workflow-fill-existing-btn,
