@@ -3,6 +3,12 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 
 const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
+test('recording respondent key is optional and not presented as a two-person requirement', async ({ page }) => {
+  await page.goto(appUrl);
+  await expect(page.locator('label[for="respondent-key-input"]')).toHaveText('受訪者代號（可留空）');
+  await expect(page.locator('.respondent-key-panel small')).not.toContainText('兩位不同受訪者');
+});
+
 test('admin can save an audio assessment with a blank respondent key', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -76,7 +82,7 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   });
 
   await expect(page.locator('.review-workflow-item')).toContainText('測試地名');
-  await expect(page.locator('.review-workflow-item')).toContainText('兩位不同受訪者');
+  await expect(page.locator('.review-workflow-item')).not.toContainText('兩位不同受訪者');
   await expect(page.locator('.review-workflow-item')).toContainText('標注版本（校對員唯讀）');
   await expect(page.locator('.review-workflow-item')).toContainText('音檔判定（唯讀）');
   await expect(page.locator('.review-workflow-source-card')).toHaveCount(2);
@@ -158,8 +164,8 @@ test('admin filters workflow cases by draft status', async ({ page }) => {
   await expect(filter).toHaveValue('draft');
   await expect(items).toHaveCount(1);
   await expect(items).toContainText('draft-case');
-  await expect(page.locator('.review-workflow-approve-btn')).toBeDisabled();
-  await expect(page.locator('.review-workflow-approve-hint')).toContainText('\u97f3\u6a94');
+  await expect(page.locator('.review-workflow-approve-btn')).toBeEnabled();
+  await expect(page.locator('.review-workflow-approve-hint')).toHaveCount(0);
 
   await filter.selectOption('all');
   await expect(items).toHaveCount(2);

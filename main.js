@@ -4168,7 +4168,6 @@ function renderReviewWorkflowQueue() {
         return;
     }
     visibleRows.forEach(row => {
-        const gate = Number(row.distinct_respondent_count || 0) >= 2 && row.audio_gate_passed !== false;
         const fields = getReviewWorkflowFields(row);
         const canEdit = state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId);
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
@@ -4176,14 +4175,12 @@ function renderReviewWorkflowQueue() {
         const claimAction = isClaimOwner
             ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
             : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
-        const approveDisabled = row.version_kind === 'legacy' || !Object.keys(fields).length || !gate || (!isAdmin && !isClaimOwner);
+        const approveDisabled = row.version_kind === 'legacy' || !Object.keys(fields).length || (!isAdmin && !isClaimOwner);
         const approveReason = row.version_kind === 'legacy'
             ? '\u76ee\u524d\u662f\u820a\u7248\u8cc7\u6599\uff0c\u4e0d\u80fd\u76f4\u63a5\u5be9\u6838'
             : !Object.keys(fields).length
                 ? '\u8acb\u5148\u5efa\u7acb\u6821\u5c0d\u8349\u7a3f'
-                : !gate
-                    ? '\u8acb\u5148\u5b8c\u6210\u97f3\u6a94\u5224\u5b9a\uff08\u9700\u5169\u4f4d\u4e0d\u540c\u53d7\u8a2a\u8005\u7684\u53ef\u7528\u97f3\u6a94\uff09'
-                    : (!isAdmin && !isClaimOwner ? '\u8acb\u5148\u9818\u53d6\u6848\u4ef6' : '');
+                : (!isAdmin && !isClaimOwner ? '\u8acb\u5148\u9818\u53d6\u6848\u4ef6' : '');
         const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
         const assignButton = isAdmin
             ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
@@ -4213,8 +4210,7 @@ function renderReviewWorkflowQueue() {
                 <section class="review-workflow-panel">
                     <h4>音檔判定（唯讀）</h4>
                     <p>${escapeHtml(row.audio_review_state || '未審聽')}｜音檔 ${Number(row.audio_record_count || 0)} 筆｜已判定 ${Number(row.assessed_audio_count || 0)} 筆</p>
-                    <p>可用 ${Number(row.usable_audio_count || 0)} 筆｜不同受訪者 ${Number(row.distinct_respondent_count || 0)} 位</p>
-                    <strong class="review-workflow-gate ${gate ? 'is-pass' : 'is-blocked'}">${gate ? '已達兩位不同受訪者門檻' : '尚未達兩位不同受訪者門檻'}</strong>
+                    <p>可用 ${Number(row.usable_audio_count || 0)} 筆</p>
                     ${renderReviewWorkflowAudioEvidence(row, canEdit)}
                 </section>
             </div>
@@ -6082,7 +6078,6 @@ function uploadAudio() {
     const statusDiv = document.getElementById('status');
     const lang = document.querySelector('input[name="lang"]:checked').value;
     const respondentKey = document.getElementById('respondent-key-input')?.value.trim() || '';
-    if (!respondentKey) return alert('請填寫受訪者代號，才能確認不同受訪者的音檔。');
     const annotations = collectAnnotationInputs();
     const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
     const hasAnnotation = Object.values(annotations).some(value => value);
