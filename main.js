@@ -4177,6 +4177,13 @@ function renderReviewWorkflowQueue() {
             ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
             : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
         const approveDisabled = row.version_kind === 'legacy' || !Object.keys(fields).length || !gate || (!isAdmin && !isClaimOwner);
+        const approveReason = row.version_kind === 'legacy'
+            ? '\u76ee\u524d\u662f\u820a\u7248\u8cc7\u6599\uff0c\u4e0d\u80fd\u76f4\u63a5\u5be9\u6838'
+            : !Object.keys(fields).length
+                ? '\u8acb\u5148\u5efa\u7acb\u6821\u5c0d\u8349\u7a3f'
+                : !gate
+                    ? '\u8acb\u5148\u5b8c\u6210\u97f3\u6a94\u5224\u5b9a\uff08\u9700\u5169\u4f4d\u4e0d\u540c\u53d7\u8a2a\u8005\u7684\u53ef\u7528\u97f3\u6a94\uff09'
+                    : (!isAdmin && !isClaimOwner ? '\u8acb\u5148\u9818\u53d6\u6848\u4ef6' : '');
         const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
         const assignButton = isAdmin
             ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
@@ -4214,6 +4221,7 @@ function renderReviewWorkflowQueue() {
             <div class="review-workflow-actions">
                 ${isClaimOwner || isAdmin ? `<button class="review-workflow-draft-btn" type="button" onclick="saveReviewWorkflowDraft(${row.case_id}, this)">存校對草稿</button>` : ''}
                 <button class="review-workflow-approve-btn" type="button" ${approveDisabled ? 'disabled' : ''} onclick="approveReviewWorkflowCase(${row.case_id}, this)">審核通過並建立回寫工作</button>
+                ${approveReason ? `<small class="review-workflow-approve-hint">${escapeHtml(approveReason)}</small>` : ''}
             </div>
         `;
         const draftToolbar = item.querySelector('.review-workflow-draft-toolbar');

@@ -146,7 +146,7 @@ button:hover {
 }
 
 button:disabled {
-    cursor: wait;
+    cursor: not-allowed;
     opacity: 0.68;
     transform: none;
 }
@@ -3581,6 +3581,48 @@ button:disabled {
 .review-workflow-gate.is-blocked { color: #b45309; }
 .review-workflow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .review-workflow-actions button { min-height: 36px; }
+.review-workflow-actions .review-workflow-draft-btn {
+    border: 1px solid #177245;
+    background: #17834f;
+    color: #fff;
+}
+.review-workflow-actions .review-workflow-draft-btn:hover {
+    background: #12663d;
+    color: #fff;
+}
+.review-workflow-actions .review-workflow-approve-btn {
+    border: 1px solid #b45309;
+    background: #f59e0b;
+    color: #fff;
+}
+.review-workflow-actions .review-workflow-approve-btn:hover:not(:disabled) {
+    background: #d97706;
+    color: #fff;
+}
+.review-workflow-actions .review-workflow-approve-btn:disabled {
+    border-color: #cbd5dc;
+    background: #e2e8ed;
+    color: #60717b;
+    cursor: not-allowed;
+    opacity: 1;
+    box-shadow: none;
+}
+.review-workflow-approve-hint {
+    flex-basis: 100%;
+    color: #8a4b2d;
+}
+.review-workflow-panel .review-workflow-assess-btn {
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid #1967a3;
+    border-radius: 7px;
+    background: #2563a9;
+    color: #fff;
+}
+.review-workflow-panel .review-workflow-assess-btn:hover {
+    background: #1d4f85;
+    color: #fff;
+}
 .review-workflow-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #dfe6eb; border-radius: 8px; background: #f8fbfc; }
 .review-workflow-filter-bar label { display: flex; align-items: center; gap: 8px; color: #526573; font-weight: 700; }
 .review-workflow-filter-bar select { min-width: 150px; min-height: 36px; padding: 6px 10px; border: 1px solid #bdccd5; border-radius: 7px; background: #fff; color: #20313d; font: inherit; }

@@ -58,6 +58,7 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   expect(sourceWidth.scrollWidth).toBeLessThanOrEqual(sourceWidth.clientWidth);
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(0);
   await expect(page.locator('.review-workflow-approve-btn')).toBeVisible();
+  await expect(page.locator('.review-workflow-approve-btn')).toBeEnabled();
   await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
   await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(5);
   await expect(page.locator('.review-workflow-fill-existing-btn')).toBeVisible();
@@ -130,6 +131,8 @@ test('admin filters workflow cases by draft status', async ({ page }) => {
   await expect(filter).toHaveValue('draft');
   await expect(items).toHaveCount(1);
   await expect(items).toContainText('draft-case');
+  await expect(page.locator('.review-workflow-approve-btn')).toBeDisabled();
+  await expect(page.locator('.review-workflow-approve-hint')).toContainText('\u97f3\u6a94');
 
   await filter.selectOption('all');
   await expect(items).toHaveCount(2);
