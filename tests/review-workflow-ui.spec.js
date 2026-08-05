@@ -110,6 +110,60 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   await expect(page.locator('#review-workflow-77-tai-TL2')).toHaveValue('');
 });
 
+test('proofing writes carry current claim token', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.__alerts = [];
+    window.alert = message => window.__alerts.push(String(message));
+    window.confirm = () => true;
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.userRole = 'proofreader';
+    state.userId = 'proof@example.com';
+    state.userName = 'Proofreader';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 78,
+      task_id: 13,
+      language: '\u53f0\u8a9e',
+      place_name: 'token-case',
+      class_name: 'test',
+      state: 'pending',
+      assigned_to: 'proof@example.com',
+      claim_by: 'proof@example.com',
+      claim_token: '00000000-0000-0000-0000-000000000078',
+      claim_until: '2999-01-01T00:00:00Z',
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: 'before-han', TL1: 'before-tl1' },
+      audio_record_count: 0,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_evidence: [],
+      audio_sources_loaded: true,
+      audio_sources: [],
+      legacy_unreviewed: false
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await page.evaluate(async () => {
+    await saveReviewWorkflowDraft(78, null);
+    await approveReviewWorkflowCase(78, null);
+  });
+
+  const calls = await page.evaluate(() => window.__workflowCalls);
+  expect(calls).toHaveLength(2);
+  expect(calls[0].rpcName).toBe('save_annotation_version');
+  expect(calls[0].body.p_claim_token).toBe('00000000-0000-0000-0000-000000000078');
+  expect(calls[1].rpcName).toBe('approve_review_case');
+  expect(calls[1].body.p_claim_token).toBe('00000000-0000-0000-0000-000000000078');
+});
 test('admin filters workflow cases by draft status', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {

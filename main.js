@@ -4336,8 +4336,10 @@ async function claimReviewWorkflowCase(caseId, button) {
 
 async function releaseReviewWorkflowCase(caseId, button) {
     if (!confirm('確定釋放這筆案件嗎？')) return;
+    const row = getReviewWorkflowRow(caseId);
     await performReviewWorkflowAction('release_review_case', {
-        p_case_id: Number(caseId), p_actor_account: state.userId
+        p_case_id: Number(caseId), p_actor_account: state.userId,
+        p_claim_token: row?.claim_token || null
     }, button, '案件已釋放。');
 }
 
@@ -4380,14 +4382,18 @@ async function saveReviewWorkflowDraft(caseId, button) {
         alert('\u8acb\u5148\u586b\u5beb\u81f3\u5c11\u4e00\u500b\u6821\u5c0d\u6b04\u4f4d\u3002');
         return;
     }
+    const row = getReviewWorkflowRow(caseId);
     await performReviewWorkflowAction('save_annotation_version', {
-        p_case_id: Number(caseId), p_actor_account: state.userId, p_fields: fields
+        p_case_id: Number(caseId), p_actor_account: state.userId, p_fields: fields,
+        p_claim_token: row?.claim_token || null
     }, button, '\u6821\u5c0d\u8349\u7a3f\u5df2\u4fdd\u5b58\u3002');
 }
 async function approveReviewWorkflowCase(caseId, button) {
     if (!confirm('確定通過？系統只會建立 versioned Sheet writeback job，不會直接覆寫工作表。')) return;
+    const row = getReviewWorkflowRow(caseId);
     await performReviewWorkflowAction('approve_review_case', {
-        p_case_id: Number(caseId), p_actor_account: state.userId
+        p_case_id: Number(caseId), p_actor_account: state.userId,
+        p_claim_token: row?.claim_token || null
     }, button, '審核完成，已建立可重試的回寫工作。');
 }
 
