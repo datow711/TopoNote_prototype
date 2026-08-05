@@ -3607,7 +3607,22 @@ button:disabled {
     opacity: 1;
     box-shadow: none;
 }
-.review-workflow-claim-btn,
+.review-workflow-return-btn {
+    min-height: 32px;
+    padding: 6px 11px;
+    border: 1px solid #b23a48;
+    border-radius: 7px;
+    background: #fff0f1;
+    color: #8f2332;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
+.review-workflow-return-btn:hover,
+.review-workflow-return-btn:focus-visible {
+    background: #ffe0e3;
+    color: #741b28;
+}.review-workflow-claim-btn,
 .review-workflow-release-btn {
     min-height: 32px;
     padding: 6px 11px;

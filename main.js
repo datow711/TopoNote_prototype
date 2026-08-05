@@ -4353,6 +4353,7 @@ function renderReviewWorkflowQueue() {
             </div>
             <div class="review-workflow-actions">
                 ${isClaimOwner || isAdmin ? `<button class="review-workflow-draft-btn" type="button" onclick="saveReviewWorkflowDraft(${row.case_id}, this)">存校對草稿</button>` : ''}
+                ${!isAudioMode && (isClaimOwner || isAdmin) ? '<button class="review-workflow-return-btn" type="button" onclick="returnReviewWorkflowCase(' + row.case_id + ', this)">退回標注／音檔</button>' : ''}
                 <button class="review-workflow-approve-btn" type="button" ${approveDisabled ? 'disabled' : ''} onclick="approveReviewWorkflowCase(${row.case_id}, this)">審核通過並建立回寫工作</button>
                 ${approveReason ? `<small class="review-workflow-approve-hint">${escapeHtml(approveReason)}</small>` : ''}
             </div>
@@ -4498,6 +4499,46 @@ async function approveReviewWorkflowCase(caseId, button) {
     }, button, '審核完成，已建立可重試的回寫工作。');
 }
 
+async function returnReviewWorkflowCase(caseId, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const target = prompt('要退回哪一部分？請輸入：標注／音檔／兩者', '標注');
+    if (target === null) return;
+    const normalizedTarget = String(target || '').trim();
+    const returnAnnotation = ['標注', '標音', '書面', '兩者', '二者'].includes(normalizedTarget);
+    const returnAudio = ['音檔', '音頻', '兩者', '二者'].includes(normalizedTarget);
+    if (!returnAnnotation && !returnAudio) {
+        alert('退回目標只能是：標注、音檔或兩者。');
+        return;
+    }
+
+    let annotationReason = '';
+    let audioReason = '';
+    if (returnAnnotation) {
+        annotationReason = (prompt('請填寫標注退回原因：', '') || '').trim();
+        if (!annotationReason) {
+            alert('標注退回原因必填。');
+            return;
+        }
+    }
+    if (returnAudio) {
+        audioReason = (prompt('請填寫音檔退回原因：', '') || '').trim();
+        if (!audioReason) {
+            alert('音檔退回原因必填。');
+            return;
+        }
+    }
+    if (!confirm('確定退回這筆案件嗎？原有草稿與歷程會保留。')) return;
+
+    await performReviewWorkflowAction('return_review_case', {
+        p_case_id: Number(caseId),
+        p_actor_account: state.userId,
+        p_claim_token: row?.claim_token || null,
+        p_return_annotation: returnAnnotation,
+        p_return_audio: returnAudio,
+        p_annotation_reason: annotationReason,
+        p_audio_reason: audioReason
+    }, button, '案件已退回，原有草稿與歷程已保留。');
+}
 function getTaskRecords(taskId, language = '') {
     return state.uploadedRecords.filter(record => {
         const sameTask = String(record.placeId) === String(taskId);

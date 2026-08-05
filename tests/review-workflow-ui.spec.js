@@ -226,6 +226,52 @@ test('proofing writes carry current claim token', async ({ page }) => {
   expect(calls[1].rpcName).toBe('approve_review_case');
   expect(calls[1].body.p_claim_token).toBe('00000000-0000-0000-0000-000000000078');
 });
+test('proofreader can return annotation and audio separately', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__prompts = ['\u5169\u8005', '\u6a19\u97f3\u6b04\u4f4d\u9700\u4fee\u6b63', '\u8acb\u91cd\u65b0\u5224\u5b9a'];
+    window.__workflowCalls = [];
+    window.prompt = () => window.__prompts.shift();
+    window.confirm = () => true;
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.userRole = 'proofreader';
+    state.userId = 'proof@example.com';
+    state.reviewWorkflowQueue = [{
+      case_id: 779,
+      task_id: 779,
+      language: '\u53f0\u8a9e',
+      place_name: 'return-case',
+      class_name: 'test',
+      state: '\u6821\u5c0d\u4e2d',
+      claim_by: 'proof@example.com',
+      claim_token: '00000000-0000-0000-0000-000000000779',
+      claim_until: '2999-01-01T00:00:00Z',
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: 'han', TL1: 'tl1' },
+      audio_record_count: 1,
+      assessed_audio_count: 1,
+      usable_audio_count: 1,
+      audio_evidence: [],
+      legacy_unreviewed: false
+    }];
+  });
+
+  await page.evaluate(async () => {
+    await returnReviewWorkflowCase(779, null);
+  });
+
+  const call = await page.evaluate(() => window.__workflowCalls[0]);
+  expect(call.rpcName).toBe('return_review_case');
+  expect(call.body.p_claim_token).toBe('00000000-0000-0000-0000-000000000779');
+  expect(call.body.p_return_annotation).toBe(true);
+  expect(call.body.p_return_audio).toBe(true);
+  expect(call.body.p_annotation_reason).toBe('\u6a19\u97f3\u6b04\u4f4d\u9700\u4fee\u6b63');
+  expect(call.body.p_audio_reason).toBe('\u8acb\u91cd\u65b0\u5224\u5b9a');
+});
 test('admin filters workflow cases by draft status', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
