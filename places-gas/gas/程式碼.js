@@ -1109,9 +1109,18 @@ function buildSatelliteDraftSourceStamp_(uuid, language, fields) {
   }).join('');
 }
 function fetchReviewWorkflowWritebackJobs_() {
-  return fetchSupabaseRows_('app_review_workflow_writeback_queue?select=*&status=in.(queued,retry)&order=job_id.asc');
+  return fetchSupabaseRows_('app_review_workflow_writeback_queue?select=*&status=in.(queued,retry,processing)&order=job_id.asc');
 }
 
+function claimReviewWorkflowWritebackJob_(jobId) {
+  var claimed = callReviewWorkflowWritebackRpc_('claim_review_writeback_job', {
+    p_job_id: Number(jobId)
+  });
+  if (Array.isArray(claimed)) claimed = claimed[0] || null;
+  if (!claimed || claimed.id == null) return null;
+  if (claimed.job_id == null) claimed.job_id = claimed.id;
+  return claimed;
+}
 function getReviewWorkflowSheetName_(sourceTable) {
   var normalizedSourceTable = String(sourceTable || '').trim();
   if (normalizedSourceTable === 'test_places') return TEST_ENTRIES_SHEET_NAME;
@@ -1169,7 +1178,16 @@ function syncReviewWorkflowWritebacks(options) {
     }
 
     jobs.forEach(function(job) {
+      var jobLock = LockService.getScriptLock();
+      var lockAcquired = false;
       try {
+        lockAcquired = jobLock.tryLock(30000);
+        if (!lockAcquired) throw new Error('無法取得回寫 worker lock');
+
+        var claimedJob = claimReviewWorkflowWritebackJob_(job.job_id);
+        if (!claimedJob) return;
+        job = claimedJob;
+
         var sheetName = getReviewWorkflowSheetName_(job.source_table);
         var context = getContext(sheetName);
         var rowNumber = context.uuidRows[String(job.source_id || '').trim()];
@@ -1206,9 +1224,10 @@ function syncReviewWorkflowWritebacks(options) {
           Logger.log('workflow writeback error history failed: ' + recordError.message);
         }
         Logger.log('workflow writeback failed for job ' + job.job_id + ': ' + error.message);
+      } finally {
+        if (lockAcquired) jobLock.releaseLock();
       }
     });
-
     var message = '✅ APP workflow 回寫完成：成功 ' + succeeded + ' 筆，失敗 ' + failed + ' 筆。';
     if (failed > 0) message += ' 失敗工作已保留 retry/error history。';
     return notify_(message, options);
