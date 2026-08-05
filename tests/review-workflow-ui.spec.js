@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 
 const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
 
-test('proofreader sees read-only evidence and workflow actions', async ({ page }) => {
+test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__alerts = [];
@@ -50,7 +50,26 @@ test('proofreader sees read-only evidence and workflow actions', async ({ page }
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(0);
   await expect(page.locator('.review-workflow-approve-btn')).toBeVisible();
   await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
-  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(5);
+  await expect(page.locator('.review-workflow-fill-existing-btn')).toBeVisible();
+  await expect(page.locator('.review-workflow-fill-audio-btn')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
+  await page.evaluate(async () => {
+    window.reviewWorkflowRpc = async rpcName => {
+      if (rpcName !== 'get_review_workflow_audio_sources') throw new Error('unexpected RPC');
+      return [{
+        audio_record_id: 1,
+        phonetic_reading: 'fallback1',
+        annotations: { taihan: 'copied-han', tainote: 'copied-note' }
+      }];
+    };
+    clearReviewWorkflowDraft(77);
+    await fillReviewWorkflowDraftFromAudio(77, 1, document.querySelector('.review-workflow-fill-audio-btn'));
+  });
+  await expect(page.locator('#review-workflow-77-tai-TaiHan1')).toHaveValue('copied-han');
+  await expect(page.locator('#review-workflow-77-tai-TL1')).toHaveValue('fallback1');
+  await expect(page.locator('#review-workflow-77-tai-TaiNote')).toHaveValue('copied-note');
+  await expect(page.locator('#review-workflow-77-tai-TL2')).toHaveValue('');
 });
 
 test('ordinary investigator cannot enter the proofing workbench', async ({ page }) => {

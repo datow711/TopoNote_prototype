@@ -3758,13 +3758,135 @@ function getReviewWorkflowFields(row) {
     return fields;
 }
 
-function renderReviewWorkflowFields(row) {
+function renderLegacyReviewWorkflowFields(row) {
     const fields = getReviewWorkflowFields(row);
     const entries = Object.entries(fields).filter(([, value]) => String(value || '').trim());
     if (entries.length === 0) return '<div class="review-workflow-empty">尚無標注版本（legacy 資料不會自動視為已審查）。</div>';
     return `<div class="review-workflow-fields">${entries.map(([key, value]) => `
         <div class="review-workflow-field"><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>
     `).join('')}</div>`;
+}
+
+function renderReviewWorkflowFields(row, canEdit = false) {
+    const fields = getReviewWorkflowFields(row);
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    if (!canEdit && Object.keys(fields).length === 0) {
+        return '<div class="review-workflow-empty">\u5c1a\u7121\u6a19\u6ce8\u7248\u672c\uff08legacy \u8cc7\u6599\u4e0d\u6703\u81ea\u52d5\u8996\u70ba\u5df2\u5be9\u67e5\uff09\u3002</div>';
+    }
+    if (!canEdit) {
+        const entries = Object.entries(fields).filter(([, value]) => String(value || '').trim());
+        return `<div class="review-workflow-fields">${entries.map(([key, value]) => `
+            <div class="review-workflow-field"><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>
+        `).join('')}</div>`;
+    }
+    return `
+        <div class="review-workflow-draft-toolbar">
+            <small>\u5148\u9818\u53d6\u6848\u4ef6\uff0c\u518d\u5f9e\u8abf\u67e5\u54e1\u97f3\u6a94\u5e36\u5165\u5167\u5bb9\uff1b\u5e36\u5165\u5f8c\u4ecd\u53ef\u9010\u6b04\u4fee\u6539\u3002</small>
+            <div class="review-workflow-draft-tools">
+                <button class="review-workflow-fill-existing-btn" type="button" onclick="fillReviewWorkflowDraftFromExisting(${row.case_id})">\u5e36\u5165\u76ee\u524d\u6a19\u6ce8</button>
+                <button class="review-workflow-clear-btn" type="button" onclick="clearReviewWorkflowDraft(${row.case_id})">\u6e05\u7a7a\u8349\u7a3f</button>
+            </div>
+        </div>
+        <div class="review-workflow-fields">
+            ${config.fields.map(field => {
+                const value = fields[field.key] || '';
+                const inputId = getReviewWorkflowInputId(row.case_id, languageKey, field.key);
+                const control = field.multiline
+                    ? `<textarea id="${inputId}" rows="3" placeholder="${escapeHtml(field.placeholder || field.label)}">${escapeHtml(value)}</textarea>`
+                    : `<input id="${inputId}" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || field.label)}">`;
+                return `
+                    <label class="review-workflow-field" for="${inputId}">
+                        <span>${escapeHtml(field.label)}</span>
+                        ${control}
+                    </label>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function getReviewWorkflowInputId(caseId, languageKey, fieldKey) {
+    return `review-workflow-${caseId}-${languageKey}-${fieldKey}`;
+}
+
+function getReviewWorkflowRow(caseId) {
+    return state.reviewWorkflowQueue.find(row => Number(row.case_id) === Number(caseId)) || null;
+}
+
+function collectReviewWorkflowDraftFields(caseId) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return {};
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    return config.fields.reduce((fields, field) => {
+        const input = document.getElementById(getReviewWorkflowInputId(caseId, languageKey, field.key));
+        fields[field.key] = input ? input.value.trim() : '';
+        return fields;
+    }, {});
+}
+
+function hasReviewWorkflowDraftValues(fields) {
+    return Object.values(fields || {}).some(value => String(value || '').trim());
+}
+
+function setReviewWorkflowDraftFields(caseId, fields) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return;
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    config.fields.forEach(field => {
+        const input = document.getElementById(getReviewWorkflowInputId(caseId, languageKey, field.key));
+        if (input) input.value = fields?.[field.key] || '';
+    });
+}
+
+function fillReviewWorkflowDraftFromExisting(caseId) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return;
+    setReviewWorkflowDraftFields(caseId, getReviewWorkflowFields(row));
+}
+
+function clearReviewWorkflowDraft(caseId) {
+    setReviewWorkflowDraftFields(caseId, {});
+}
+
+function getReviewWorkflowSourceFieldValue(source, field) {
+    let annotations = source?.annotations || {};
+    if (typeof annotations === 'string') {
+        try { annotations = JSON.parse(annotations) || {}; } catch (error) { annotations = {}; }
+    }
+    for (const key of field.annotationKeys || []) {
+        if (annotations[key]) return annotations[key];
+    }
+    return field.fallbackRecordKey ? (source?.[field.fallbackRecordKey] || source?.phonetic_reading || '') : '';
+}
+
+async function fillReviewWorkflowDraftFromAudio(caseId, audioRecordId, button) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return;
+    const originalText = button?.innerText || '';
+    if (button) { button.disabled = true; button.innerText = '\u5e36\u5165\u4e2d...'; }
+    try {
+        const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
+            p_case_id: Number(caseId), p_actor_account: state.userId
+        });
+        const source = (Array.isArray(sources) ? sources : [])
+            .find(item => Number(item.audio_record_id) === Number(audioRecordId));
+        if (!source) throw new Error('Unable to find investigator content for this audio.');
+        const languageKey = getReviewLanguageKey(row.language);
+        const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+        const fields = config.fields.reduce((values, field) => {
+            values[field.key] = getReviewWorkflowSourceFieldValue(source, field);
+            return values;
+        }, {});
+        setReviewWorkflowDraftFields(caseId, fields);
+        alert('\u5df2\u5e36\u5165\u9019\u7b46\u8abf\u67e5\u54e1\u5167\u5bb9\uff0c\u8acb\u78ba\u8a8d\u5f8c\u4fdd\u5b58\u6821\u5c0d\u8349\u7a3f\u3002');
+    } catch (error) {
+        alert(`\u5e36\u5165\u8abf\u67e5\u54e1\u5167\u5bb9\u5931\u6557\uff1a${error.message}`);
+    } finally {
+        if (button) { button.disabled = false; button.innerText = originalText; }
+    }
 }
 
 function getReviewWorkflowAudioEvidence(row) {
@@ -3776,7 +3898,7 @@ function getReviewWorkflowAudioEvidence(row) {
     return [];
 }
 
-function renderReviewWorkflowAudioEvidence(row) {
+function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
     const canAssess = state.userRole === 'admin';
@@ -3785,6 +3907,7 @@ function renderReviewWorkflowAudioEvidence(row) {
             <span>音檔 #${escapeHtml(item.audio_record_id)}｜${escapeHtml(item.recorder_name || '未知錄音人')}｜${escapeHtml(item.assessment_decision || '未審聽')}</span>
             ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">播放</button>` : ''}
             ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="submitReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)">判定</button>` : ''}
+            ${canEdit ? `<button class="review-workflow-fill-audio-btn" type="button" onclick="fillReviewWorkflowDraftFromAudio(${row.case_id}, ${item.audio_record_id}, this)">\u586b\u5165\u9019\u7b46\u5167\u5bb9</button>` : ''}
             <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
         </div>
     `).join('')}</div>`;
@@ -3823,12 +3946,13 @@ function renderReviewWorkflowQueue() {
     state.reviewWorkflowQueue.forEach(row => {
         const gate = Number(row.distinct_respondent_count || 0) >= 2 && row.audio_gate_passed !== false;
         const fields = getReviewWorkflowFields(row);
+        const canEdit = state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId);
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
         const isAdmin = state.userRole === 'admin';
         const claimAction = isClaimOwner
             ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
             : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
-        const approveDisabled = !Object.keys(fields).length || !gate || (!isAdmin && !isClaimOwner);
+        const approveDisabled = row.version_kind === 'legacy' || !Object.keys(fields).length || !gate || (!isAdmin && !isClaimOwner);
         const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
         const assignButton = isAdmin
             ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
@@ -3852,7 +3976,7 @@ function renderReviewWorkflowQueue() {
             <div class="review-workflow-grid">
                 <section class="review-workflow-panel">
                     <h4>標注版本（校對員唯讀）</h4>
-                    ${renderReviewWorkflowFields(row)}
+                    ${renderReviewWorkflowFields(row, canEdit)}
                     <small>版本：${escapeHtml(row.current_version_no || 0)}｜建立者：${escapeHtml(row.annotation_created_by || '尚無')}</small>
                 </section>
                 <section class="review-workflow-panel">
@@ -3860,7 +3984,7 @@ function renderReviewWorkflowQueue() {
                     <p>${escapeHtml(row.audio_review_state || '未審聽')}｜音檔 ${Number(row.audio_record_count || 0)} 筆｜已判定 ${Number(row.assessed_audio_count || 0)} 筆</p>
                     <p>可用 ${Number(row.usable_audio_count || 0)} 筆｜不同受訪者 ${Number(row.distinct_respondent_count || 0)} 位</p>
                     <strong class="review-workflow-gate ${gate ? 'is-pass' : 'is-blocked'}">${gate ? '已達兩位不同受訪者門檻' : '尚未達兩位不同受訪者門檻'}</strong>
-                    ${renderReviewWorkflowAudioEvidence(row)}
+                    ${renderReviewWorkflowAudioEvidence(row, canEdit)}
                 </section>
             </div>
             <div class="review-workflow-actions">
@@ -3868,6 +3992,15 @@ function renderReviewWorkflowQueue() {
                 <button class="review-workflow-approve-btn" type="button" ${approveDisabled ? 'disabled' : ''} onclick="approveReviewWorkflowCase(${row.case_id}, this)">審核通過並建立回寫工作</button>
             </div>
         `;
+        const draftToolbar = item.querySelector('.review-workflow-draft-toolbar');
+        if (draftToolbar) {
+            draftToolbar.querySelector('small').textContent = '\u5148\u9818\u53d6\u6848\u4ef6\uff0c\u518d\u5f9e\u8abf\u67e5\u54e1\u97f3\u6a94\u5e36\u5165\u5167\u5bb9\uff1b\u5e36\u5165\u5f8c\u4ecd\u53ef\u9010\u6b04\u4fee\u6539\u3002';
+            draftToolbar.querySelector('.review-workflow-fill-existing-btn').textContent = '\u5e36\u5165\u76ee\u524d\u6a19\u6ce8';
+            draftToolbar.querySelector('.review-workflow-clear-btn').textContent = '\u6e05\u7a7a\u8349\u7a3f';
+        }
+        item.querySelectorAll('.review-workflow-fill-audio-btn').forEach(button => {
+            button.textContent = '\u586b\u5165\u9019\u7b46\u5167\u5bb9';
+        });
         container.appendChild(item);
     });
 }
@@ -3914,7 +4047,16 @@ async function assignReviewWorkflowCase(caseId) {
     }
 }
 
-async function saveReviewWorkflowDraft(caseId, button) {
+async function saveLegacyProofingDraft(caseId, button) {
+    const fields = collectReviewWorkflowDraftFields(caseId);
+    if (!hasReviewWorkflowDraftValues(fields)) {
+        alert('\u8acb\u5148\u586b\u5beb\u81f3\u5c11\u4e00\u500b\u6821\u5c0d\u6b04\u4f4d\u3002');
+        return;
+    }
+    await performReviewWorkflowAction('save_annotation_version', {
+        p_case_id: Number(caseId), p_actor_account: state.userId, p_fields: fields
+    }, button, '\u6821\u5c0d\u8349\u7a3f\u5df2\u4fdd\u5b58\u3002');
+    return;
     const note = prompt('請輸入校對草稿備註（可留空）：', '');
     if (note === null) return;
     await performReviewWorkflowAction('save_proofing_draft', {
@@ -3923,6 +4065,16 @@ async function saveReviewWorkflowDraft(caseId, button) {
     }, button, '校對草稿已保存。');
 }
 
+async function saveReviewWorkflowDraft(caseId, button) {
+    const fields = collectReviewWorkflowDraftFields(caseId);
+    if (!hasReviewWorkflowDraftValues(fields)) {
+        alert('\u8acb\u5148\u586b\u5beb\u81f3\u5c11\u4e00\u500b\u6821\u5c0d\u6b04\u4f4d\u3002');
+        return;
+    }
+    await performReviewWorkflowAction('save_annotation_version', {
+        p_case_id: Number(caseId), p_actor_account: state.userId, p_fields: fields
+    }, button, '\u6821\u5c0d\u8349\u7a3f\u5df2\u4fdd\u5b58\u3002');
+}
 async function approveReviewWorkflowCase(caseId, button) {
     if (!confirm('確定通過？系統只會建立 versioned Sheet writeback job，不會直接覆寫工作表。')) return;
     await performReviewWorkflowAction('approve_review_case', {

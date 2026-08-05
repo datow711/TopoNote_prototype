@@ -3535,6 +3535,21 @@ button:disabled {
 .review-workflow-fields { display: grid; gap: 6px; }
 .review-workflow-field { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed #e5e9ed; }
 .review-workflow-field span { color: #65727d; }
+.review-workflow-draft-toolbar { display: grid; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #e8edf1; }
+.review-workflow-draft-toolbar small { color: #60717b; line-height: 1.5; }
+.review-workflow-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.review-workflow-field { display: block; }
+.review-workflow-field span { display: block; margin-bottom: 4px; font-weight: 700; }
+.review-workflow-field input,
+.review-workflow-field textarea { width: 100%; box-sizing: border-box; min-height: 36px; padding: 8px 10px; border: 1px solid #cbd7df; border-radius: 7px; background: #fff; color: #20313d; font: inherit; }
+.review-workflow-field textarea { resize: vertical; min-height: 72px; }
+.review-workflow-field input:focus,
+.review-workflow-field textarea:focus { outline: 2px solid #7db8d4; outline-offset: 1px; border-color: #2586b2; }
+.review-workflow-fill-audio-btn,
+.review-workflow-fill-existing-btn,
+.review-workflow-clear-btn { min-height: 32px; padding: 6px 10px; border: 1px solid #a8c7d7; border-radius: 7px; background: #eef8fc; color: #176482; cursor: pointer; }
+.review-workflow-clear-btn { border-color: #d5c2b8; background: #fff8f4; color: #8a4b2d; }
+.review-workflow-fill-audio-btn:disabled { opacity: .65; cursor: wait; }
 .review-workflow-gate { display: inline-block; margin-top: 6px; }
 .review-workflow-gate.is-pass { color: #16834b; }
 .review-workflow-gate.is-blocked { color: #b45309; }
