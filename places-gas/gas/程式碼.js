@@ -15,9 +15,14 @@ var CHECKPOINT_DEFAULT_RETENTION = 5;
 var RECORDS_SHEET_NAME = 'Records';
 var RECORDS_SHEET_HEADERS = ['紀錄時間', '上傳者ID', '序號', '地名', '語言', '音讀', '錄音檔連結', '錄音ID'];
 var WRITTEN_ANNOTATION_CLASS = '書面標注';
+var WRITTEN_ANNOTATION_CLASSES = ['書面標注', '直接標注'];
 var SATELLITE_LOCKED_BACKGROUND = '#666666';
 var SATELLITE_LOCKED_FONT_COLOR = '#eeeeee';
 var SATELLITE_LOCKED_NOTE = '請勿填寫';
+
+function isWrittenAnnotationClassValue_(value) {
+  return WRITTEN_ANNOTATION_CLASSES.indexOf(String(value || '').trim()) >= 0;
+}
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
@@ -303,7 +308,7 @@ function onOpen() {
     .addSeparator()
     .addSubMenu(ui.createMenu('📂 L3 分發與回填')
       .addItem('分發任務到標注員表單 (Push)', 'pushTasksToSatelliteSheets')
-      .addItem('從各表單回填結果 (Pull)', 'pullResultsFromSatelliteSheets'))
+      .addItem('從各表單送入校對草稿 (Pull)', 'pullResultsFromSatelliteSheets'))
     .addSeparator()
     .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
     .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
@@ -971,7 +976,7 @@ function buildWrittenAnnotationReviewConflictWarning_(review, currentClass) {
 
 function detectWrittenAnnotationReviewConflict_(sheet, headerMap, rowNumber, review) {
   var currentClass = getSheetReviewClass_(sheet, headerMap, rowNumber, review.language);
-  if (currentClass !== WRITTEN_ANNOTATION_CLASS) return null;
+  if (!isWrittenAnnotationClassValue_(currentClass)) return null;
   return {
     currentClass: currentClass,
     warning: buildWrittenAnnotationReviewConflictWarning_(review, currentClass)
@@ -979,8 +984,8 @@ function detectWrittenAnnotationReviewConflict_(sheet, headerMap, rowNumber, rev
 }
 
 function rowHasWrittenAnnotationClass_(row, colMap) {
-  return String(getCellValue_(row, colMap, 'TaiClass') || '').trim() === WRITTEN_ANNOTATION_CLASS ||
-    String(getCellValue_(row, colMap, 'HakClass') || '').trim() === WRITTEN_ANNOTATION_CLASS;
+  return isWrittenAnnotationClassValue_(getCellValue_(row, colMap, 'TaiClass')) ||
+    isWrittenAnnotationClassValue_(getCellValue_(row, colMap, 'HakClass'));
 }
 
 function writeSatellitePushWarning_(sheet, colMap, rowNumber, warning) {
@@ -1001,7 +1006,7 @@ function buildSatellitePushClassWarning_(row, colMap) {
 
 function isLanguageWrittenAnnotationClass_(row, colMap, language) {
   var header = language === '台語' ? 'TaiClass' : 'HakClass';
-  return String(getCellValue_(row, colMap, header) || '').trim() === WRITTEN_ANNOTATION_CLASS;
+  return isWrittenAnnotationClassValue_(getCellValue_(row, colMap, header));
 }
 
 function buildSatellitePullClassWarning_(uuid, language, row, colMap) {
@@ -1083,6 +1088,26 @@ function callReviewWorkflowWritebackRpc_(rpcName, body) {
   return content ? JSON.parse(content) : null;
 }
 
+function callSatelliteDraftRpc_(body) {
+  return callReviewWorkflowWritebackRpc_('submit_satellite_annotation_draft', body);
+}
+
+function buildSatelliteDraftSourceStamp_(uuid, language, fields) {
+  var canonical = JSON.stringify({
+    sourceId: String(uuid || '').trim(),
+    language: String(language || '').trim(),
+    fields: fields || {}
+  });
+  var digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    canonical,
+    Utilities.Charset.UTF_8
+  );
+  return digest.map(function(byte) {
+    var value = byte < 0 ? byte + 256 : byte;
+    return ('0' + value.toString(16)).slice(-2);
+  }).join('');
+}
 function fetchReviewWorkflowWritebackJobs_() {
   return fetchSupabaseRows_('app_review_workflow_writeback_queue?select=*&status=in.(queued,retry)&order=job_id.asc');
 }
@@ -1817,121 +1842,158 @@ function pushTasksToSatelliteSheets() {
 
 
 /**
- * 🛰️ 從所有衛星表單拉回標注結果 (強化版：自動標記待審查 + 備註欄位對接)
+ * 🛰️ 從所有衛星表單拉回標注結果，送入共用校對草稿層。
+ * 正式標注欄位只會在校對核准後由 writeback job 回寫。
  */
 function pullResultsFromSatelliteSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var l2Sheet = ss.getSheetByName("第三期工作清單");
   var userListSheet = ss.getSheetByName("書面標注員名單");
-  
+
   if (!l2Sheet || !userListSheet) {
     return SpreadsheetApp.getUi().alert("❌ 錯誤：找不到「第三期工作清單」或「書面標注員名單」工作表。");
   }
 
-  // 1. 取得標注員清單與 L2 表頭對照
   var userData = userListSheet.getDataRange().getValues();
   var l2Data = l2Sheet.getDataRange().getValues();
-  var l2Headers = l2Data[0];
+  var l2Headers = l2Data[0] || [];
   var l2ColMap = {};
-  l2Headers.forEach((h, i) => l2ColMap[h.trim()] = i);
+  l2Headers.forEach((h, i) => l2ColMap[String(h || '').trim()] = i);
 
-  // 建立 L2 的 UUID 索引快速查找 { "UUID": 列號 }
   var l2IndexMap = {};
   for (var i = 1; i < l2Data.length; i++) {
-    var uuidKey = String(l2Data[i][l2ColMap["UUID"]]).trim();
+    var uuidKey = String(l2Data[i][l2ColMap["UUID"]] || '').trim();
     if (uuidKey) l2IndexMap[uuidKey] = i + 1;
   }
 
-  var totalUpdated = 0;
+  var totalSubmitted = 0;
+  var submittedRowCount = 0;
   var classConflictCount = 0;
+  var bridgeErrorCount = 0;
 
-  // 2. 遍歷每位標注員的衛星檔案
   for (var u = 1; u < userData.length; u++) {
-    var person = userData[u][0];
-    var sheetId = userData[u][1];
+    var person = String(userData[u][0] || '').trim();
+    var sheetId = String(userData[u][1] || '').trim();
     if (!sheetId) continue;
 
     try {
       var sSS = SpreadsheetApp.openById(sheetId);
       var sSheet = sSS.getSheets()[0];
       var sData = sSheet.getDataRange().getValues();
-      var sHeaders = sData[0];
+      var sHeaders = sData[0] || [];
       var sColMap = {};
-      sHeaders.forEach((h, i) => sColMap[h.trim()] = i);
+      sHeaders.forEach((h, i) => sColMap[String(h || '').trim()] = i);
+
+      var getSatelliteValue = function(row, header) {
+        var index = sColMap[header];
+        return index === undefined ? '' : row[index];
+      };
 
       for (var j = 1; j < sData.length; j++) {
         var sRow = sData[j];
-        var uuid = String(sRow[sColMap["UUID"]]).trim();
-        
-        // 取得填寫內容
-        var twHan = String(sRow[sColMap["台文漢字"]]).trim();
-        var twRoman = String(sRow[sColMap["台文羅馬字"]]).trim();
-        var hkHan = String(sRow[sColMap["客文漢字"]]).trim();
-        var hkRoman = String(sRow[sColMap["客文羅馬字"]]).trim();
-        var note = sRow[sColMap["備註"]];
+        var uuid = String(getSatelliteValue(sRow, "UUID") || '').trim();
+        if (!uuid || !l2IndexMap[uuid]) continue;
 
-        // --- 核心邏輯：分語種確認主表分類，只有書面標注分級才允許回填 ---
-        if ((twHan !== "" || twRoman !== "" || hkHan !== "" || hkRoman !== "") && l2IndexMap[uuid]) {
-          var rowNum = l2IndexMap[uuid];
-          var l2Row = l2Data[rowNum - 1];
-          var rowUpdated = false;
-          var rowWarnings = [];
+        var twHan = String(getSatelliteValue(sRow, "台文漢字") || '').trim();
+        var twRoman = String(getSatelliteValue(sRow, "台文羅馬字") || '').trim();
+        var hkHan = String(getSatelliteValue(sRow, "客文漢字") || '').trim();
+        var hkRoman = String(getSatelliteValue(sRow, "客文羅馬字") || '').trim();
+        var note = String(getSatelliteValue(sRow, "備註") || '').trim();
+        if (!twHan && !twRoman && !hkHan && !hkRoman) continue;
 
-          if (twHan !== "" || twRoman !== "") {
-            if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '台語')) {
-              l2Sheet.getRange(rowNum, l2ColMap["台文漢字"] + 1).setValue(sRow[sColMap["台文漢字"]]);
-              l2Sheet.getRange(rowNum, l2ColMap["台文羅馬字"] + 1).setValue(sRow[sColMap["台文羅馬字"]]);
+        var rowNum = l2IndexMap[uuid];
+        var l2Row = l2Data[rowNum - 1];
+        var rowUpdated = false;
+        var rowWarnings = [];
+        var taiFields = {};
+        var hakFields = {};
+
+        if (twHan) taiFields.TaiHan1 = twHan;
+        if (twRoman) taiFields.TL1 = twRoman;
+        if (note) taiFields.TaiNote = note;
+        if (hkHan) hakFields.Honzii = hkHan;
+        if (hkRoman) hakFields.HP1 = hkRoman;
+        if (note) hakFields.HakNote = note;
+
+        var submitDraft = function(language, fields) {
+          var stamp = buildSatelliteDraftSourceStamp_(uuid, language, fields);
+          callSatelliteDraftRpc_({
+            p_source_id: uuid,
+            p_source_table: 'third_phase_places',
+            p_language: language,
+            p_fields: fields,
+            p_source_actor: person,
+            p_source_stamp: stamp
+          });
+        };
+
+        if (twHan || twRoman) {
+          if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '台語')) {
+            try {
+              submitDraft('台語', taiFields);
+              totalSubmitted++;
               rowUpdated = true;
-            } else {
-              classConflictCount++;
-              rowWarnings.push(buildSatellitePullClassWarning_(uuid, '台語', l2Row, l2ColMap));
+            } catch (error) {
+              bridgeErrorCount++;
+              rowWarnings.push('台語草稿送入失敗：' + error.message);
             }
+          } else {
+            classConflictCount++;
+            rowWarnings.push(buildSatellitePullClassWarning_(uuid, '台語', l2Row, l2ColMap));
           }
+        }
 
-          if (hkHan !== "" || hkRoman !== "") {
-            if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '客語')) {
-              l2Sheet.getRange(rowNum, l2ColMap["客文漢字"] + 1).setValue(sRow[sColMap["客文漢字"]]);
-              l2Sheet.getRange(rowNum, l2ColMap["客文羅馬字"] + 1).setValue(sRow[sColMap["客文羅馬字"]]);
+        if (hkHan || hkRoman) {
+          if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '客語')) {
+            try {
+              submitDraft('客語', hakFields);
+              totalSubmitted++;
               rowUpdated = true;
-            } else {
-              classConflictCount++;
-              rowWarnings.push(buildSatellitePullClassWarning_(uuid, '客語', l2Row, l2ColMap));
+            } catch (error) {
+              bridgeErrorCount++;
+              rowWarnings.push('客語草稿送入失敗：' + error.message);
             }
+          } else {
+            classConflictCount++;
+            rowWarnings.push(buildSatellitePullClassWarning_(uuid, '客語', l2Row, l2ColMap));
           }
+        }
 
-          if (rowWarnings.length > 0) {
-            writeSatellitePushWarning_(l2Sheet, l2ColMap, rowNum, rowWarnings.join(' / '));
+        if (rowWarnings.length > 0) {
+          writeSatellitePushWarning_(l2Sheet, l2ColMap, rowNum, rowWarnings.join(' / '));
+        }
+
+        if (rowUpdated) {
+          if (l2ColMap["任務狀態"] !== undefined) {
+            l2Sheet.getRange(rowNum, l2ColMap["任務狀態"] + 1).setValue("待校對");
           }
-
-          if (rowUpdated) {
-            // 衛星表「備註」 -> L2「標注員備註」
-            if (l2ColMap["標注員備註"] !== undefined) {
-              l2Sheet.getRange(rowNum, l2ColMap["標注員備註"] + 1).setValue(note);
-            }
-
-            // 自動修改狀態為「待審查」
-            l2Sheet.getRange(rowNum, l2ColMap["任務狀態"] + 1).setValue("待審查");
-
-            // 更新標注時間
+          if (l2ColMap["標注時間"] !== undefined) {
             var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
             l2Sheet.getRange(rowNum, l2ColMap["標注時間"] + 1).setValue(now);
-
-            totalUpdated++;
           }
+          submittedRowCount++;
         }
       }
     } catch (e) {
-      Logger.log("從 " + person + " 回填失敗: " + e.message);
+      bridgeErrorCount++;
+      Logger.log("從 " + person + " 送入校對草稿失敗: " + e.message);
     }
   }
 
-  // 3. 更新同步時間並回報結果
   var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
-  userListSheet.getRange(2, 3, userData.length - 1, 1).setValue(syncTime);
+  if (userData.length > 1) {
+    userListSheet.getRange(2, 3, userData.length - 1, 1).setValue(syncTime);
+  }
 
-  var message = "✅ 回填完成！\n共掃描並更新了 " + totalUpdated + " 筆已填寫的詞條。\n狀態已自動更新為「待審查」。";
+  var message = "✅ 校對草稿送入完成！\n共送入 " + totalSubmitted +
+    " 個語種草稿，涉及 " + submittedRowCount + " 筆詞條。";
   if (classConflictCount > 0) {
-    message += "\n⚠️ 已略過 " + classConflictCount + " 筆語種回填，原因是主表 TaiClass/HakClass 不是書面標注，請查看同步警告欄。";
+    message += "\n⚠️ 已略過 " + classConflictCount +
+      " 筆語種，原因是主表分類不是書面標注，請查看同步警告欄。";
+  }
+  if (bridgeErrorCount > 0) {
+    message += "\n❌ 有 " + bridgeErrorCount +
+      " 筆送入失敗，請查看 Apps Script 執行紀錄與同步警告。";
   }
   SpreadsheetApp.getUi().alert(message);
 }

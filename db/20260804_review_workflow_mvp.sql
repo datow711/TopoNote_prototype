@@ -31,6 +31,9 @@ create table if not exists public.annotation_versions (
   version_kind text not null default 'draft' check (version_kind in ('draft', 'final', 'legacy')),
   fields jsonb not null default '{}'::jsonb,
   created_by text not null,
+  source_type text not null default 'app' check (source_type in ('app', 'satellite', 'admin')),
+  source_actor text,
+  source_stamp text not null default '',
   created_at timestamptz not null default now(),
   unique (case_id, version_no)
 );
@@ -185,7 +188,8 @@ with source_rows as (
          info, tai_class, hak_class, t_updated_at, h_updated_at
   from public.test_places
 ), latest_versions as (
-  select distinct on (case_id) case_id, id as version_id, version_no, version_kind, fields, created_by, created_at
+  select distinct on (case_id) case_id, id as version_id, version_no, version_kind, fields, created_by,
+         source_type, source_actor, source_stamp, created_at
   from public.annotation_versions
   order by case_id, version_no desc
 ), latest_audio_assessments as (
@@ -266,7 +270,10 @@ select
        when coalesce(a.follow_up_audio_count, 0) > 0 then '待追問'
        else '已判定' end as audio_review_state,
   coalesce(e.evidence, '[]'::jsonb) as audio_evidence,
-  case when c.language = '台語' then src.t_updated_at else src.h_updated_at end as current_sheet_stamp
+  case when c.language = '台語' then src.t_updated_at else src.h_updated_at end as current_sheet_stamp,
+  lv.source_type as annotation_source_type,
+  lv.source_actor as annotation_source_actor,
+  lv.source_stamp as annotation_source_stamp
 from public.annotation_cases c
 join public.final_tasks ft on ft.id = c.task_id
 left join source_rows src on src.uuid = ft.source_id and src.source_table = ft.source_table
