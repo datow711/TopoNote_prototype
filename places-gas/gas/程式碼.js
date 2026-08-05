@@ -1087,6 +1087,18 @@ function fetchReviewWorkflowWritebackJobs_() {
   return fetchSupabaseRows_('app_review_workflow_writeback_queue?select=*&status=in.(queued,retry)&order=job_id.asc');
 }
 
+function getReviewWorkflowSheetName_(sourceTable) {
+  var normalizedSourceTable = String(sourceTable || '').trim();
+  if (normalizedSourceTable === 'test_places') return TEST_ENTRIES_SHEET_NAME;
+  if (normalizedSourceTable === 'third_phase_places') return THIRD_PHASE_SHEET_NAME;
+
+  throw new Error(
+    '不支援的 workflow source_table：' +
+    (normalizedSourceTable || '（空白）') +
+    '。只允許 test_places 或 third_phase_places。'
+  );
+}
+
 function buildReviewWorkflowSheetUpdate_(job, headerMap) {
   var payload = job.payload || {};
   if (typeof payload === 'string') payload = JSON.parse(payload || '{}');
@@ -1133,7 +1145,7 @@ function syncReviewWorkflowWritebacks(options) {
 
     jobs.forEach(function(job) {
       try {
-        var sheetName = job.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+        var sheetName = getReviewWorkflowSheetName_(job.source_table);
         var context = getContext(sheetName);
         var rowNumber = context.uuidRows[String(job.source_id || '').trim()];
         if (!rowNumber) throw new Error('找不到來源 UUID：' + job.source_id);
@@ -1272,7 +1284,13 @@ function syncTaskAssignmentsToSheets(options) {
       var hAnnotator = String(row.h_annotator || '').trim();
       if (!tState && !hState) return;
 
-      var sheetName = row.source_table === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+      var sheetName;
+      try {
+        sheetName = getReviewWorkflowSheetName_(row.source_table);
+      } catch (error) {
+        skipped.push(row.source_id + '：' + error.message);
+        return;
+      }
       var context = getContext(sheetName);
       if (!context) {
         skipped.push(row.source_id + '：找不到工作表 ' + sheetName);
