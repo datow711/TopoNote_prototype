@@ -3581,4 +3581,12 @@ button:disabled {
 .review-workflow-gate.is-blocked { color: #b45309; }
 .review-workflow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .review-workflow-actions button { min-height: 36px; }
+.review-workflow-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #dfe6eb; border-radius: 8px; background: #f8fbfc; }
+.review-workflow-filter-bar label { display: flex; align-items: center; gap: 8px; color: #526573; font-weight: 700; }
+.review-workflow-filter-bar select { min-width: 150px; min-height: 36px; padding: 6px 10px; border: 1px solid #bdccd5; border-radius: 7px; background: #fff; color: #20313d; font: inherit; }
+.review-workflow-filter-count { color: #6a7b87; font-size: .9rem; }
+@media (max-width: 640px) {
+    .review-workflow-filter-bar { align-items: stretch; flex-direction: column; }
+    .review-workflow-filter-bar label { justify-content: space-between; }
+    .review-workflow-filter-bar select { flex: 1; min-width: 0; }
 @media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-fields { grid-template-columns: 1fr; } .review-workflow-field { display: block; } .review-workflow-field.is-multiline { grid-column: auto; } }

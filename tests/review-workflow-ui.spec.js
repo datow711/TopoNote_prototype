@@ -75,6 +75,73 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   await expect(page.locator('#review-workflow-77-tai-TL2')).toHaveValue('');
 });
 
+test('admin filters workflow cases by draft status', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [
+      {
+        case_id: 1,
+        task_id: 1,
+        language: '\u53f0\u8a9e',
+        place_name: 'draft-case',
+        class_name: 'test',
+        state: 'pending',
+        version_kind: 'draft',
+        annotation_fields: { TaiHan1: 'draft-value' },
+        audio_record_count: 1,
+        assessed_audio_count: 0,
+        usable_audio_count: 0,
+        distinct_respondent_count: 0,
+        audio_gate_passed: false,
+        audio_evidence: [],
+        audio_sources_loaded: true,
+        legacy_unreviewed: false
+      },
+      {
+        case_id: 2,
+        task_id: 2,
+        language: '\u53f0\u8a9e',
+        place_name: 'no-draft-case',
+        class_name: 'test',
+        state: 'pending',
+        version_kind: null,
+        annotation_fields: {},
+        audio_record_count: 1,
+        assessed_audio_count: 0,
+        usable_audio_count: 0,
+        distinct_respondent_count: 0,
+        audio_gate_passed: false,
+        audio_evidence: [],
+        audio_sources_loaded: true,
+        legacy_unreviewed: false
+      }
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  const filter = page.locator('#review-workflow-draft-filter');
+  const items = page.locator('.review-workflow-item');
+  await expect(filter).toHaveValue('draft');
+  await expect(items).toHaveCount(1);
+  await expect(items).toContainText('draft-case');
+
+  await filter.selectOption('all');
+  await expect(items).toHaveCount(2);
+
+  await filter.selectOption('draft');
+  await expect(items).toHaveCount(1);
+  await expect(items).toContainText('draft-case');
+
+  await filter.selectOption('no-draft');
+  await expect(items).toHaveCount(1);
+  await expect(items).toContainText('no-draft-case');
+});
 test('ordinary investigator cannot enter the proofing workbench', async ({ page }) => {
   await page.goto(appUrl);
   const state = await page.evaluate(() => {

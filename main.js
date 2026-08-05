@@ -19,7 +19,7 @@ const PLACE_MAP_DEFAULT_ZOOM = 7;
 const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false,
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft',
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -1123,6 +1123,7 @@ function logout() {
     state.uploadReportGroupMode = 'date';
     state.reviewQueue = [];
     state.reviewWorkflowQueue = [];
+    state.reviewWorkflowDraftFilter = 'draft';
     state.reviewWorkflowAvailable = false;
     state.selectedPlace = null;
     state.currentTab = 'assigned';
@@ -3750,6 +3751,46 @@ async function loadReviewWorkflowQueue({ silent = false } = {}) {
     }
 }
 
+function hasReviewWorkflowDraft(row) {
+    const fields = getReviewWorkflowFields(row);
+    return row?.version_kind === 'draft'
+        && Object.values(fields).some(value => String(value || '').trim());
+}
+
+function getReviewWorkflowDraftFilter() {
+    if (state.userRole !== 'admin') return 'all';
+    return ['all', 'draft', 'no-draft'].includes(state.reviewWorkflowDraftFilter)
+        ? state.reviewWorkflowDraftFilter
+        : 'all';
+}
+
+function getReviewWorkflowVisibleRows() {
+    const filter = getReviewWorkflowDraftFilter();
+    if (filter === 'draft') return state.reviewWorkflowQueue.filter(hasReviewWorkflowDraft);
+    if (filter === 'no-draft') return state.reviewWorkflowQueue.filter(row => !hasReviewWorkflowDraft(row));
+    return state.reviewWorkflowQueue;
+}
+
+function setReviewWorkflowDraftFilter(value) {
+    state.reviewWorkflowDraftFilter = ['all', 'draft', 'no-draft'].includes(value) ? value : 'all';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function renderReviewWorkflowAdminFilter(visibleRows) {
+    const activeFilter = getReviewWorkflowDraftFilter();
+    return `
+        <div class="review-workflow-filter-bar">
+            <label for="review-workflow-draft-filter">\u8349\u7a3f\u72c0\u614b
+                <select id="review-workflow-draft-filter" onchange="setReviewWorkflowDraftFilter(this.value)">
+                    <option value="all" ${activeFilter === 'all' ? 'selected' : ''}>\u5168\u90e8\u6848\u4ef6</option>
+                    <option value="draft" ${activeFilter === 'draft' ? 'selected' : ''}>\u6709\u6821\u5c0d\u8349\u7a3f</option>
+                    <option value="no-draft" ${activeFilter === 'no-draft' ? 'selected' : ''}>\u7121\u6821\u5c0d\u8349\u7a3f</option>
+                </select>
+            </label>
+            <span class="review-workflow-filter-count">\u986f\u793a ${visibleRows.length} / ${state.reviewWorkflowQueue.length} \u7b46</span>
+        </div>
+    `;
+}
 function getReviewWorkflowFields(row) {
     const fields = row?.annotation_fields || {};
     if (typeof fields === 'string') {
@@ -4113,12 +4154,20 @@ function renderReviewWorkflowQueue() {
         container.innerHTML = '<div class="empty-state">新審查 workflow 尚未部署；既有資料仍保留在原流程。</div>';
         return;
     }
+    const visibleRows = getReviewWorkflowVisibleRows();
+    if (state.userRole === 'admin') {
+        container.innerHTML = renderReviewWorkflowAdminFilter(visibleRows);
+    }
     if (!state.reviewWorkflowQueue.length) {
         container.innerHTML = '<div class="empty-state">目前沒有分派給此帳號的審查案件。</div>';
         return;
     }
 
-    state.reviewWorkflowQueue.forEach(row => {
+    if (!visibleRows.length) {
+        container.insertAdjacentHTML('beforeend', '<div class="empty-state">\u76ee\u524d\u6c92\u6709\u7b26\u5408\u8349\u7a3f\u72c0\u614b\u7684\u5be9\u67e5\u6848\u4ef6\u3002</div>');
+        return;
+    }
+    visibleRows.forEach(row => {
         const gate = Number(row.distinct_respondent_count || 0) >= 2 && row.audio_gate_passed !== false;
         const fields = getReviewWorkflowFields(row);
         const canEdit = state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId);
