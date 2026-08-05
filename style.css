@@ -3315,7 +3315,7 @@ button:disabled {
     .admin-assign-toggle {
         display: grid;
         width: 100%;
-        min-height: 36px
+        min-height: 36px;
         grid-template-columns: auto 1fr auto;
         align-items: center;
         gap: 10px;
@@ -3632,3 +3632,107 @@ button:disabled {
     .review-workflow-filter-bar label { justify-content: space-between; }
     .review-workflow-filter-bar select { flex: 1; min-width: 0; }
 @media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-fields { grid-template-columns: 1fr; } .review-workflow-field { display: block; } .review-workflow-field.is-multiline { grid-column: auto; } }
+
+/* Review workbench split */
+.review-workbench-switcher {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid #d9e4ea;
+    border-radius: 10px;
+    background: #f6fafc;
+    color: #294456;
+}
+.review-workbench-mode-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.review-workbench-mode-btn {
+    min-height: 36px;
+    padding: 7px 14px;
+    border: 1px solid #aac2cf;
+    border-radius: 8px;
+    background: #fff;
+    color: #315467;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workbench-mode-btn:hover,
+.review-workbench-mode-btn:focus-visible {
+    border-color: #21739a;
+    background: #eef8fc;
+    color: #155775;
+}
+.review-workbench-mode-btn.is-active {
+    border-color: #1e6f91;
+    background: #1e6f91;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(25, 78, 102, .18);
+}
+.review-workflow-source-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 8px;
+    border: 1px solid #e3b56a;
+    border-radius: 999px;
+    background: #fff7e8;
+    color: #8a5510;
+    font-size: .86rem;
+    font-weight: 700;
+}
+.review-workflow-grid.review-workflow-audio-only {
+    grid-template-columns: minmax(0, 1fr);
+}
+.review-workflow-source-note {
+    margin: 0;
+    color: #526573;
+    line-height: 1.6;
+}
+@media (max-width: 640px) {
+    .review-workbench-switcher {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .review-workbench-mode-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .review-workbench-mode-btn {
+        width: 100%;
+    }
+}
+/* Mobile touch targets */
+@media (max-width: 640px) {
+    #email,
+    #password,
+    #login-btn,
+    #admin-toggle-btn,
+    #admin-login-btn,
+    .btn-announcements,
+    .btn-user-more,
+    #user-secondary-actions button,
+    .tab-btn,
+    #search-box,
+    #mobile-filter-toggle,
+    #place-map-toggle,
+    #filter-panel button,
+    #filter-panel select,
+    #admin-filter-controls input,
+    #admin-filter-controls select,
+    #admin-class-filter-slot button,
+    #admin-assign-toggle,
+    #admin-assign-panel input,
+    #admin-assign-panel select,
+    #admin-assign-panel button,
+    .place-map-close,
+    .assign-checkbox-hitbox {
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+}

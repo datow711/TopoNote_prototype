@@ -19,7 +19,7 @@ const PLACE_MAP_DEFAULT_ZOOM = 7;
 const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
-    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft',
+    userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft', reviewWorkbenchMode: 'proofing',
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -1124,6 +1124,7 @@ function logout() {
     state.reviewQueue = [];
     state.reviewWorkflowQueue = [];
     state.reviewWorkflowDraftFilter = 'draft';
+    state.reviewWorkbenchMode = 'proofing';
     state.reviewWorkflowAvailable = false;
     state.selectedPlace = null;
     state.currentTab = 'assigned';
@@ -3776,6 +3777,41 @@ function setReviewWorkflowDraftFilter(value) {
     if (state.currentTab === 'review') renderReviewWorkflowQueue();
 }
 
+function getReviewWorkflowSourceType(row) {
+    return String(row?.annotation_source_type || row?.source_type || '').trim().toLowerCase();
+}
+
+function isReviewWorkflowSatelliteRow(row) {
+    return getReviewWorkflowSourceType(row) === 'satellite';
+}
+
+function isReviewWorkflowWrittenRow(row) {
+    return isReviewWorkflowSatelliteRow(row) || String(row?.class_name || '').trim() === '書面標注';
+}
+
+function getReviewWorkbenchMode() {
+    if (state.userRole !== 'admin') return 'proofing';
+    return state.reviewWorkbenchMode === 'audio' ? 'audio' : 'proofing';
+}
+
+function setReviewWorkbenchMode(mode) {
+    if (state.userRole !== 'admin') return;
+    state.reviewWorkbenchMode = mode === 'audio' ? 'audio' : 'proofing';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function renderReviewWorkbenchSwitcher() {
+    const mode = getReviewWorkbenchMode();
+    const audioButton = state.userRole === 'admin'
+        ? "<button type='button' class='review-workbench-mode-btn " + (mode === 'audio' ? 'is-active' : '') + "' data-mode='audio' aria-pressed='" + (mode === 'audio') + "' onclick='setReviewWorkbenchMode(\"audio\")'>音檔檢驗</button>"
+        : '';
+    return "<div class='review-workbench-switcher' role='group' aria-label='審查工作台'>" +
+        "<strong>工作台</strong>" +
+        "<div class='review-workbench-mode-buttons'>" +
+        "<button type='button' class='review-workbench-mode-btn " + (mode === 'proofing' ? 'is-active' : '') + "' data-mode='proofing' aria-pressed='" + (mode === 'proofing') + "' onclick='setReviewWorkbenchMode(\"proofing\")'>校對審查</button>" +
+        audioButton +
+        "</div></div>";
+}
 function renderReviewWorkflowAdminFilter(visibleRows) {
     const activeFilter = getReviewWorkflowDraftFilter();
     return `
@@ -3942,7 +3978,7 @@ function getReviewWorkflowAudioEvidence(row) {
 function renderLegacyReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
-    const canAssess = state.userRole === 'admin';
+    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
     return `<div class="review-workflow-audio-list">${evidence.map(item => `
         <div class="review-workflow-audio-row">
             <span>音檔 #${escapeHtml(item.audio_record_id)}｜${escapeHtml(item.recorder_name || '未知錄音人')}｜${escapeHtml(item.assessment_decision || '未審聽')}</span>
@@ -3996,7 +4032,7 @@ function renderLegacyReviewWorkflowAudioSourceTable(row, canEdit = false) {
         .filter(Boolean);
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
-    const canAssess = state.userRole === 'admin';
+    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
     return `
         <div class="review-record-table-wrap review-workflow-source-table-wrap" data-review-source-table="${row.case_id}">
             <table class="review-record-table review-workflow-source-table">
@@ -4046,7 +4082,7 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
         .filter(Boolean);
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
-    const canAssess = state.userRole === 'admin';
+    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
     return `
         <div class="review-workflow-source-list" data-review-source-table="${row.case_id}">
             ${evidence.map((item, index) => {
@@ -4142,10 +4178,12 @@ async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecord
         p_decision: decision, p_reason: reason
     }, button, '音檔判定已保存。');
 }
+
 function renderReviewWorkflowQueue() {
     const container = document.getElementById('place-list-container');
     if (!container) return;
-    container.innerHTML = '';
+    const workbenchMode = getReviewWorkbenchMode();
+    container.innerHTML = renderReviewWorkbenchSwitcher();
     if (!isReviewWorkflowRole()) {
         container.innerHTML = '<div class="empty-state">目前帳號沒有校對權限。</div>';
         return;
@@ -4156,10 +4194,10 @@ function renderReviewWorkflowQueue() {
     }
     const visibleRows = getReviewWorkflowVisibleRows();
     if (state.userRole === 'admin') {
-        container.innerHTML = renderReviewWorkflowAdminFilter(visibleRows);
+        container.insertAdjacentHTML('beforeend', renderReviewWorkflowAdminFilter(visibleRows));
     }
     if (!state.reviewWorkflowQueue.length) {
-        container.innerHTML = '<div class="empty-state">目前沒有分派給此帳號的審查案件。</div>';
+        container.insertAdjacentHTML('beforeend', '<div class="empty-state">目前沒有分派給此帳號的審查案件。</div>');
         return;
     }
 
@@ -4169,19 +4207,25 @@ function renderReviewWorkflowQueue() {
     }
     visibleRows.forEach(row => {
         const fields = getReviewWorkflowFields(row);
-        const canEdit = state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId);
+        const isAudioMode = workbenchMode === 'audio';
+        const isWritten = isReviewWorkflowWrittenRow(row);
+        const canEdit = !isAudioMode && (state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId));
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
         const isAdmin = state.userRole === 'admin';
         const claimAction = isClaimOwner
             ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
             : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
-        const approveDisabled = row.version_kind === 'legacy' || !Object.keys(fields).length || (!isAdmin && !isClaimOwner);
+        const hasDraft = hasReviewWorkflowDraft(row);
+        const approveDisabled = row.version_kind === 'legacy' || !hasDraft || (!isAdmin && !isClaimOwner);
         const approveReason = row.version_kind === 'legacy'
             ? '\u76ee\u524d\u662f\u820a\u7248\u8cc7\u6599\uff0c\u4e0d\u80fd\u76f4\u63a5\u5be9\u6838'
-            : !Object.keys(fields).length
+            : !hasDraft
                 ? '\u8acb\u5148\u5efa\u7acb\u6821\u5c0d\u8349\u7a3f'
                 : (!isAdmin && !isClaimOwner ? '\u8acb\u5148\u9818\u53d6\u6848\u4ef6' : '');
         const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
+        const sourceBadge = isReviewWorkflowSatelliteRow(row)
+            ? '<span class="review-workflow-source-badge">衛星草稿</span>'
+            : '';
         const assignButton = isAdmin
             ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
             : '';
@@ -4194,6 +4238,7 @@ function renderReviewWorkflowQueue() {
                     <div class="place-meta">
                         <span class="meta-badge">${escapeHtml(row.language || '')}</span>
                         <span class="meta-badge">${escapeHtml(row.class_name || '未分類')}</span>
+                        ${sourceBadge}
                         <span class="meta-badge">${escapeHtml(row.county || '')} ${escapeHtml(row.town || '')}</span>
                         <span class="review-state review-pending">${escapeHtml(row.state || '待指派')}</span>
                         ${legacyBadge}
@@ -4220,21 +4265,54 @@ function renderReviewWorkflowQueue() {
                 ${approveReason ? `<small class="review-workflow-approve-hint">${escapeHtml(approveReason)}</small>` : ''}
             </div>
         `;
-        const draftToolbar = item.querySelector('.review-workflow-draft-toolbar');
-        if (draftToolbar) {
-            draftToolbar.querySelector('small').textContent = '\u5148\u9818\u53d6\u6848\u4ef6\uff0c\u518d\u5f9e\u8abf\u67e5\u54e1\u97f3\u6a94\u5e36\u5165\u5167\u5bb9\uff1b\u5e36\u5165\u5f8c\u4ecd\u53ef\u9010\u6b04\u4fee\u6539\u3002';
-            draftToolbar.querySelector('.review-workflow-fill-existing-btn').textContent = '\u5e36\u5165\u76ee\u524d\u6a19\u6ce8';
-            draftToolbar.querySelector('.review-workflow-clear-btn').textContent = '\u6e05\u7a7a\u8349\u7a3f';
+        if (isAudioMode) {
+            const grid = item.querySelector('.review-workflow-grid');
+            const draftPanel = grid?.querySelector('.review-workflow-panel:first-child');
+            const audioPanel = grid?.querySelector('.review-workflow-panel:last-child');
+            draftPanel?.remove();
+            grid?.classList.add('review-workflow-audio-only');
+            if (audioPanel) {
+                if (isWritten) {
+                    audioPanel.innerHTML = '<h4>音檔檢驗工作台</h4><p class="review-workflow-source-note">此案件是衛星書面草稿，不需要音檔判定。</p>';
+                } else {
+                    const heading = audioPanel.querySelector('h4');
+                    if (heading) heading.textContent = '音檔檢驗工作台';
+                }
+            }
+            item.querySelector('.review-workflow-actions')?.remove();
+        } else {
+            const draftPanel = item.querySelector('.review-workflow-grid .review-workflow-panel:first-child');
+            const draftHeading = draftPanel?.querySelector('h4');
+            if (draftHeading) draftHeading.textContent = '校對草稿';
+            const audioPanel = item.querySelector('.review-workflow-grid .review-workflow-panel:last-child');
+            if (audioPanel && isWritten) {
+                audioPanel.innerHTML = '<h4>來源摘要</h4><p class="review-workflow-source-note">衛星表單內容已送入共用校對草稿層，請直接校對；這筆案件不需要音檔判定。</p>';
+            } else if (audioPanel) {
+                const heading = audioPanel.querySelector('h4');
+                if (heading) heading.textContent = '調查員內容（僅供校對帶入）';
+            }
+            const draftToolbar = item.querySelector('.review-workflow-draft-toolbar');
+            if (draftToolbar) {
+                if (isReviewWorkflowSatelliteRow(row)) {
+                    draftToolbar.querySelector('small').textContent = '衛星表單內容已送入共用校對草稿層，請確認後保存。';
+                    draftToolbar.querySelector('.review-workflow-fill-existing-btn').textContent = '載入目前草稿';
+                } else {
+                    draftToolbar.querySelector('small').textContent = '先領取案件，再從調查員音檔帶入內容；帶入後仍可逐欄修改。';
+                    draftToolbar.querySelector('.review-workflow-fill-existing-btn').textContent = '帶入目前標注';
+                }
+                draftToolbar.querySelector('.review-workflow-clear-btn').textContent = '清空草稿';
+            }
+            item.querySelectorAll('.review-workflow-fill-audio-btn').forEach(button => {
+                button.textContent = '填入這筆內容';
+            });
         }
-        item.querySelectorAll('.review-workflow-fill-audio-btn').forEach(button => {
-            button.textContent = '\u586b\u5165\u9019\u7b46\u5167\u5bb9';
-        });
         container.appendChild(item);
-        if (!row.audio_sources_loaded && !Array.isArray(row.audio_sources)) {
+        if (!isWritten && !row.audio_sources_loaded && !Array.isArray(row.audio_sources)) {
             loadReviewWorkflowAudioSourcesForRow(row, item, canEdit);
         }
     });
 }
+
 
 async function performReviewWorkflowAction(rpcName, body, button, successMessage) {
     const originalText = button?.innerText || '';

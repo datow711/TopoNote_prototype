@@ -58,6 +58,7 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
       assigned_to: 'proof@example.com',
       claim_by: 'proof@example.com',
       current_version_no: 2,
+      version_kind: 'draft',
       annotation_fields: { TaiHan1: '測試漢字', TL1: 'tse3', TaiNote: '保留' },
       audio_record_count: 2,
       assessed_audio_count: 2,
@@ -83,8 +84,8 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
 
   await expect(page.locator('.review-workflow-item')).toContainText('測試地名');
   await expect(page.locator('.review-workflow-item')).not.toContainText('兩位不同受訪者');
-  await expect(page.locator('.review-workflow-item')).toContainText('標注版本（校對員唯讀）');
-  await expect(page.locator('.review-workflow-item')).toContainText('音檔判定（唯讀）');
+  await expect(page.locator('.review-workflow-item')).toContainText('校對草稿');
+  await expect(page.locator('.review-workflow-item')).toContainText('調查員內容（僅供校對帶入）');
   await expect(page.locator('.review-workflow-source-card')).toHaveCount(2);
   await expect(page.locator('.review-workflow-source-field')).toHaveCount(6);
   const sourceWidth = await page.locator('.review-workflow-source-list').evaluate(element => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
@@ -178,6 +179,85 @@ test('admin filters workflow cases by draft status', async ({ page }) => {
   await expect(items).toHaveCount(1);
   await expect(items).toContainText('no-draft-case');
 });
+
+test('admin audio inspection workbench hides proofing controls', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkbenchMode = 'audio';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 91,
+      task_id: 91,
+      language: '台語',
+      place_name: '音檔檢驗測試',
+      class_name: '錄音標注',
+      state: '待校對',
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: '既有草稿' },
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_review_state: '未審聽',
+      audio_evidence: [
+        { audio_record_id: 11, audio_file_id: 'drive-11', recorder_name: 'Recorder', assessment_decision: '未審聽' }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workbench-mode-btn[data-mode="audio"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.review-workflow-item')).toContainText('音檔檢驗工作台');
+  await expect(page.locator('.review-workflow-source-card')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-draft-btn, .review-workflow-approve-btn')).toHaveCount(0);
+});
+
+test('satellite written draft stays in the shared proofing workbench', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkbenchMode = 'proofing';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 92,
+      task_id: 92,
+      language: '台語',
+      place_name: '衛星書面測試',
+      class_name: '書面標注',
+      state: '待校對',
+      version_kind: 'draft',
+      annotation_source_type: 'satellite',
+      annotation_fields: { TaiHan1: '衛星漢字', TL1: 'satellite-roman', TaiNote: '衛星備註' },
+      current_version_no: 3,
+      annotation_created_by: '標注員A',
+      audio_record_count: 0,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_evidence: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workflow-source-badge')).toHaveText('衛星草稿');
+  await expect(page.locator('.review-workflow-source-note')).toContainText('共用校對草稿層');
+  await expect(page.locator('.review-workflow-source-card')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
+  await expect(page.locator('#review-workflow-92-tai-TaiHan1')).toHaveValue('衛星漢字');
+  await expect(page.locator('#review-workflow-92-tai-TL1')).toHaveValue('satellite-roman');
+});
+
 test('ordinary investigator cannot enter the proofing workbench', async ({ page }) => {
   await page.goto(appUrl);
   const state = await page.evaluate(() => {
