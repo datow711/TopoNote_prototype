@@ -5482,7 +5482,9 @@ async function saveRecordAnnotationEdit(recordId, button) {
 }
 
 async function fetchAndPlayAudio(driveUrl, recordId) {
-    return fetchAndPlayAudioToContainer(driveUrl, `player-${recordId}`);
+    const target = String(recordId || '');
+    const containerId = target.startsWith('review-audio-') ? target : `player-${target}`;
+    return fetchAndPlayAudioToContainer(driveUrl, containerId);
 }
 
 const AUDIO_MIME_TYPES_BY_EXTENSION = Object.freeze({
