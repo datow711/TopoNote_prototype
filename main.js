@@ -3796,7 +3796,7 @@ function renderReviewWorkflowFields(row, canEdit = false) {
                     ? `<textarea id="${inputId}" rows="3" placeholder="${escapeHtml(field.placeholder || field.label)}">${escapeHtml(value)}</textarea>`
                     : `<input id="${inputId}" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || field.label)}">`;
                 return `
-                    <label class="review-workflow-field" for="${inputId}">
+                    <label class="review-workflow-field ${field.multiline ? 'is-multiline' : ''}" for="${inputId}">
                         <span>${escapeHtml(field.label)}</span>
                         ${control}
                     </label>
@@ -3898,7 +3898,7 @@ function getReviewWorkflowAudioEvidence(row) {
     return [];
 }
 
-function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
+function renderLegacyReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
     const canAssess = state.userRole === 'admin';
@@ -3911,6 +3911,133 @@ function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
             <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
         </div>
     `).join('')}</div>`;
+}
+
+function getReviewWorkflowAudioSources(row) {
+    const sources = row?.audio_sources || [];
+    if (Array.isArray(sources)) return sources;
+    if (typeof sources === 'string') {
+        try { return JSON.parse(sources) || []; } catch (error) { return []; }
+    }
+    return [];
+}
+
+function getReviewWorkflowAudioSource(row, audioRecordId) {
+    return getReviewWorkflowAudioSources(row)
+        .find(source => Number(source.audio_record_id) === Number(audioRecordId)) || null;
+}
+
+function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEdit) {
+    const value = source ? getReviewWorkflowSourceFieldValue(source, field) : '';
+    const isLoading = row.audio_sources_loaded !== true && !Array.isArray(row.audio_sources);
+    const displayValue = isLoading ? '\u8b80\u53d6\u4e2d\u2026' : (value || '\u672a\u586b');
+    const fillButton = canEdit && value
+        ? `<button class="copy-field-btn review-workflow-fill-field-btn" type="button" onclick="fillReviewWorkflowDraftFieldFromAudio(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u586b\u5165</button>`
+        : '';
+    return `
+        <td class="review-compare-cell ${value ? 'has-value' : ''}">
+            <div class="compare-value">${escapeHtml(displayValue)}</div>
+            ${fillButton}
+        </td>
+    `;
+}
+
+function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
+    const evidence = getReviewWorkflowAudioEvidence(row);
+    if (evidence.length === 0) {
+        return '<div class="review-workflow-empty">\u6c92\u6709\u53ef\u986f\u793a\u7684\u97f3\u6a94\u3002</div>';
+    }
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    const compareFields = config.compareFields
+        .map(fieldKey => config.fields.find(field => field.key === fieldKey))
+        .filter(Boolean);
+    const sourceById = new Map(getReviewWorkflowAudioSources(row)
+        .map(source => [Number(source.audio_record_id), source]));
+    const canAssess = state.userRole === 'admin';
+    return `
+        <div class="review-record-table-wrap review-workflow-source-table-wrap" data-review-source-table="${row.case_id}">
+            <table class="review-record-table review-workflow-source-table">
+                <thead>
+                    <tr>
+                        <th>\u9304\u97f3</th>
+                        ${compareFields.map(field => `<th>${escapeHtml(field.label)}</th>`).join('')}
+                        <th>\u64ad\u653e</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${evidence.map((item, index) => {
+                        const source = sourceById.get(Number(item.audio_record_id)) || null;
+                        const respondent = item.respondent_key || '\u5c1a\u672a\u6307\u5b9a';
+                        return `
+                            <tr>
+                                <td class="review-record-label review-workflow-source-label">
+                                    <strong>\u9304\u97f3 ${index + 1}</strong>
+                                    <span>#${escapeHtml(item.audio_record_id)}\uFF5C${escapeHtml(item.recorder_name || '\u672a\u77e5\u9304\u97f3\u4eba')}</span>
+                                    <span>\u53D7\u8A2A\u8005\uFF1A${escapeHtml(respondent)}</span>
+                                    <span>\u5224\u5B9A\uFF1A${escapeHtml(item.assessment_decision || '\u672a\u5be9\u807d')}</span>
+                                    ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="submitReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)">\u5224\u5b9a</button>` : ''}
+                                </td>
+                                ${compareFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit)).join('')}
+                                <td class="review-play-cell">
+                                    ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">\u64ad\u653e</button>` : ''}
+                                    <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
+    return renderReviewWorkflowAudioSourceTable(row, canEdit);
+}
+
+async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit) {
+    if (row.audio_sources_loaded) return getReviewWorkflowAudioSources(row);
+    if (row.audio_sources_loading) return getReviewWorkflowAudioSources(row);
+    row.audio_sources_loading = true;
+    try {
+        const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
+            p_case_id: Number(row.case_id), p_actor_account: state.userId
+        });
+        row.audio_sources = Array.isArray(sources) ? sources : [];
+    } catch (error) {
+        row.audio_sources = [];
+        row.audio_sources_error = error.message;
+    } finally {
+        row.audio_sources_loaded = true;
+        row.audio_sources_loading = false;
+        const table = item?.querySelector('[data-review-source-table="' + row.case_id + '"]');
+        if (table) table.outerHTML = renderReviewWorkflowAudioSourceTable(row, canEdit);
+    }
+    return getReviewWorkflowAudioSources(row);
+}
+
+async function fillReviewWorkflowDraftFieldFromAudio(caseId, audioRecordId, fieldKey, button) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return;
+    const item = button?.closest('.review-workflow-item');
+    let source = getReviewWorkflowAudioSource(row, audioRecordId);
+    if (!source && !row.audio_sources_loaded) {
+        await loadReviewWorkflowAudioSourcesForRow(row, item, true);
+        source = getReviewWorkflowAudioSource(row, audioRecordId);
+    }
+    if (!source) return;
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    const field = config.fields.find(candidate => candidate.key === fieldKey);
+    if (!field) return;
+    const value = getReviewWorkflowSourceFieldValue(source, field);
+    if (!value) return;
+    const input = document.getElementById(getReviewWorkflowInputId(caseId, languageKey, field.key));
+    if (!input) return;
+    input.value = value;
+    input.focus();
+    button?.classList.add('is-selected');
 }
 
 async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
@@ -4002,6 +4129,9 @@ function renderReviewWorkflowQueue() {
             button.textContent = '\u586b\u5165\u9019\u7b46\u5167\u5bb9';
         });
         container.appendChild(item);
+        if (!row.audio_sources_loaded && !Array.isArray(row.audio_sources)) {
+            loadReviewWorkflowAudioSourcesForRow(row, item, canEdit);
+        }
     });
 }
 

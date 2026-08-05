@@ -3545,6 +3545,14 @@ button:disabled {
 .review-workflow-field textarea { resize: vertical; min-height: 72px; }
 .review-workflow-field input:focus,
 .review-workflow-field textarea:focus { outline: 2px solid #7db8d4; outline-offset: 1px; border-color: #2586b2; }
+.review-workflow-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.review-workflow-field { min-width: 0; }
+.review-workflow-field.is-multiline { grid-column: 1 / -1; }
+.review-workflow-source-table-wrap { margin-top: 10px; }
+.review-workflow-source-table { min-width: 760px; }
+.review-workflow-source-label { min-width: 170px; }
+.review-workflow-fill-field-btn { display: inline-block; margin-top: 4px; }
+.review-workflow-fill-field-btn.is-selected { background: #e5f6ec; color: #146c3b; }
 .review-workflow-fill-audio-btn,
 .review-workflow-fill-existing-btn,
 .review-workflow-clear-btn { min-height: 32px; padding: 6px 10px; border: 1px solid #a8c7d7; border-radius: 7px; background: #eef8fc; color: #176482; cursor: pointer; }
@@ -3555,4 +3563,4 @@ button:disabled {
 .review-workflow-gate.is-blocked { color: #b45309; }
 .review-workflow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .review-workflow-actions button { min-height: 36px; }
-@media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-field { display: block; } }
+@media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-fields { grid-template-columns: 1fr; } .review-workflow-field { display: block; } .review-workflow-field.is-multiline { grid-column: auto; } }

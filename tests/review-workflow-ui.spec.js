@@ -35,6 +35,11 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
         { audio_record_id: 1, audio_file_id: 'drive-1', recorder_name: 'Recorder 1', assessment_decision: '可用' },
         { audio_record_id: 2, audio_file_id: 'drive-2', recorder_name: 'Recorder 2', assessment_decision: '可用' }
       ],
+      audio_sources_loaded: true,
+      audio_sources: [
+        { audio_record_id: 1, phonetic_reading: 'fallback1', annotations: { taihan: 'copied-han', tl1: 'copied-tl1', tainote: 'copied-note' } },
+        { audio_record_id: 2, annotations: { taihan: 'second-han', tainote: 'second-note' } }
+      ],
       legacy_unreviewed: false
     }];
     document.getElementById('app-section').classList.remove('hidden');
@@ -46,29 +51,23 @@ test('proofreader sees editable draft and workflow actions', async ({ page }) =>
   await expect(page.locator('.review-workflow-item')).toContainText('兩位不同受訪者');
   await expect(page.locator('.review-workflow-item')).toContainText('標注版本（校對員唯讀）');
   await expect(page.locator('.review-workflow-item')).toContainText('音檔判定（唯讀）');
-  await expect(page.locator('.review-workflow-audio-row')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-source-table tbody tr')).toHaveCount(2);
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(0);
   await expect(page.locator('.review-workflow-approve-btn')).toBeVisible();
   await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
   await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(5);
   await expect(page.locator('.review-workflow-fill-existing-btn')).toBeVisible();
-  await expect(page.locator('.review-workflow-fill-audio-btn')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-fill-field-btn')).toHaveCount(5);
   await expect(page.locator('.review-workflow-draft-btn')).toBeVisible();
   await page.evaluate(async () => {
-    window.reviewWorkflowRpc = async rpcName => {
-      if (rpcName !== 'get_review_workflow_audio_sources') throw new Error('unexpected RPC');
-      return [{
-        audio_record_id: 1,
-        phonetic_reading: 'fallback1',
-        annotations: { taihan: 'copied-han', tainote: 'copied-note' }
-      }];
-    };
     clearReviewWorkflowDraft(77);
-    await fillReviewWorkflowDraftFromAudio(77, 1, document.querySelector('.review-workflow-fill-audio-btn'));
+    const buttons = document.querySelectorAll('.review-workflow-fill-field-btn');
+    await fillReviewWorkflowDraftFieldFromAudio(77, 1, 'TaiHan1', buttons[0]);
+    await fillReviewWorkflowDraftFieldFromAudio(77, 1, 'TL1', buttons[1]);
   });
   await expect(page.locator('#review-workflow-77-tai-TaiHan1')).toHaveValue('copied-han');
-  await expect(page.locator('#review-workflow-77-tai-TL1')).toHaveValue('fallback1');
-  await expect(page.locator('#review-workflow-77-tai-TaiNote')).toHaveValue('copied-note');
+  await expect(page.locator('#review-workflow-77-tai-TL1')).toHaveValue('copied-tl1');
+  await expect(page.locator('#review-workflow-77-tai-TaiNote')).toHaveValue('');
   await expect(page.locator('#review-workflow-77-tai-TL2')).toHaveValue('');
 });
 
