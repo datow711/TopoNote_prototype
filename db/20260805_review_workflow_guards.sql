@@ -425,7 +425,7 @@ begin
       'HakNote', nullif(trim(coalesce(p_fields->>'HakNote', '')), '')
     ));
     if not (v_fields ? 'Honzii' and v_fields ? 'HP1') then
-      raise exception 'satellite Hakka draft needs Honzii or HP1';
+      raise exception 'satellite Hakka draft needs Honzii and HP1';
     end if;
   end if;
 
