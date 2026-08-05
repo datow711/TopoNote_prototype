@@ -26,8 +26,8 @@ function isWrittenAnnotationClassValue_(value) {
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
   'PlaceName', 'Info',
-  'TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote', 'TaiClass', 'T_State', 'T_Annotator', 'T_CreatedAt', 'T_UpdatedAt',
-  'Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote', 'HakClass', 'H_State', 'H_Annotator', 'H_CreatedAt', 'H_UpdatedAt',
+  'TaiHan1', 'TL1', 'TL2', 'TL3', 'TaiNote', 'TaiClass', 'T_State', 'T_Annotator', 'T_AssignmentStatus', 'T_CreatedAt', 'T_UpdatedAt',
+  'Honzii', 'HP1', 'HP2', 'HP3', 'HDialect', 'HakNote', 'HakClass', 'H_State', 'H_Annotator', 'H_AssignmentStatus', 'H_CreatedAt', 'H_UpdatedAt',
   '同步警告'
 ];
 
@@ -432,9 +432,11 @@ function processExport(formObject) {
             case "緯度":      return getSVal(rowData, "Latitude", "緯度");
             case "PlaceName": return getSVal(rowData, "地名", "PlaceName");
             case "TaiClass":  return "未分類";
-            case "T_State":   return "待指派";
+            case "T_State":   return "";
+            case "T_AssignmentStatus": return "未指派";
             case "HakClass":  return "未分類";
-            case "H_State":   return "待指派";
+            case "H_State":   return "";
+            case "H_AssignmentStatus": return "未指派";
             // 自動填入時間戳記 (模擬 gasUpdateRows 的監測效果)
             case "T_CreatedAt": return 'L1總表匯入|'+timestamp;
             case "T_UpdatedAt": return 'L1總表匯入|'+timestamp;
@@ -813,9 +815,11 @@ function appendBaseReviewRow_(sheet, headerMap, review) {
     PlaceName: review.place_name || '',
     Info: review.info || '',
     TaiClass: review.tai_class || '測試',
-    T_State: review.t_state || '待指派',
+    T_State: review.t_state || '',
+    T_AssignmentStatus: review.t_assignment_status || '未指派',
     HakClass: review.hak_class || '測試',
-    H_State: review.h_state || '待指派'
+    H_State: review.h_state || '',
+    H_AssignmentStatus: review.h_assignment_status || '未指派'
   };
 
   Object.keys(valuesByHeader).forEach(function(header) {
@@ -1057,7 +1061,7 @@ function detectReviewSheetConflict_(sheet, headerMap, rowNumber, review) {
 
 function fetchTaskAssignmentSheetRows_() {
   var supabase = getSupabaseConfig_();
-  var url = supabase.url + '/rest/v1/app_language_assignment_sheet_view?select=source_id,source_table,t_review_id,h_review_id,t_state,t_annotator,h_state,h_annotator&order=source_table.asc,source_id.asc';
+  var url = supabase.url + '/rest/v1/app_language_assignment_sheet_view?select=source_id,source_table,t_review_id,h_review_id,t_state,t_annotator,h_state,h_annotator,t_assignment_status,h_assignment_status&order=source_table.asc,source_id.asc';
   var options = {
     method: 'get',
     headers: getSupabaseHeaders_(supabase),
@@ -1235,6 +1239,29 @@ function syncReviewWorkflowWritebacks(options) {
     return handleSyncError_('APP workflow 回寫', e, options);
   }
 }
+function normalizeLanguageAssignmentSync_(stateValue, annotatorValue, assignmentStatus) {
+  var status = String(assignmentStatus || '').trim();
+  if (status !== '已指派' && status !== '未指派') {
+    return { valid: false, reason: 'AssignmentStatus 不合法' };
+  }
+
+  var isAssigned = status === '已指派';
+  var state = isAssigned ? String(stateValue || '').trim() : '';
+  var annotator = isAssigned ? String(annotatorValue || '').trim() : '';
+  if (isAssigned && ['書面標注中', '錄音中'].indexOf(state) < 0) {
+    return { valid: false, reason: '已指派但主狀態不是書面標注中或錄音中' };
+  }
+  if (isAssigned && !annotator) {
+    return { valid: false, reason: '已指派但 Annotator 空白' };
+  }
+
+  return {
+    valid: true,
+    assignmentStatus: status,
+    state: state,
+    annotator: annotator
+  };
+}
 function syncTaskAssignmentsToSheets(options) {
   try {
     var rows = fetchTaskAssignmentSheetRows_();
@@ -1260,7 +1287,7 @@ function syncTaskAssignmentsToSheets(options) {
       if (!sheet) return null;
 
       var headerMap = getSheetHeaderMap_(sheet);
-      var requiredHeaders = ['UUID', 'T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'];
+      var requiredHeaders = ['UUID', 'T_State', 'T_Annotator', 'T_AssignmentStatus', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_AssignmentStatus', 'H_UpdatedAt'];
       var missingHeaders = requiredHeaders.filter(function(header) {
         return !headerMap[header];
       });
@@ -1279,7 +1306,7 @@ function syncTaskAssignmentsToSheets(options) {
         columns: {},
         dirtyColumns: {}
       };
-      ['T_State', 'T_Annotator', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_UpdatedAt'].forEach(function(header) {
+      ['T_State', 'T_Annotator', 'T_AssignmentStatus', 'T_UpdatedAt', 'H_State', 'H_Annotator', 'H_AssignmentStatus', 'H_UpdatedAt'].forEach(function(header) {
         context.columns[header] = rowCount > 0
           ? sheet.getRange(2, headerMap[header], rowCount, 1).getValues()
           : [];
@@ -1288,26 +1315,31 @@ function syncTaskAssignmentsToSheets(options) {
       return context;
     }
 
-    function writeLanguageAssignment(context, rowIndex, stateValue, annotatorValue, stateHeader, annotatorHeader, updatedAtHeader, reviewId, sourceId, language) {
-      if (!stateValue) return false;
-      if (stateValue !== '已指派錄音人' && stateValue !== '未指派錄音人') {
-        skipped.push(sourceId + '：' + language + ' 狀態不是錄音人指派狀態，已略過');
-        return false;
-      }
-      if (stateValue === '已指派錄音人' && !annotatorValue) {
-        skipped.push(sourceId + '：' + language + ' 已指派但 Annotator 空白，已略過');
+    function writeLanguageAssignment(context, rowIndex, stateValue, annotatorValue, assignmentStatus, stateHeader, assignmentStatusHeader, annotatorHeader, updatedAtHeader, reviewId, sourceId, language) {
+      if (!assignmentStatus) return false;
+      var normalized = normalizeLanguageAssignmentSync_(stateValue, annotatorValue, assignmentStatus);
+      if (!normalized.valid) {
+        skipped.push(sourceId + '：' + language + ' ' + normalized.reason + '，已略過');
         return false;
       }
 
+      var expectedState = normalized.state;
+      var expectedAnnotator = normalized.annotator;
       var changed = false;
-      if (String(context.columns[stateHeader][rowIndex][0] || '') !== stateValue) {
-        context.columns[stateHeader][rowIndex][0] = stateValue;
+      if (String(context.columns[stateHeader][rowIndex][0] || '') !== expectedState) {
+        context.columns[stateHeader][rowIndex][0] = expectedState;
         context.dirtyColumns[stateHeader] = true;
         changed = true;
         changedCells++;
       }
-      if (String(context.columns[annotatorHeader][rowIndex][0] || '') !== annotatorValue) {
-        context.columns[annotatorHeader][rowIndex][0] = annotatorValue;
+      if (String(context.columns[assignmentStatusHeader][rowIndex][0] || '') !== assignmentStatus) {
+        context.columns[assignmentStatusHeader][rowIndex][0] = assignmentStatus;
+        context.dirtyColumns[assignmentStatusHeader] = true;
+        changed = true;
+        changedCells++;
+      }
+      if (String(context.columns[annotatorHeader][rowIndex][0] || '') !== expectedAnnotator) {
+        context.columns[annotatorHeader][rowIndex][0] = expectedAnnotator;
         context.dirtyColumns[annotatorHeader] = true;
         changed = true;
         changedCells++;
@@ -1320,13 +1352,14 @@ function syncTaskAssignmentsToSheets(options) {
       if (reviewId) syncedReviewIds.push(Number(reviewId));
       return true;
     }
-
     rows.forEach(function(row) {
       var tState = String(row.t_state || '').trim();
       var tAnnotator = String(row.t_annotator || '').trim();
+      var tAssignmentStatus = String(row.t_assignment_status || '').trim();
       var hState = String(row.h_state || '').trim();
       var hAnnotator = String(row.h_annotator || '').trim();
-      if (!tState && !hState) return;
+      var hAssignmentStatus = String(row.h_assignment_status || '').trim();
+      if (!tAssignmentStatus && !hAssignmentStatus) return;
 
       var sheetName;
       try {
@@ -1349,8 +1382,8 @@ function syncTaskAssignmentsToSheets(options) {
       var rowIndex = rowNumber - 2;
       var processed = false;
 
-      processed = writeLanguageAssignment(context, rowIndex, tState, tAnnotator, 'T_State', 'T_Annotator', 'T_UpdatedAt', row.t_review_id, row.source_id, '台語') || processed;
-      processed = writeLanguageAssignment(context, rowIndex, hState, hAnnotator, 'H_State', 'H_Annotator', 'H_UpdatedAt', row.h_review_id, row.source_id, '客語') || processed;
+      processed = writeLanguageAssignment(context, rowIndex, tState, tAnnotator, tAssignmentStatus, 'T_State', 'T_AssignmentStatus', 'T_Annotator', 'T_UpdatedAt', row.t_review_id, row.source_id, '台語') || processed;
+      processed = writeLanguageAssignment(context, rowIndex, hState, hAnnotator, hAssignmentStatus, 'H_State', 'H_AssignmentStatus', 'H_Annotator', 'H_UpdatedAt', row.h_review_id, row.source_id, '客語') || processed;
       if (processed) updated++;
     });
 
