@@ -4131,8 +4131,8 @@ async function fillReviewWorkflowDraftFieldFromAudio(caseId, audioRecordId, fiel
 
 async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
     if (state.userRole !== 'admin') return;
-    const respondentKey = prompt('請輸入受訪者代號：', '');
-    if (!respondentKey) return;
+    const respondentKey = prompt('錄音人／受訪者代號（可留空）：', '');
+    if (respondentKey === null) return;
     const decision = prompt('請輸入判定：可用／不可用／待追問', '可用');
     if (!['可用', '不可用', '待追問'].includes(decision)) return alert('判定只能是：可用、不可用、待追問。');
     const reason = prompt('請輸入判定原因（可留空）：', '') || '';

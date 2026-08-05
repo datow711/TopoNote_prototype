@@ -3,6 +3,33 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 
 const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
+test('admin can save an audio assessment with a blank respondent key', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__prompts = ['', '\u53ef\u7528', ''];
+    window.__rpcCalls = [];
+    window.__alerts = [];
+    window.prompt = () => window.__prompts.shift();
+    window.alert = message => window.__alerts.push(String(message));
+    window.fetch = async (url, options = {}) => {
+      window.__rpcCalls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
+      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+  });
+
+  await page.evaluate(async () => {
+    await submitReviewWorkflowAudioAssessment(11, '\u53f0\u8a9e', 22, null);
+  });
+
+  const result = await page.evaluate(() => ({
+    assessmentCall: window.__rpcCalls[0]
+  }));
+  expect(result.assessmentCall.url).toContain('/rpc/submit_audio_assessment');
+  expect(result.assessmentCall.body.p_respondent_key).toBe('');
+  expect(result.assessmentCall.body.p_decision).toBe('\u53ef\u7528');
+});
 
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
