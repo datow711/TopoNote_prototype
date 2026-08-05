@@ -3607,6 +3607,43 @@ button:disabled {
     opacity: 1;
     box-shadow: none;
 }
+.review-workflow-claim-btn,
+.review-workflow-release-btn {
+    min-height: 32px;
+    padding: 6px 11px;
+    border: 1px solid #2d7895;
+    border-radius: 7px;
+    background: #edf8fb;
+    color: #155a73;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
+.review-workflow-release-btn {
+    border-color: #b96b2c;
+    background: #fff5e9;
+    color: #884315;
+}
+.review-workflow-claim-btn:hover,
+.review-workflow-claim-btn:focus-visible {
+    background: #dff1f7;
+    color: #0f4a61;
+}
+.review-workflow-release-btn:hover,
+.review-workflow-release-btn:focus-visible {
+    background: #ffe8cf;
+    color: #71350f;
+}
+.review-workflow-claim-note {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: #f3f6f8;
+    color: #64727c;
+    font-size: .9rem;
+}
 .review-workflow-approve-hint {
     flex-basis: 100%;
     color: #8a4b2d;

@@ -1192,13 +1192,15 @@ function renderUserInfo() {
     }
 
     // 判斷角色並顯示對應的文字
-    const roleText = state.userRole === 'admin' ? '👑 管理員' : (isProofreaderRole() ? '🛡️ 校對員' : '👤 調查員');
+    const roleText = state.userRole === 'admin'
+        ? '👑 管理員'
+        : (isProofreaderRole() ? '🛡️ 校對員' : (isAudioAssessorRole() ? '🎧 音檔檢驗員' : '👤 調查員'));
     const displayName = state.userName || state.userId;
     const hoverTitle = state.userEmail || state.userId;
-    const taskDownloadButton = state.userRole === 'admin' || isProofreaderRole()
+    const taskDownloadButton = state.userRole === 'admin' || isProofreaderRole() || isAudioAssessorRole()
         ? ''
         : '<button class="btn-download-tasks" type="button" onclick="openTaskDownloadDialog()">下載任務清單</button>';
-    const feedbackButton = state.userRole === 'admin' || isProofreaderRole()
+    const feedbackButton = state.userRole === 'admin' || isProofreaderRole() || isAudioAssessorRole()
         ? ''
         : '<button class="btn-feedback" type="button" onclick="openFeedbackDialog()">問題回報</button>';
     const adminPasswordButton = state.userRole === 'admin'
@@ -1216,7 +1218,7 @@ function renderUserInfo() {
     userInfoDiv.innerHTML = `
         <div>
             <div>${roleText}：${state.userId}</div>
-            <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : '調查任務模式'}</div>
+            <div class="user-mode">${state.userRole === 'admin' ? '管理員模式' : (isReviewWorkflowRole() ? '審查工作模式' : '調查任務模式')}</div>
         </div>
         <div class="user-action-group">
             <div class="user-primary-actions">
@@ -2556,8 +2558,16 @@ function isProofreaderRole() {
     return state.userRole === 'proofreader';
 }
 
+function isAudioAssessorRole() {
+    return state.userRole === 'audio_assessor';
+}
+
+function isAudioReviewRole() {
+    return state.userRole === 'admin' || isAudioAssessorRole();
+}
+
 function isReviewWorkflowRole() {
-    return state.userRole === 'admin' || isProofreaderRole();
+    return state.userRole === 'admin' || isProofreaderRole() || isAudioAssessorRole();
 }
 
 function configureRoleUI() {
@@ -2597,7 +2607,7 @@ function configureRoleUI() {
         return;
     }
 
-    if (isProofreaderRole()) {
+    if (isProofreaderRole() || isAudioAssessorRole()) {
         if (tabContainer) tabContainer.classList.add('admin-tabs');
         if (tabAssigned) { tabAssigned.innerText = '審查工作台'; tabAssigned.style.display = 'none'; }
         if (tabOther) tabOther.style.display = 'none';
@@ -3739,6 +3749,21 @@ async function loadReviewWorkflowQueue({ silent = false } = {}) {
             p_actor_account: state.userId
         });
         state.reviewWorkflowQueue = Array.isArray(rows) ? rows : [];
+        if (isAudioReviewRole()) {
+            try {
+                const claims = await reviewWorkflowRpc('get_audio_review_claims', {
+                    p_actor_account: state.userId
+                });
+                const claimsByCase = new Map((Array.isArray(claims) ? claims : [])
+                    .map(claim => [Number(claim.case_id), claim]));
+                state.reviewWorkflowQueue = state.reviewWorkflowQueue.map(row => ({
+                    ...row,
+                    ...(claimsByCase.get(Number(row.case_id)) || {})
+                }));
+            } catch (claimError) {
+                console.warn('音檔檢驗 claim 狀態尚未部署:', claimError);
+            }
+        }
         state.reviewWorkflowAvailable = true;
         if (state.currentTab === 'review') renderReviewWorkflowQueue();
         return state.reviewWorkflowQueue;
@@ -3790,6 +3815,7 @@ function isReviewWorkflowWrittenRow(row) {
 }
 
 function getReviewWorkbenchMode() {
+    if (isAudioAssessorRole()) return 'audio';
     if (state.userRole !== 'admin') return 'proofing';
     return state.reviewWorkbenchMode === 'audio' ? 'audio' : 'proofing';
 }
@@ -3802,13 +3828,16 @@ function setReviewWorkbenchMode(mode) {
 
 function renderReviewWorkbenchSwitcher() {
     const mode = getReviewWorkbenchMode();
+    const proofingButton = state.userRole === 'admin' || isProofreaderRole()
+        ? "<button type='button' class='review-workbench-mode-btn " + (mode === 'proofing' ? 'is-active' : '') + "' data-mode='proofing' aria-pressed='" + (mode === 'proofing') + "' onclick='setReviewWorkbenchMode(\"proofing\")'>校對審查</button>"
+        : '';
     const audioButton = state.userRole === 'admin'
         ? "<button type='button' class='review-workbench-mode-btn " + (mode === 'audio' ? 'is-active' : '') + "' data-mode='audio' aria-pressed='" + (mode === 'audio') + "' onclick='setReviewWorkbenchMode(\"audio\")'>音檔檢驗</button>"
-        : '';
+        : (isAudioAssessorRole() ? "<span class='review-workbench-mode-btn is-active' aria-label='目前工作台：音檔檢驗'>音檔檢驗</span>" : '');
     return "<div class='review-workbench-switcher' role='group' aria-label='審查工作台'>" +
         "<strong>工作台</strong>" +
         "<div class='review-workbench-mode-buttons'>" +
-        "<button type='button' class='review-workbench-mode-btn " + (mode === 'proofing' ? 'is-active' : '') + "' data-mode='proofing' aria-pressed='" + (mode === 'proofing') + "' onclick='setReviewWorkbenchMode(\"proofing\")'>校對審查</button>" +
+        proofingButton +
         audioButton +
         "</div></div>";
 }
@@ -3975,10 +4004,18 @@ function getReviewWorkflowAudioEvidence(row) {
     return [];
 }
 
+function canAssessReviewWorkflowAudio(row) {
+    if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return false;
+    if (state.userRole === 'admin') return true;
+    if (row?.audio_claim_by !== state.userId) return false;
+    const claimUntil = new Date(row.audio_claim_until || 0).getTime();
+    return Number.isFinite(claimUntil) && claimUntil > Date.now();
+}
+
 function renderLegacyReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
-    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
+    const canAssess = canAssessReviewWorkflowAudio(row);
     return `<div class="review-workflow-audio-list">${evidence.map(item => `
         <div class="review-workflow-audio-row">
             <span>音檔 #${escapeHtml(item.audio_record_id)}｜${escapeHtml(item.recorder_name || '未知錄音人')}｜${escapeHtml(item.assessment_decision || '未審聽')}</span>
@@ -4032,7 +4069,7 @@ function renderLegacyReviewWorkflowAudioSourceTable(row, canEdit = false) {
         .filter(Boolean);
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
-    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
+    const canAssess = canAssessReviewWorkflowAudio(row);
     return `
         <div class="review-record-table-wrap review-workflow-source-table-wrap" data-review-source-table="${row.case_id}">
             <table class="review-record-table review-workflow-source-table">
@@ -4082,7 +4119,7 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
         .filter(Boolean);
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
-    const canAssess = state.userRole === 'admin' && getReviewWorkbenchMode() === 'audio';
+    const canAssess = canAssessReviewWorkflowAudio(row);
     return `
         <div class="review-workflow-source-list" data-review-source-table="${row.case_id}">
             ${evidence.map((item, index) => {
@@ -4166,16 +4203,58 @@ async function fillReviewWorkflowDraftFieldFromAudio(caseId, audioRecordId, fiel
 }
 
 async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
-    if (state.userRole !== 'admin') return;
+    if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return;
+    const row = state.reviewWorkflowQueue.find(candidate =>
+        Number(candidate.task_id) === Number(taskId) && candidate.language === language
+    );
+    if (isAudioAssessorRole() && !canAssessReviewWorkflowAudio(row)) {
+        alert('請先領取這筆音檔案件，再提交判定。');
+        return;
+    }
+
     const respondentKey = prompt('錄音人／受訪者代號（可留空）：', '');
     if (respondentKey === null) return;
     const decision = prompt('請輸入判定：可用／不可用／待追問', '可用');
-    if (!['可用', '不可用', '待追問'].includes(decision)) return alert('判定只能是：可用、不可用、待追問。');
-    const reason = prompt('請輸入判定原因（可留空）：', '') || '';
+    if (!['可用', '不可用', '待追問'].includes(decision)) {
+        return alert('判定只能是：可用、不可用、待追問。');
+    }
+
+    let unusableReasonCode = '';
+    let unusableReasonText = '';
+    if (decision === '不可用') {
+        unusableReasonCode = (prompt('不可用原因：無聲／聽不清楚／其他', '聽不清楚') || '').trim();
+        if (!['無聲', '聽不清楚', '其他'].includes(unusableReasonCode)) {
+            return alert('不可用原因只能是：無聲、聽不清楚、其他。');
+        }
+        if (unusableReasonCode === '其他') {
+            unusableReasonText = (prompt('請補充其他不可用原因：', '') || '').trim();
+            if (!unusableReasonText) return alert('請補充其他不可用原因。');
+        }
+    }
+
+    const reason = prompt('請輸入判定補充說明（可留空）：', '') || '';
+    const followupAnswer = prompt('需要後續處理嗎？請輸入「是」或「否」：', '否');
+    if (followupAnswer === null) return;
+    const needsFollowup = decision === '待追問'
+        || ['是', 'yes', 'y', 'true'].includes(String(followupAnswer || '否').trim().toLowerCase());
+    let followupReasonText = '';
+    if (needsFollowup) {
+        followupReasonText = (prompt('請輸入後續處理原因：', '') || '').trim();
+        if (!followupReasonText) return alert('需要後續處理時，請填寫原因。');
+    }
+
     await performReviewWorkflowAction('submit_audio_assessment', {
         p_task_id: Number(taskId), p_language: language, p_audio_record_id: Number(audioRecordId),
-        p_assessor_account: state.userId, p_respondent_key: respondentKey.trim(),
-        p_decision: decision, p_reason: reason
+        p_assessor_account: state.userId, p_respondent_key: String(respondentKey || '').trim(),
+        p_decision: decision,
+        p_metadata: {
+            reason,
+            unusable_reason_code: unusableReasonCode,
+            unusable_reason_text: unusableReasonText,
+            needs_followup: needsFollowup,
+            followup_reason_text: followupReasonText
+        },
+        p_claim_token: row?.audio_claim_token || null
     }, button, '音檔判定已保存。');
 }
 
@@ -4212,9 +4291,22 @@ function renderReviewWorkflowQueue() {
         const canEdit = !isAudioMode && (state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId));
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
         const isAdmin = state.userRole === 'admin';
-        const claimAction = isClaimOwner
-            ? `<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(${row.case_id}, this)">釋放</button>`
-            : `<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(${row.case_id}, this)">領取 30 分鐘</button>`;
+        const isAudioCase = isAudioReviewRole() && isAudioMode && !isWritten;
+        const audioClaimActive = row.audio_claim_by
+            && row.audio_claim_until
+            && new Date(row.audio_claim_until).getTime() > Date.now();
+        const audioClaimAction = isAdmin
+            ? '<span class="review-workflow-claim-note">管理員可直接判定</span>'
+            : canAssessReviewWorkflowAudio(row)
+                ? '<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(' + row.case_id + ', this)">釋放音檔案件</button>'
+                : audioClaimActive
+                    ? '<span class="review-workflow-claim-note">其他審聽者檢驗中</span>'
+                    : '<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(' + row.case_id + ', this)">領取音檔 30 分鐘</button>';
+        const claimAction = isAudioCase
+            ? audioClaimAction
+            : isClaimOwner
+                ? '<button class="review-workflow-release-btn" type="button" onclick="releaseReviewWorkflowCase(' + row.case_id + ', this)">釋放</button>'
+                : '<button class="review-workflow-claim-btn" type="button" onclick="claimReviewWorkflowCase(' + row.case_id + ', this)">領取 30 分鐘</button>';
         const hasDraft = hasReviewWorkflowDraft(row);
         const approveDisabled = row.version_kind === 'legacy' || !hasDraft || (!isAdmin && !isClaimOwner);
         const approveReason = row.version_kind === 'legacy'
@@ -4328,19 +4420,28 @@ async function performReviewWorkflowAction(rpcName, body, button, successMessage
 }
 
 async function claimReviewWorkflowCase(caseId, button) {
-    if (!confirm('確定領取這筆案件 30 分鐘嗎？')) return;
-    await performReviewWorkflowAction('claim_review_case', {
+    const row = getReviewWorkflowRow(caseId);
+    const isAudioClaim = isAudioReviewRole()
+        && getReviewWorkbenchMode() === 'audio'
+        && !isReviewWorkflowWrittenRow(row);
+    if (!confirm(isAudioClaim ? '確定領取這筆音檔案件嗎？會暫時鎖定 30 分鐘。' : '確定領取這筆案件嗎？會暫時鎖定 30 分鐘。')) return;
+    const rpcName = isAudioClaim ? 'claim_audio_review_case' : 'claim_review_case';
+    await performReviewWorkflowAction(rpcName, {
         p_case_id: Number(caseId), p_actor_account: state.userId
-    }, button, '已領取案件，claim 期限 30 分鐘。');
+    }, button, isAudioClaim ? '音檔案件已領取，暫時鎖定 30 分鐘。' : '案件已領取，暫時鎖定 30 分鐘。');
 }
 
 async function releaseReviewWorkflowCase(caseId, button) {
     if (!confirm('確定釋放這筆案件嗎？')) return;
     const row = getReviewWorkflowRow(caseId);
-    await performReviewWorkflowAction('release_review_case', {
+    const isAudioClaim = isAudioReviewRole()
+        && getReviewWorkbenchMode() === 'audio'
+        && !isReviewWorkflowWrittenRow(row);
+    const rpcName = isAudioClaim ? 'release_audio_review_case' : 'release_review_case';
+    await performReviewWorkflowAction(rpcName, {
         p_case_id: Number(caseId), p_actor_account: state.userId,
-        p_claim_token: row?.claim_token || null
-    }, button, '案件已釋放。');
+        p_claim_token: isAudioClaim ? (row?.audio_claim_token || null) : (row?.claim_token || null)
+    }, button, isAudioClaim ? '音檔案件已釋放。' : '案件已釋放。');
 }
 
 async function assignReviewWorkflowCase(caseId) {

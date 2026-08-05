@@ -21,6 +21,7 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
       window.__rpcCalls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
       return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
+    state.reviewWorkbenchMode = 'audio';
     state.userRole = 'admin';
     state.userId = 'admin@example.com';
   });
@@ -37,6 +38,67 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
   expect(result.assessmentCall.body.p_decision).toBe('\u53ef\u7528');
 });
 
+test('audio assessor sees claimed audio workbench and sends audio claim token', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__prompts = ['', '\u53ef\u7528', '', undefined];
+    window.__workflowCalls = [];
+    window.__alerts = [];
+    window.prompt = () => window.__prompts.shift();
+    window.alert = message => window.__alerts.push(String(message));
+    window.confirm = () => true;
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.userRole = 'audio_assessor';
+    state.userId = 'audio@example.com';
+    state.userName = 'Audio Assessor';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 88,
+      task_id: 88,
+      language: '\u53f0\u8a9e',
+      place_name: 'audio-claim-case',
+      class_name: 'test',
+      state: 'pending',
+      audio_claim_by: 'audio@example.com',
+      audio_claim_token: '00000000-0000-0000-0000-000000000088',
+      audio_claim_until: '2999-01-01T00:00:00Z',
+      version_kind: null,
+      annotation_fields: {},
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_review_state: '\u672a\u5be9\u807d',
+      audio_evidence: [
+        { audio_record_id: 881, audio_file_id: 'drive-881', recorder_name: 'Recorder', assessment_decision: '\u672a\u5be9\u807d' }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: [],
+      legacy_unreviewed: true
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workbench-mode-btn[aria-label="目前工作台：音檔檢驗"]')).toBeVisible();
+  await expect(page.locator('.review-workflow-item')).toContainText('audio-claim-case');
+  await expect(page.locator('.review-workflow-release-btn')).toContainText('\u91cb\u653e\u97f3\u6a94\u6848\u4ef6');
+  await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    await submitReviewWorkflowAudioAssessment(88, '\u53f0\u8a9e', 881, null);
+  });
+
+  const call = await page.evaluate(() => window.__workflowCalls[0]);
+  expect(call.rpcName).toBe('submit_audio_assessment');
+  expect(call.body.p_claim_token).toBe('00000000-0000-0000-0000-000000000088');
+  expect(call.body.p_metadata.needs_followup).toBe(false);
+});
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
