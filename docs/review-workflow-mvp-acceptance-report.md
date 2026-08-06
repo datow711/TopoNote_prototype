@@ -41,53 +41,51 @@
 - 4caaa3b feat: split audio inspection and proofing workbenches
 - 9d1f000 feat: bridge satellite drafts into proofing versions
 
-## 正式環境 readback
+## 正式環境 readback（2026-08-06 更新：已完成）
 
 ### Supabase
 
-目前已套用至：
+已套用至 `recording_annotation_state_20260806`。本輪依序套用並逐一 readback：
 
-20260805101350 satellite_draft_bridge_class_guard_20260805
+1. `review_workflow_guards_20260805`
+2. `audio_review_claims_20260805`
+3. `review_returns_20260805`
+4. `writeback_claims_20260805`
+5. `assignment_status_separation_20260805`
+6. `recording_annotation_state_20260806`
 
-尚未看到下列本機 migration：
+驗證結果：
 
-- 20260805_review_workflow_guards
-- 20260805_audio_review_claims
-- 20260805_review_returns
-- 20260805_writeback_claims
-- 20260805_assignment_status_separation
-
-目前正式 RPC 仍是舊版，例如 save_annotation_version(case, actor, fields)、approve_review_case(case, actor)、七參數 submit_audio_assessment。
+- `app_language_assignment_sheet_view` 由 9 欄增為 11 欄，含 `t_assignment_status`／`h_assignment_status`。
+- `app_review_workflow_queue` 41 欄，可查詢。
+- 新函數到位：`sync_recording_annotation_state_`、`return_review_case`、`claim_review_writeback_job`、`complete_review_writeback`、`fail_review_writeback`、`claim_audio_review_case`、`release_audio_review_case`、`get_audio_review_claims`。
+- `save_annotation_version` 3 參數 wrapper 與 4 參數實作並存；4 參數版已含 `錄音標注中` 推進。
+- `submit_audio_assessment` 8 參數版呼叫狀態同步函數；7 參數 admin wrapper 保留作相容。
+- 資料未變動：13704 cases／176 versions／4 assessments／1 writeback job，與套用前一致。
 
 ### Google Sheet
 
-正式檔案：Places
-Spreadsheet ID：19zL0Ph0cocqfg5teJu6WKUI8dh_T5y3kSp7MdBQPAcI
+正式檔案：Places，Spreadsheet ID `19zL0Ph0cocqfg5teJu6WKUI8dh_T5y3kSp7MdBQPAcI`。
 
-目前「第三期工作清單」與 TestEntries 都尚未有：
-
-- T_AssignmentStatus
-- H_AssignmentStatus
+- 「第三期工作清單」已補 `T_AssignmentStatus`、`H_AssignmentStatus`（AN、AO 欄），拼字經 Drive readback 確認。
+- TestEntries 已由使用者手動執行 `setupTestEntriesSheet()` 重整，欄位改為對齊「第三期工作清單」。
 
 ### Places GAS
 
-目前可見 deployment：
+deployment `@9 - Review workflow relaunch: assignment status, audio claims, returns, writeback claims, TestEntries header sync`，已 `clasp push` 並讀回確認。
 
-- @8 - Satellite draft bridge and written class guard
-- 另有 @HEAD deployment，但尚未以本輪程式碼完成 push／deployment readback。
+## 本輪修正的兩個缺陷
 
-## 正式驗收前待辦
+1. **`save_annotation_version` overload 改錯**：`20260806_recording_annotation_state.sql` 原本覆蓋 3 參數 wrapper。該 wrapper 的職責是擋下 proofreader 並轉呼叫帶 claim token 的 4 參數版；照原樣套用會使 claim token 檢查失效，且狀態清單根本不在該 overload。套用前發現並修正。
+2. **退回的錄音案件無法回到佇列**：`return_review_case()` 退回標音時寫入 `錄音標注中`，但 `save_annotation_version()` 的推進清單未含此值，案件重存草稿後停留在 `錄音標注中`，無法回到 `待校對`。此缺陷自 `20260805_review_returns` 起即存在，因 `錄音標注中` 當時正向不可達而未被觸發。已一併修正。
 
-1. 依序套用 Supabase migrations：
-   review_workflow_guards → audio_review_claims → review_returns → writeback_claims → assignment_status_separation。
-2. 在兩張正式工作表補上四個 AssignmentStatus 欄位。
-3. clasp push，建立並讀回 Places GAS 新 deployment。
-4. 以授權的測試流程確認：
-   地名／語種 → 音檔判定 → 草稿 → 指派校對 → 核准 → 回寫工作 → Sheet readback。
-5. 確認舊 token、回寫失敗、退回原因、主狀態留白等防呆後，才宣告 MVP 正式完成。
+## 尚未完成
+
+- **前端未上線**：`codex/review-workflow-mvp` 尚未 push，領先 `main` 28 個 commit，repo 無 CI/CD 設定。審查工作台 UI 僅存在本機。舊前端不呼叫新 RPC，且相容 wrapper 保留，因此不會壞，但新功能對使用者尚未生效。
+- **`app_language_assignment_sheet_view` 未經真實資料驗證**：目前回傳 0 列（無待同步指派），新增的兩個欄位要等第一次指派才會走到。
+- **新 RPC 未在正式環境走過端到端**：8/5 的端到端驗收是對當時的舊 RPC 版本，claim token、分開退回、writeback claim 等新行為尚未在正式環境實測。
 
 ## 風險與保留事項
 
-- 正式 migration、Sheet 欄位寫入與 GAS deployment 尚未執行，因此目前不能宣告正式 MVP 驗收完成。
-- 既有正式 Sheet 資料未被本輪修改。
-- 使用者既有未追蹤規劃文件與 UI 截圖保持不動。
+- 既有正式 Sheet 的第三期工作清單資料未被本輪修改。
+- TestEntries 欄位順序已改為對齊第三期工作清單；資料依欄名重新對映，遷移前已用實際資料模擬驗證每個非空值均保留於原欄名下。
