@@ -1,13 +1,16 @@
 (function exposeReviewWorkflowCore(global) {
   const LANGUAGES = ['台語', '客語'];
+  // Must stay in sync with the values written by the Supabase RPCs.
+  // See docs/review-workflow-implementation-gap.md and decision D-004:
+  // 待審聽 and 退回助理處理 are deliberately not part of the state machine.
   const CASE_STATES = Object.freeze({
     UNASSIGNED: '待指派',
     WRITTEN: '書面標注中',
     RECORDING: '錄音中',
+    RECORDING_ANNOTATION: '錄音標注中',
     PENDING_PROOFING: '待校對',
     PROOFING: '校對中',
     DONE: '已完成',
-    FOLLOW_UP: '需追問',
     LEGACY: 'legacy_unreviewed'
   });
   const AUDIO_DECISIONS = Object.freeze({
@@ -87,12 +90,31 @@
     };
   }
 
-  function deriveCaseState({ assignedTo, className, hasDraft, claimBy, claimUntil, proofed, now } = {}) {
+  // Mirrors the server-side transitions in
+  // db/20260806_recording_annotation_state.sql. Audio follow-up and unusable
+  // counts are reported separately by summarizeAudioEvidence() and must not
+  // widen the main state.
+  function deriveCaseState({
+    assignedTo,
+    className,
+    hasDraft,
+    claimBy,
+    claimUntil,
+    proofed,
+    audioRecordCount,
+    assessedAudioCount,
+    now
+  } = {}) {
     if (proofed) return CASE_STATES.DONE;
     if (claimBy && isClaimActive(claimUntil, now)) return CASE_STATES.PROOFING;
     if (!assignedTo) return CASE_STATES.UNASSIGNED;
     if (hasDraft) return CASE_STATES.PENDING_PROOFING;
-    return className === '書面標注' ? CASE_STATES.WRITTEN : CASE_STATES.RECORDING;
+    if (className === '書面標注') return CASE_STATES.WRITTEN;
+    const total = Number(audioRecordCount) || 0;
+    const assessed = Number(assessedAudioCount) || 0;
+    return total > 0 && assessed >= total
+      ? CASE_STATES.RECORDING_ANNOTATION
+      : CASE_STATES.RECORDING;
   }
 
   function canApproveCase({ role, claimBy, actorAccount, annotationReady } = {}) {

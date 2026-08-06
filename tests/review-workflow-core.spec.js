@@ -42,6 +42,33 @@ test.describe('review workflow core rules', () => {
     })).toBe(false);
   });
 
+  test('recording case advances to 錄音標注中 once every audio record is assessed', () => {
+    const base = { assignedTo: 'worker@example.com', className: '電話調查' };
+    expect(core.deriveCaseState({ ...base, audioRecordCount: 3, assessedAudioCount: 2 }))
+      .toBe(core.CASE_STATES.RECORDING);
+    expect(core.deriveCaseState({ ...base, audioRecordCount: 3, assessedAudioCount: 3 }))
+      .toBe(core.CASE_STATES.RECORDING_ANNOTATION);
+    // No audio yet means there is nothing to have finished assessing.
+    expect(core.deriveCaseState({ ...base, audioRecordCount: 0, assessedAudioCount: 0 }))
+      .toBe(core.CASE_STATES.RECORDING);
+    // Written cases never enter the recording branch.
+    expect(core.deriveCaseState({ ...base, className: '書面標注', audioRecordCount: 3, assessedAudioCount: 3 }))
+      .toBe(core.CASE_STATES.WRITTEN);
+    // A saved draft still outranks the audio-assessment stage.
+    expect(core.deriveCaseState({ ...base, hasDraft: true, audioRecordCount: 3, assessedAudioCount: 3 }))
+      .toBe(core.CASE_STATES.PENDING_PROOFING);
+  });
+
+  test('state constants carry no value the database never writes', () => {
+    // 待審聽 and 退回助理處理 are out of scope by decision D-004; 需追問 was a
+    // front-end-only value that the RPCs never produced.
+    const values = Object.values(core.CASE_STATES);
+    expect(values).toContain('錄音標注中');
+    expect(values).not.toContain('需追問');
+    expect(values).not.toContain('待審聽');
+    expect(values).not.toContain('退回助理處理');
+  });
+
   test('writeback key is stable for retries and changes with source version', () => {
     expect(core.buildIdempotencyKey(10, 2, 'stamp')).toBe('10:2:stamp');
     expect(core.buildIdempotencyKey(10, 3, 'stamp')).not.toBe(core.buildIdempotencyKey(10, 2, 'stamp'));
