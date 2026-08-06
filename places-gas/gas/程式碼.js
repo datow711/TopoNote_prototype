@@ -1848,11 +1848,9 @@ function syncClassification() {
     rowUpdateData["TL2"] = sRow[sCol["TaiLo2"]];
     rowUpdateData["TaiNote"] = sRow[sCol["TaiNote"]];
     
-    if (sTaiClass === "直接標注" && sTL1 !=="") {
+    if (isWrittenAnnotationClassValue_(sTaiClass) && sTL1 !=="") {
       rowUpdateData["T_State"] = "待審查";
       rowUpdateData["T_Annotator"] = "陳亮均";
-    } else if (sTaiClass === "直接標注"){
-      rowUpdateData["T_State"] = "待指派";
     } else {
       rowUpdateData["T_State"] = "待指派";
     }
@@ -1869,7 +1867,7 @@ function syncClassification() {
     rowUpdateData["HP2"] = sRow[sCol["HakPiang2"]];
     rowUpdateData["HakNote"] = sRow[sCol["HakNote"]];
     
-    if (sHakClass === "直接標注" && sHP1 !== "") {
+    if (isWrittenAnnotationClassValue_(sHakClass) && sHP1 !== "") {
       rowUpdateData["H_State"] = "待審查"; 
       rowUpdateData["H_Annotator"] = "陳亮均";
     } else {
@@ -1951,8 +1949,8 @@ function pushTasksToSatelliteSheets() {
     var person = row[colMap["標注員"]];
     var method = row[colMap["調查方式"]];
     
-    // 條件：調查方式為「書面標注」且已有指派標注員
-    if (method === "書面標注" && person && userMap[person]) {
+    // 條件：調查方式為書面標注（含舊名「直接標注」）且已有指派標注員
+    if (isWrittenAnnotationClassValue_(method) && person && userMap[person]) {
       if (!rowHasWrittenAnnotationClass_(row, colMap)) {
         invalidClassCount++;
         writeSatellitePushWarning_(l2Sheet, colMap, j + 1, buildSatellitePushClassWarning_(row, colMap));

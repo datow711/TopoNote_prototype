@@ -864,10 +864,16 @@ function normalizeTask(t) {
     };
 }
 
+// 「直接標注」是舊名稱，工作清單尚未整批改為「書面標注」，兩者都要認。
+const WRITTEN_ANNOTATION_CLASSES = ['書面標注', '直接標注'];
+
+function isWrittenAnnotationClass(value) {
+    return WRITTEN_ANNOTATION_CLASSES.indexOf(String(value || '').trim()) >= 0;
+}
+
 function isWrittenAnnotationPlace(place) {
     if (!place) return false;
-    return [place.taiClass, place.hakClass]
-        .some(value => String(value || '').trim() === '書面標注');
+    return [place.taiClass, place.hakClass].some(isWrittenAnnotationClass);
 }
 
 function normalizeReviewTask(t) {
@@ -3811,7 +3817,7 @@ function isReviewWorkflowSatelliteRow(row) {
 }
 
 function isReviewWorkflowWrittenRow(row) {
-    return isReviewWorkflowSatelliteRow(row) || String(row?.class_name || '').trim() === '書面標注';
+    return isReviewWorkflowSatelliteRow(row) || isWrittenAnnotationClass(row?.class_name);
 }
 
 function getReviewWorkbenchMode() {

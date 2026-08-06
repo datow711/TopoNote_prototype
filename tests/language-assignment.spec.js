@@ -715,7 +715,7 @@ test('written annotation places are hidden from normal users but visible to admi
         county: '苗栗縣',
         town: '頭份市',
         type: '聚落',
-        tai_class: '直接標注',
+        tai_class: '現場調查',
         hak_class: '電話調查',
         assigned_users: 'lin@example.com',
         assigned_to: '',
@@ -760,6 +760,26 @@ test('written annotation places are hidden from normal users but visible to admi
         recording_status: '尚未錄音',
         tai_audio_count: 0,
         hak_audio_count: 0
+      },
+      {
+        // 「直接標注」是「書面標注」的舊名稱，工作清單尚未整批改名，
+        // 因此必須和「書面標注」一樣對一般調查員隱藏。
+        task_id: 204,
+        source_id: 'uuid-204',
+        source_table: 'third_phase_places',
+        place_name: '舊名直接標注地名',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        tai_class: '直接標注',
+        hak_class: '電話調查',
+        assigned_users: 'lin@example.com',
+        assigned_to: '',
+        t_assignee: 'lin@example.com',
+        h_assignee: '',
+        recording_status: '尚未錄音',
+        tai_audio_count: 0,
+        hak_audio_count: 0
       }
     ];
 
@@ -797,9 +817,10 @@ test('written annotation places are hidden from normal users but visible to admi
     return { userAssignedIds, userOtherIds, adminAssignedIds };
   });
 
+  // 204 是舊名「直接標注」，和 202/203 一樣不該出現在一般調查員的清單。
   expect(result.userAssignedIds).toEqual([201]);
   expect(result.userOtherIds).toEqual([]);
-  expect(result.adminAssignedIds).toEqual([201, 202, 203]);
+  expect(result.adminAssignedIds).toEqual([201, 202, 203, 204]);
 });
 
 test('admin task loading includes test places beyond the first Supabase page', async ({ page }) => {
