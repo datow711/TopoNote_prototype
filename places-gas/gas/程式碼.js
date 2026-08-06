@@ -746,18 +746,155 @@ function syncFinalTasksToSupabase(options) {
 }
 
 function setupTestEntriesSheet() {
-  var sheet = getOrCreateTestEntriesSheet_();
-  SpreadsheetApp.getUi().alert('✅ TestEntries 表頭已建立/修正完成。APP 測試資料審查回寫會寫入這張表。');
+  var result = getOrCreateTestEntriesSheetResult_();
+  var message = result.changed
+    ? '✅ TestEntries 已對齊「' + THIRD_PHASE_SHEET_NAME + '」表頭。\n\n'
+      + '欄位：' + result.before + ' → ' + result.after + '\n'
+      + '資料列：' + result.rowCount + '（依欄位名稱重新對映，未變更內容）'
+    : '✅ TestEntries 表頭已與「' + THIRD_PHASE_SHEET_NAME + '」一致，未做變更。';
+  SpreadsheetApp.getUi().alert(message);
+}
+
+// TestEntries mirrors the live 第三期工作清單 header row so test data keeps the
+// same shape as production. Returning the target list here (instead of writing
+// TEST_ENTRY_HEADERS verbatim) is what lets a new column added upstream flow
+// through to TestEntries without another code change.
+function getTestEntriesTargetHeaders_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var source = ss.getSheetByName(THIRD_PHASE_SHEET_NAME);
+  var headers = [];
+  var seen = {};
+
+  if (source && source.getLastColumn() > 0) {
+    source.getRange(1, 1, 1, source.getLastColumn()).getValues()[0].forEach(function(value) {
+      var key = String(value || '').trim();
+      // Blank grid columns and accidental duplicates must not become real columns.
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      headers.push(key);
+    });
+  }
+
+  // The workflow depends on these regardless of what the source sheet looks like,
+  // so append any that the source is missing rather than trusting it blindly.
+  TEST_ENTRY_HEADERS.forEach(function(key) {
+    if (seen[key]) return;
+    seen[key] = true;
+    headers.push(key);
+  });
+
+  return headers;
 }
 
 function getOrCreateTestEntriesSheet_() {
+  return getOrCreateTestEntriesSheetResult_().sheet;
+}
+
+function getOrCreateTestEntriesSheetResult_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(TEST_ENTRIES_SHEET_NAME) || ss.insertSheet(TEST_ENTRIES_SHEET_NAME);
-  sheet.getRange(1, 1, 1, TEST_ENTRY_HEADERS.length).setValues([TEST_ENTRY_HEADERS]);
-  sheet.getRange(1, 1, 1, TEST_ENTRY_HEADERS.length).setFontWeight('bold');
+  var target = getTestEntriesTargetHeaders_();
+  var sheet = ss.getSheetByName(TEST_ENTRIES_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(TEST_ENTRIES_SHEET_NAME);
+    writeTestEntriesGrid_(sheet, target, []);
+    return { sheet: sheet, changed: true, before: 0, after: target.length, rowCount: 0 };
+  }
+
+  return alignTestEntriesColumns_(sheet, target);
+}
+
+function alignTestEntriesColumns_(sheet, target) {
+  var lastColumn = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  var current = lastColumn > 0
+    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) {
+        return String(value || '').trim();
+      })
+    : [];
+
+  var namedColumnCount = current.filter(function(name) { return name; }).length;
+  // Rewriting headers over unlabelled data would silently re-label every column,
+  // which is exactly the corruption this function exists to prevent.
+  if (lastRow > 1 && namedColumnCount === 0) {
+    throw new Error(
+      TEST_ENTRIES_SHEET_NAME + ' 有資料但沒有可辨識的表頭，已中止對齊以免資料錯位。請先補上表頭再重試。'
+    );
+  }
+
+  // Never drop a column the sheet already has. If a header is renamed upstream the
+  // old column survives at the end instead of taking its data with it.
+  var finalHeaders = target.slice();
+  var known = {};
+  finalHeaders.forEach(function(name) { known[name] = true; });
+  current.forEach(function(name) {
+    if (!name || known[name]) return;
+    known[name] = true;
+    finalHeaders.push(name);
+  });
+
+  var unchanged = finalHeaders.length === current.length
+    && finalHeaders.every(function(name, index) { return name === current[index]; });
+  if (unchanged) {
+    applyTestEntriesHeaderFormat_(sheet, finalHeaders.length);
+    return {
+      sheet: sheet,
+      changed: false,
+      before: current.length,
+      after: finalHeaders.length,
+      rowCount: Math.max(lastRow - 1, 0)
+    };
+  }
+
+  var sourceIndexByName = {};
+  current.forEach(function(name, index) {
+    if (name) sourceIndexByName[name] = index;
+  });
+
+  var rows = lastRow > 1 && lastColumn > 0
+    ? sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues()
+    : [];
+  var remapped = rows.map(function(row) {
+    return finalHeaders.map(function(name) {
+      var index = sourceIndexByName[name];
+      return index === undefined ? '' : row[index];
+    });
+  });
+
+  writeTestEntriesGrid_(sheet, finalHeaders, remapped);
+  return {
+    sheet: sheet,
+    changed: true,
+    before: current.length,
+    after: finalHeaders.length,
+    rowCount: remapped.length
+  };
+}
+
+function writeTestEntriesGrid_(sheet, headers, rows) {
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  // Values were rebuilt from the remap, so anything still sitting to the right is
+  // a stale copy of a column that moved.
+  if (sheet.getMaxColumns() > headers.length) {
+    sheet.deleteColumns(headers.length + 1, sheet.getMaxColumns() - headers.length);
+  }
+
+  applyTestEntriesHeaderFormat_(sheet, headers.length);
+}
+
+function applyTestEntriesHeaderFormat_(sheet, columnCount) {
+  if (columnCount < 1) return;
+  sheet.getRange(1, 1, 1, columnCount).setFontWeight('bold');
   sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, TEST_ENTRY_HEADERS.length);
-  return sheet;
+  sheet.autoResizeColumns(1, columnCount);
 }
 
 function getSheetHeaderMap_(sheet) {

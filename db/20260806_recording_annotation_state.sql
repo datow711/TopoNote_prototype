@@ -208,11 +208,16 @@ $function$;
 -- 3. Let 錄音標注中 advance to 待校對. Without this a case returned by
 --    return_review_case() (which writes 錄音標注中) is stranded: saving a new
 --    draft leaves the state unchanged and the case never re-enters the queue.
---    Body is otherwise identical to 20260805_review_workflow_guards.sql.
+--
+--    Only the four-argument overload carries the implementation. The
+--    three-argument overload is a wrapper that rejects proofreaders and
+--    delegates here (20260805_review_workflow_guards.sql); it is deliberately
+--    left untouched. Body is otherwise identical to that migration.
 create or replace function public.save_annotation_version(
   p_case_id bigint,
   p_actor_account text,
-  p_fields jsonb
+  p_fields jsonb,
+  p_claim_token uuid
 )
 returns public.annotation_versions
 language plpgsql
@@ -222,29 +227,30 @@ as $function$
 declare
   v_role text := public.workflow_actor_role_(p_actor_account);
   v_case public.annotation_cases;
-  v_next integer;
   v_version public.annotation_versions;
+  v_next integer;
 begin
-  if v_role not in ('admin', 'proofreader', 'annotator', 'audio_assessor') then
+  if v_role not in ('admin', 'proofreader', 'user', 'annotator') then
     raise exception 'annotation permission required';
   end if;
-
-  select * into v_case from public.annotation_cases where id = p_case_id for update;
+  select * into v_case from public.annotation_cases where id = p_case_id;
   if not found then raise exception 'review case not found'; end if;
+  perform public.validate_annotation_draft_(
+    p_language := v_case.language,
+    p_fields := coalesce(p_fields, '{}'::jsonb)
+  );
 
-  if v_case.state = U&'\5df2\5b8c\6210' then
-    raise exception 'completed review case cannot accept new drafts';
+  if v_role = 'proofreader' then
+    if p_claim_token is null
+       or v_case.claim_by <> p_actor_account
+       or v_case.claim_token <> p_claim_token
+       or v_case.claim_until is null
+       or v_case.claim_until <= now() then
+      raise exception 'active proofreader claim token required';
+    end if;
+  elsif v_role <> 'admin' and v_case.assigned_to <> p_actor_account then
+    raise exception 'case assignment required';
   end if;
-
-  if v_role = 'proofreader' and (
-    v_case.claim_by is distinct from p_actor_account
-    or v_case.claim_until is null
-    or v_case.claim_until <= now()
-  ) then
-    raise exception 'active proofreader claim required';
-  end if;
-
-  perform public.validate_annotation_draft_(v_case.language, p_fields);
 
   select coalesce(max(version_no), 0) + 1 into v_next
   from public.annotation_versions where case_id = p_case_id;
@@ -283,8 +289,7 @@ begin
 end;
 $function$;
 
-revoke all on function public.save_annotation_version(bigint, text, jsonb) from public, anon, authenticated;
-grant execute on function public.save_annotation_version(bigint, text, jsonb) to anon, authenticated;
+grant execute on function public.save_annotation_version(bigint, text, jsonb, uuid) to anon, authenticated;
 revoke all on function public.submit_audio_assessment(integer, text, integer, text, text, text, jsonb, uuid) from public, anon, authenticated;
 grant execute on function public.submit_audio_assessment(integer, text, integer, text, text, text, jsonb, uuid) to anon, authenticated;
 
