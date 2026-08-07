@@ -1927,6 +1927,49 @@ var ANNOTATOR_ROSTER_NAME_COL = 0;
 var ANNOTATOR_ROSTER_SHEET_ID_COL = 2;
 var ANNOTATOR_ROSTER_SYNCED_AT_COL = 3;
 
+// 衛星表單同時服務正式工作清單與測試資料，讓書面標注流程可以先用 TestEntries
+// 演練，不必動到真實地名。衛星表單本身沒有來源欄位，回收時以 UUID 反查來源表。
+function getSatelliteSourceSheets_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return [
+    { sheetName: THIRD_PHASE_SHEET_NAME, sourceTable: 'third_phase_places' },
+    { sheetName: TEST_ENTRIES_SHEET_NAME, sourceTable: 'test_places' }
+  ].map(function(config) {
+    var sheet = ss.getSheetByName(config.sheetName);
+    if (!sheet || sheet.getLastRow() < 1) return null;
+    var data = sheet.getDataRange().getValues();
+    var colMap = {};
+    (data[0] || []).forEach(function(header, index) {
+      colMap[String(header || '').trim()] = index;
+    });
+    if (colMap['UUID'] === undefined) return null;
+    return {
+      sheetName: config.sheetName,
+      sourceTable: config.sourceTable,
+      sheet: sheet,
+      data: data,
+      colMap: colMap
+    };
+  }).filter(function(entry) { return entry; });
+}
+
+function buildSatelliteSourceIndex_(sources) {
+  var index = {};
+  sources.forEach(function(source) {
+    for (var i = 1; i < source.data.length; i++) {
+      var uuid = String(source.data[i][source.colMap['UUID']] || '').trim();
+      // 先出現的來源優先，正式清單排在測試資料前面。
+      if (!uuid || index[uuid]) continue;
+      index[uuid] = {
+        source: source,
+        rowNumber: i + 1,
+        row: source.data[i]
+      };
+    }
+  });
+  return index;
+}
+
 function readWrittenAnnotatorRoster_(rosterSheet) {
   var data = rosterSheet.getDataRange().getValues();
   var roster = {};
@@ -2002,19 +2045,15 @@ function buildSatelliteTaskRow_(row, colMap, taiWritten, hakWritten) {
 
 function pushTasksToSatelliteSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var l2Sheet = ss.getSheetByName(THIRD_PHASE_SHEET_NAME);
   var rosterSheet = ss.getSheetByName(WRITTEN_ANNOTATOR_SHEET_NAME);
-
-  if (!l2Sheet) return SpreadsheetApp.getUi().alert('❌ 找不到『' + THIRD_PHASE_SHEET_NAME + '』表！');
   if (!rosterSheet) return SpreadsheetApp.getUi().alert('❌ 找不到『' + WRITTEN_ANNOTATOR_SHEET_NAME + '』表！');
 
-  var roster = readWrittenAnnotatorRoster_(rosterSheet);
+  var sources = getSatelliteSourceSheets_();
+  if (sources.length === 0) {
+    return SpreadsheetApp.getUi().alert('❌ 找不到『' + THIRD_PHASE_SHEET_NAME + '』或『' + TEST_ENTRIES_SHEET_NAME + '』表！');
+  }
 
-  var l2Data = l2Sheet.getDataRange().getValues();
-  var colMap = {};
-  (l2Data[0] || []).forEach(function(header, index) {
-    colMap[String(header || '').trim()] = index;
-  });
+  var roster = readWrittenAnnotatorRoster_(rosterSheet);
 
   // 台語與客語各自有工作流類型與標注員，同一地名可能分屬不同人，
   // 因此以「人」分組，再由 guidance 鎖住該人不負責的語種欄位。
@@ -2022,44 +2061,47 @@ function pushTasksToSatelliteSheets() {
   var missingRoster = {};
   var unassignedCount = 0;
 
-  for (var j = 1; j < l2Data.length; j++) {
-    var row = l2Data[j];
-    var taiWritten = isLanguageWrittenAnnotationClass_(row, colMap, '台語');
-    var hakWritten = isLanguageWrittenAnnotationClass_(row, colMap, '客語');
-    if (!taiWritten && !hakWritten) continue;
+  sources.forEach(function(source) {
+    var colMap = source.colMap;
+    for (var j = 1; j < source.data.length; j++) {
+      var row = source.data[j];
+      var taiWritten = isLanguageWrittenAnnotationClass_(row, colMap, '台語');
+      var hakWritten = isLanguageWrittenAnnotationClass_(row, colMap, '客語');
+      if (!taiWritten && !hakWritten) continue;
 
-    var owners = {};
-    if (taiWritten) {
-      var taiPerson = String(getCellValue_(row, colMap, 'T_Annotator') || '').trim();
-      if (taiPerson) owners[taiPerson] = { tai: true, hak: false };
-    }
-    if (hakWritten) {
-      var hakPerson = String(getCellValue_(row, colMap, 'H_Annotator') || '').trim();
-      if (hakPerson) {
-        if (owners[hakPerson]) owners[hakPerson].hak = true;
-        else owners[hakPerson] = { tai: false, hak: true };
+      var owners = {};
+      if (taiWritten) {
+        var taiPerson = String(getCellValue_(row, colMap, 'T_Annotator') || '').trim();
+        if (taiPerson) owners[taiPerson] = { tai: true, hak: false };
       }
-    }
+      if (hakWritten) {
+        var hakPerson = String(getCellValue_(row, colMap, 'H_Annotator') || '').trim();
+        if (hakPerson) {
+          if (owners[hakPerson]) owners[hakPerson].hak = true;
+          else owners[hakPerson] = { tai: false, hak: true };
+        }
+      }
 
-    if (Object.keys(owners).length === 0) {
-      unassignedCount++;
-      continue;
-    }
-
-    for (var person in owners) {
-      if (!roster[person]) {
-        missingRoster[person] = true;
+      if (Object.keys(owners).length === 0) {
+        unassignedCount++;
         continue;
       }
-      if (!tasksByPerson[person]) tasksByPerson[person] = [];
-      tasksByPerson[person].push({
-        uuid: String(getCellValue_(row, colMap, 'UUID') || '').trim(),
-        values: buildSatelliteTaskRow_(row, colMap, owners[person].tai, owners[person].hak),
-        taiWritten: owners[person].tai,
-        hakWritten: owners[person].hak
+
+      Object.keys(owners).forEach(function(person) {
+        if (!roster[person]) {
+          missingRoster[person] = true;
+          return;
+        }
+        if (!tasksByPerson[person]) tasksByPerson[person] = [];
+        tasksByPerson[person].push({
+          uuid: String(getCellValue_(row, colMap, 'UUID') || '').trim(),
+          values: buildSatelliteTaskRow_(row, colMap, owners[person].tai, owners[person].hak),
+          taiWritten: owners[person].tai,
+          hakWritten: owners[person].hak
+        });
       });
     }
-  }
+  });
 
   var addedCount = 0;
   var updatedCount = 0;
@@ -2147,25 +2189,18 @@ function pushTasksToSatelliteSheets() {
  */
 function pullResultsFromSatelliteSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var l2Sheet = ss.getSheetByName("第三期工作清單");
-  var userListSheet = ss.getSheetByName("書面標注員名單");
-
-  if (!l2Sheet || !userListSheet) {
-    return SpreadsheetApp.getUi().alert("❌ 錯誤：找不到「第三期工作清單」或「書面標注員名單」工作表。");
+  var userListSheet = ss.getSheetByName(WRITTEN_ANNOTATOR_SHEET_NAME);
+  if (!userListSheet) {
+    return SpreadsheetApp.getUi().alert('❌ 錯誤：找不到「' + WRITTEN_ANNOTATOR_SHEET_NAME + '」工作表。');
   }
+
+  var sources = getSatelliteSourceSheets_();
+  if (sources.length === 0) {
+    return SpreadsheetApp.getUi().alert('❌ 錯誤：找不到「' + THIRD_PHASE_SHEET_NAME + '」或「' + TEST_ENTRIES_SHEET_NAME + '」工作表。');
+  }
+  var sourceIndex = buildSatelliteSourceIndex_(sources);
 
   var userData = userListSheet.getDataRange().getValues();
-  var l2Data = l2Sheet.getDataRange().getValues();
-  var l2Headers = l2Data[0] || [];
-  var l2ColMap = {};
-  l2Headers.forEach((h, i) => l2ColMap[String(h || '').trim()] = i);
-
-  var l2IndexMap = {};
-  for (var i = 1; i < l2Data.length; i++) {
-    var uuidKey = String(l2Data[i][l2ColMap["UUID"]] || '').trim();
-    if (uuidKey) l2IndexMap[uuidKey] = i + 1;
-  }
-
   var totalSubmitted = 0;
   var submittedRowCount = 0;
   var classConflictCount = 0;
@@ -2193,7 +2228,8 @@ function pullResultsFromSatelliteSheets() {
       for (var j = 1; j < sData.length; j++) {
         var sRow = sData[j];
         var uuid = String(getSatelliteValue(sRow, "UUID") || '').trim();
-        if (!uuid || !l2IndexMap[uuid]) continue;
+        var located = uuid ? sourceIndex[uuid] : null;
+        if (!located) continue;
 
         var twHan = String(getSatelliteValue(sRow, "台文漢字") || '').trim();
         var twRoman = String(getSatelliteValue(sRow, "台文羅馬字") || '').trim();
@@ -2202,8 +2238,10 @@ function pullResultsFromSatelliteSheets() {
         var note = String(getSatelliteValue(sRow, "備註") || '').trim();
         if (!twHan && !twRoman && !hkHan && !hkRoman) continue;
 
-        var rowNum = l2IndexMap[uuid];
-        var l2Row = l2Data[rowNum - 1];
+        var l2Sheet = located.source.sheet;
+        var l2ColMap = located.source.colMap;
+        var rowNum = located.rowNumber;
+        var l2Row = located.row;
         var rowUpdated = false;
         var rowWarnings = [];
         var taiFields = {};
@@ -2220,7 +2258,7 @@ function pullResultsFromSatelliteSheets() {
           var stamp = buildSatelliteDraftSourceStamp_(uuid, language, fields);
           callSatelliteDraftRpc_({
             p_source_id: uuid,
-            p_source_table: 'third_phase_places',
+            p_source_table: located.source.sourceTable,
             p_language: language,
             p_fields: fields,
             p_source_actor: person,
@@ -2265,13 +2303,9 @@ function pullResultsFromSatelliteSheets() {
         }
 
         if (rowUpdated) {
-          if (l2ColMap["任務狀態"] !== undefined) {
-            l2Sheet.getRange(rowNum, l2ColMap["任務狀態"] + 1).setValue("待校對");
-          }
-          if (l2ColMap["標注時間"] !== undefined) {
-            var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
-            l2Sheet.getRange(rowNum, l2ColMap["標注時間"] + 1).setValue(now);
-          }
+          // 工作清單的主狀態與 T_UpdatedAt/H_UpdatedAt 刻意不在這裡改寫。
+          // 校對層才是流程狀態的來源；而核准後的回寫會拿案件建立時擷取的
+          // source stamp 和工作清單現值比對，這裡若動了 stamp 會造成假衝突。
           submittedRowCount++;
         }
       }
@@ -2283,7 +2317,10 @@ function pullResultsFromSatelliteSheets() {
 
   var syncTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
   if (userData.length > 1) {
-    userListSheet.getRange(2, 3, userData.length - 1, 1).setValue(syncTime);
+    // 最後同步時間是第 4 欄；先前寫到第 3 欄，會把衛星表單_ID 蓋掉。
+    userListSheet
+      .getRange(2, ANNOTATOR_ROSTER_SYNCED_AT_COL + 1, userData.length - 1, 1)
+      .setValue(syncTime);
   }
 
   var message = "✅ 校對草稿送入完成！\n共送入 " + totalSubmitted +
