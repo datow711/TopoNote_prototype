@@ -1823,6 +1823,18 @@ function syncClassification() {
     const rowUpdateData = {};
     let hasWarning = "";
 
+    // APP assignment owns each language workflow state once a worker is assigned.
+    const tAssignmentStatusIndex = lCol["T_AssignmentStatus"];
+    const tAssignmentStatus = tAssignmentStatusIndex === undefined
+      ? ""
+      : String(localData[i][tAssignmentStatusIndex] || "").trim();
+    const hasAppManagedTAssignment = tAssignmentStatus === "\u5df2\u6307\u6d3e";
+    const hAssignmentStatusIndex = lCol["H_AssignmentStatus"];
+    const hAssignmentStatus = hAssignmentStatusIndex === undefined
+      ? ""
+      : String(localData[i][hAssignmentStatusIndex] || "").trim();
+    const hasAppManagedHAssignment = hAssignmentStatus === "\u5df2\u6307\u6d3e";
+
     // 1. 檢查 PlaceName 一致性
     if (localPlaceName !== sPlaceName) {
       hasWarning = `⚠️ 地名不符 (來源: ${sPlaceName})`;
@@ -1844,10 +1856,10 @@ function syncClassification() {
     rowUpdateData["TL2"] = sRow[sCol["TaiLo2"]];
     rowUpdateData["TaiNote"] = sRow[sCol["TaiNote"]];
     
-    if (isWrittenAnnotationClassValue_(sTaiClass) && sTL1 !=="") {
+    if (!hasAppManagedTAssignment && isWrittenAnnotationClassValue_(sTaiClass) && sTL1 !=="") {
       rowUpdateData["T_State"] = "待審查";
       rowUpdateData["T_Annotator"] = "陳亮均";
-    } else {
+    } else if (!hasAppManagedTAssignment) {
       rowUpdateData["T_State"] = "待指派";
     }
 
@@ -1863,10 +1875,10 @@ function syncClassification() {
     rowUpdateData["HP2"] = sRow[sCol["HakPiang2"]];
     rowUpdateData["HakNote"] = sRow[sCol["HakNote"]];
     
-    if (isWrittenAnnotationClassValue_(sHakClass) && sHP1 !== "") {
+    if (!hasAppManagedHAssignment && isWrittenAnnotationClassValue_(sHakClass) && sHP1 !== "") {
       rowUpdateData["H_State"] = "待審查"; 
       rowUpdateData["H_Annotator"] = "陳亮均";
-    } else {
+    } else if (!hasAppManagedHAssignment) {
       rowUpdateData["H_State"] = "待指派";
     }
 

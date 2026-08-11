@@ -176,3 +176,13 @@ app_tasks_view + audio_records
 - Supabase 的客語 task_language_reviews 仍保留指派人，assignment_sheet_sync_pending=false，表示第 5 項已完成同步標記；third_phase_places.h_state 仍是舊快照，後續第 3 項又將工作表的待指派快照同步回去。
 
 **結論：** LM09081 是「第 5 項先正確寫成 錄音中，第 2 項 syncClassification 後來覆寫成 待指派」；不是 AssignmentStatus 自己把 State 分開造成的問題。
+
+## 六、2026-08-11 分類同步保護修正
+
+`syncClassification()` 現在先讀取工作表的語言指派狀態：
+
+- `T_AssignmentStatus=已指派` 時，不再由分類同步覆寫 `T_State` 或 `T_Annotator`。
+- `H_AssignmentStatus=已指派` 時，不再由分類同步覆寫 `H_State` 或 `H_Annotator`。
+- 尚未指派的列維持原本分類同步行為。
+
+因此 LM09081 後續即使執行第 2 項，也不會再把 APP 已回寫的 `H_State=錄音中` 改回 `待指派`。
