@@ -164,3 +164,15 @@ app_tasks_view + audio_records
 3. 第 4 項在修正 `assigned_to: null` 前，不把它視為指派流程的必要步驟。
 4. 第 6 項只在要重建 Records 索引時執行。
 
+
+
+## 五、LM09081 正式資料 readback 結論
+
+2026-08-11 讀回正式 Places Sheet 與 Supabase 後，確認根因不是第 5 項指派回寫。
+
+- Places「第三期工作清單」第 627 列（UUID LM09081）目前為 H_State=待指派、H_AssignmentStatus=已指派，但 H_UpdatedAt 是 亮均分類表單同步 | 2026-08-08 05:28:51。
+- 隱藏 checkpoint __ckpt_third_phase_20260807_062410_third_phase_to_sup 的同一列曾是 H_State=錄音中，且 H_UpdatedAt=APP錄音人指派|2026-08-07 06:23:38。
+- syncClassification() 對非書面標注分類會執行 H_State = 待指派；LM09081 的 HakClass=電話調查，因此該舊函數在 2026-08-08 把第 5 項已寫好的 錄音中 覆蓋掉，但沒有同步清除 Annotator／AssignmentStatus。
+- Supabase 的客語 task_language_reviews 仍保留指派人，assignment_sheet_sync_pending=false，表示第 5 項已完成同步標記；third_phase_places.h_state 仍是舊快照，後續第 3 項又將工作表的待指派快照同步回去。
+
+**結論：** LM09081 是「第 5 項先正確寫成 錄音中，第 2 項 syncClassification 後來覆寫成 待指派」；不是 AssignmentStatus 自己把 State 分開造成的問題。

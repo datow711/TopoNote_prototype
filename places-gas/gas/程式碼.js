@@ -309,11 +309,7 @@ function onOpen() {
     .addSubMenu(ui.createMenu('📂 L3 分發與回填')
       .addItem('分發任務到標注員表單 (Push)', 'pushTasksToSatelliteSheets')
       .addItem('從各表單送入校對草稿 (Pull)', 'pullResultsFromSatelliteSheets'))
-    .addSeparator()
-    .addItem('3. 同步第三期完整清冊至 Supabase', 'syncThirdPhasePlacesToSupabase')
-    .addItem('4. 將第三期任務索引同步至 Supabase', 'syncFinalTasksToSupabase')
-    .addItem('5. 回寫 APP 錄音人指派至工作表', 'syncTaskAssignmentsToSheets')
-    .addItem('6. 重建 Records 錄音索引', 'rebuildRecordsSheetFromSupabase')
+    // 第 3–6 項保留函數供每日同步／維運呼叫，但暫不暴露在人工操作選單。
     .addSeparator()
     .addItem('安裝每日 06:30 自動同步', 'installDailyPreworkSyncTrigger')
     .addItem('移除每日自動同步', 'removeDailyPreworkSyncTriggers')
