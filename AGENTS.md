@@ -33,3 +33,16 @@ History favors short imperative subjects, optionally with Conventional Commit pr
 ## Security & Agent Workflow
 
 Never commit service-role keys, webhook secrets, or local `.clasp.json` files. Store backend secrets in Apps Script project properties. Before substantial work, read `LATEST_HANDOFF.md` and relevant `docs/` or recent `logs/sessions/`; verify live Supabase grants/schema and Apps Script deployment state rather than assuming migrations or `clasp push` reflect production.
+
+## Google Drive Workspace Patch Policy
+
+This repository is intentionally kept under a Google Drive synchronized Windows path.
+
+`apply_patch` may fail here with ACL-related errors because Google Drive file-provider permissions can interfere with the patch helper. For this repository, when editing files, use a UTF-8 `git apply` fallback directly instead of first attempting `apply_patch`.
+
+When applying patches:
+- preserve unrelated user changes;
+- verify exact target paths before editing;
+- feed patch content to Git as UTF-8, not ANSI/CP950, because Traditional Chinese text may otherwise become `?`;
+- run `git diff --check` after edits;
+- do not push unless explicitly asked.
