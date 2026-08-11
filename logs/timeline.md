@@ -1,5 +1,20 @@
 # Project Timeline
 
+[2026-08-10] [DOCS]
+Updated `LATEST_HANDOFF.md` and this timeline to reflect the current `main` baseline (`864691b`), the resolved Git metadata state, the review-workflow MVP relaunch, the TestEntries satellite flow, and the latest local verification. The 2026-08-06 Supabase/Sheet/Places GAS readback remains documented as an acceptance-report record and still requires a fresh live readback before claiming a new production cutover.
+
+[2026-08-07] [FEATURE]
+Extended the Places GAS satellite workflow to `TestEntries` as well as the formal work list. The latest `main` commit is `864691b feat: run the satellite flow over TestEntries as well`; the worktree is clean and synchronized with `origin/main`.
+
+[2026-08-06] [FIX]
+Rebuilt satellite Push against the current work-list schema, synchronized TestEntries headers, and corrected the `save_annotation_version` overload so claim-token protection remains in the 4-argument implementation. Added the forward transition from `錄音標注中` back to `待校對` after a returned recording annotation draft is saved.
+
+[2026-08-06] [DECISION]
+Recorded D-005: keep `T_Annotator/H_Annotator` as the current compatibility columns for now. Treat `直接標注` consistently as written annotation in both the frontend and Places GAS.
+
+[2026-08-06] [MILESTONE]
+The review-workflow MVP is present on `main`: separate audio inspection and proofing workbenches, audio/proofing claims, separate returns, assignment-status separation, immutable draft/version flow, and writeback queue protections. The current local regression run passed 59/59 Playwright tests; all targeted JavaScript syntax checks and `git diff --check` also passed. Formal Supabase, Google Sheet, and Places GAS readback is recorded in `docs/review-workflow-mvp-acceptance-report.md` but was not re-run during this documentation update.
+
 [2026-07-24] [FIX]
 Fixed `.aac` preview and Drive playback when mobile uploads or Google Drive report a generic or alias MIME type. The frontend and root GAS now normalize known audio extensions, including `.aac` to `audio/aac`, and the playback response includes the Drive filename and resolved MIME for a second frontend safety check. Added three focused Playwright cases, updated one stale `sourceId` payload expectation found by the full suite, and passed all 29 UI tests. Root GAS Web App deployment was updated and read back at version 31; a live recording returned the expected normalized `audio/mp4` response, and installed Google Chrome reports `audio/aac` support as `probably`.
 

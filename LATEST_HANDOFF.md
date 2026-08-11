@@ -1,8 +1,8 @@
 # TopoNote App 最新開發交接
 
-更新時間：2026-07-15（Asia/Taipei）
+更新時間：2026-08-10（Asia/Taipei）
 
-這份文件依 2026-07-15 本地工作區的實際程式碼、SQL、文件與資料檔重新盤點。它優先於 2026-05 至 2026-06 的舊 `NEXT_*_HANDOFF.md`；但線上 Supabase、Google Sheet 與 Apps Script 部署狀態尚未在本次盤點中重新 readback，因此文件內提到的線上狀態必須在變更前再次確認。
+這份文件依 2026-08-10 本地工作區、Git 歷史、現有驗收文件與本地回歸測試更新。它優先於 2026-05 至 2026-07 的舊 `NEXT_*_HANDOFF.md`；Supabase、Google Sheet 與 Apps Script 的正式環境狀態以下以 2026-08-06 驗收報告記載為主，本次更新未重新執行 live readback，因此涉及正式資料或部署的工作仍須先重新確認。
 
 ## 一句話架構
 
@@ -11,7 +11,7 @@ TopoNote 是一套原生 HTML/CSS/JavaScript 的靜態 PWA：瀏覽器直接使�
 ## 接手後第一輪必做
 
 1. 先讀本文件、`docs/architecture-inventory.md`、`docs/current-operation-flow.md`。
-2. 不要立即 commit。先釐清目前 `.git` 為何沒有本地 commit/ref，詳見「Git 工作區異常」。
+2. 先執行 `git status --short --branch`、`git remote -v`、`git log --oneline -8`，確認目前分支與工作區；目前基線為 `main`、`864691b`、乾淨且與 `origin/main` 同步。
 3. 執行 JS 語法檢查：
 
    ```powershell
@@ -24,8 +24,9 @@ TopoNote 是一套原生 HTML/CSS/JavaScript 的靜態 PWA：瀏覽器直接使�
    ```
 
 4. 若要改登入、管理員密碼、RLS、view 或 RPC，先對線上 Supabase 做唯讀 schema/function/grant readback。
-5. 若要跑 Playwright，先修復本地 npm 安裝；目前 `node_modules` 不完整。
+5. 若要跑 Playwright，使用目前已可用的 npm／Chromium 環境；完整 UI 回歸基線為 59/59 通過。
 6. 若要改 GAS，先分清楚 Root GAS 與 Places GAS，兩者不是同一個 Apps Script 專案。
+7. 若要改審查流程、RPC、Sheet 或部署，先讀 `docs/review-workflow-mvp-acceptance-report.md` 與 `docs/review-workflow-relaunch-decision-register.md`，再做正式端到端 readback。
 
 ## 專案入口與檔案角色
 
@@ -215,25 +216,29 @@ third_phase_places ──► final_tasks
 - `db/2026-07-08_soft_unlink_audio_records.sql`
 - `audio_records` 新增 `unlinked_at`、`unlinked_by`、`unlink_reason`。
 - app-facing views 與前端讀取排除已解除的紀錄。
+
+### 2026-08-06 至 2026-08-07 審查流程 MVP 與衛星表流程
+
+- `main` 已包含審查流程 MVP：音檔檢驗與校對工作台分離、音檔 claim、校對 claim token、分開退回、核准後 writeback queue，以及 assignment status 與主狀態分離。
+- `db/20260806_recording_annotation_state.sql` 修正 `save_annotation_version` overload 與 `錄音標注中` 回到 `待校對` 的正向轉移。
+- Places GAS 衛星 Push 已依目前工作清單 schema 重建，並擴充至 `TestEntries`；`直接標注` 在前端與 GAS 統一視為書面標注。
+- D-005 決議目前保留 `T_Annotator/H_Annotator`，待審查流程完整穩定後再另行改名。
+- 2026-08-06 驗收報告記載 Supabase migration、Places Sheet assignment 欄位與 Places GAS deployment `@9` 已完成 readback；本次交接更新未重新驗證正式環境。
+- 目前本地驗證：Playwright 59/59 通過；主要前端、Root GAS、Places GAS、AuditLogger、SideBar 與 dev server 均通過 `node --check`；`git diff --check` 通過。
 - 音檔本體與 audit 資訊保留，不做硬刪除。
 
 ## 已知高優先事項
 
-### 1. Git 工作區異常
+### 1. Git 工作區基線（已恢復）
 
-2026-07-15 唯讀檢查結果：
+2026-08-10 唯讀檢查結果：
 
-- `.git/config` 仍指向 `https://github.com/datow711/TopoNote_prototype.git`。
-- `HEAD` 指向 `refs/heads/main`，但本地沒有正常的 `main` commit/ref。
-- `git status` 顯示 `No commits yet on main...origin/main [gone]`。
-- 目前全部專案檔都被視為 newly added；這與舊 handoff 記載的 commit 歷史不一致。
+- remote：`https://github.com/datow711/TopoNote_prototype.git`。
+- branch：`main`。
+- HEAD：`864691b feat: run the satellite flow over TestEntries as well`。
+- `git status --short --branch`：`## main...origin/main`，無未提交變更且與 `origin/main` 同步。
 
-因此：
-
-- 不要直接 commit 全部檔案。
-- 不要用 `git reset --hard` 或 `git checkout --` 嘗試修復。
-- 先確認這是否為 Google Drive 搬移／不完整 `.git` 同步造成。
-- 最安全方案通常是從正確 GitHub repository 重新 clone 到另一個乾淨目錄，再比較目前工作區內容；執行前需取得使用者同意。
+舊 handoff 所記載的「沒有本地 commit/ref、全部檔案 newly added」已不再適用。Google Drive 工作區仍應每次先檢查 Git 狀態；除非使用者明確要求，不要用 `git reset --hard` 或 `git checkout --` 覆蓋工作區。
 
 ### 2. 管理員密碼欄位不一致
 
@@ -252,17 +257,16 @@ third_phase_places ──► final_tasks
 
 ### 3. npm／Playwright 測試環境
 
-2026-07-15 已完成：
+2026-08-10 已確認：
 
-- 依 `package-lock.json` 執行 `npm ci`，恢復 Playwright 1.60.0 依賴。
-- 安裝對應 Chromium 測試瀏覽器。
-- `npm run test:ui -- --reporter=line`：20/20 tests 通過。
+- 目前 npm／Chromium 環境可用。
+- `npm run test:ui -- --reporter=line`：59/59 tests 通過。
 
 不要把本地 npm cache、Playwright browser cache 或 `node_modules` commit 進 repo。
 
 ### 4. 架構文件落後於程式碼
 
-`docs/architecture-inventory.md`、`docs/current-operation-flow.md` 與 `docs/architecture-goal-status.md` 很有價值，但多停在 2026-06，尚未完整納入公告與音檔軟解除連結。以實際程式、最新 migration 和 live readback 為準。
+`docs/architecture-inventory.md`、`docs/current-operation-flow.md` 與 `docs/architecture-goal-status.md` 很有價值，但多停在 2026-06，尚未完整納入公告、音檔軟解除連結與 2026-08 審查流程 MVP。以實際程式、最新 migration、驗收報告和 live readback 為準。
 
 ## 不可誤刪／不可任意改動
 
@@ -295,6 +299,14 @@ Playwright specs：
 - `tests/admin-user-profile.spec.js`
 - `tests/admin-password-change.spec.js`
 - `tests/announcements.spec.js`
+- `tests/assignment-status-contract.spec.js`
+- `tests/audio-playback.spec.js`
+- `tests/mobile-quick-wins.spec.js`
+- `tests/place-info.spec.js`
+- `tests/place-map.spec.js`
+- `tests/place-sorting.spec.js`
+- `tests/review-workflow-core.spec.js`
+- `tests/review-workflow-ui.spec.js`
 - `tests/tutorial.spec.js`
 - `tests/upload-report.spec.js`
 
@@ -309,7 +321,7 @@ Playwright specs：
 - 不寫資料的操作教學。
 - 管理員上傳報告的日期／ID 彙整、明細排序與一般使用者權限。
 
-2026-07-15 已通過所有主要 JS 檔案的 `node --check`，完整 Playwright UI tests 為 20/20 通過。
+2026-08-10 已通過主要前端、Root GAS、Places GAS、AuditLogger、SideBar 與 dev server 的 `node --check`；完整 Playwright UI tests 為 59/59 通過；`git diff --check` 通過。
 
 ## 變更類型的安全工作方式
 
@@ -355,14 +367,16 @@ Playwright specs：
 
 依優先順序：
 
-1. 修復／重建正確 Git 工作區與 commit 歷史。
-2. 以唯讀方式確認 live Supabase 的登入密碼欄位和 `login_admin` 定義。
-3. 修復 npm 安裝並跑完整 Playwright tests。
-4. 將公告與音檔軟解除連結補進正式 architecture inventory／operation flow。
-5. 再依使用者需求開始功能開發；不要在上述基線未確認前進行大規模清理。
+1. 對新審查流程執行正式端到端 readback：指派、音檔判定、校對 claim、分開退回、核准與 Sheet 回寫。
+2. 以真實一次指派資料驗證 `app_language_assignment_sheet_view` 的 `T/H_AssignmentStatus` 欄位。
+3. 重新確認 Supabase schema／RPC／grant、Places GAS deployment 與正式 Sheet 狀態；本地 Git 同步不代表外部部署已更新。
+4. 將公告、音檔軟解除與 2026-08 審查流程補進正式 architecture inventory／operation flow。
+5. 維持小批次變更與可回溯驗證，不在正式端到端 readback 前做大規模清理。
 
 ## 交接開場建議
 
 下一位開發者可以先回報：
 
 > 我已讀取 `LATEST_HANDOFF.md`，理解目前由靜態前端、Root GAS、Places GAS、Supabase 與 Google Sheet 組成。開始修改前，我會先避開現有 Git metadata 異常，並在涉及登入／資料庫時先唯讀確認 live schema 與 `login_admin` 定義；任何 live 寫入、GAS deployment、Git 修復或依賴重裝都會先說明範圍。
+>
+> 目前 `main` 已與 `origin/main` 同步，最新 commit 為 `864691b`；本地 59/59 UI 測試通過。若要宣稱審查流程正式上線，仍須完成新 RPC 與 Sheet 回寫的正式端到端驗證。
