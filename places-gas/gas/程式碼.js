@@ -719,7 +719,8 @@ function syncFinalTasksToSupabase(options) {
       payload.push({
         source_id: String(uuid),
         source_table: 'third_phase_places',
-        assigned_to: null,
+        // Keep the legacy mirror maintained by assignment RPCs. The source of
+        // truth for language assignment is task_language_reviews.
         priority: 0, // 預設優先級
         status: 'pending',
         is_active: true // 在 L2 內皆視為啟用
