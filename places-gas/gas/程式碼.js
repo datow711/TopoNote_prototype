@@ -1604,6 +1604,217 @@ function markAssignmentsSheetSynced_(reviewIds) {
   return Number(response.getContentText() || 0);
 }
 
+function callAssignedStateRepairRpc_(repairs) {
+  if (!repairs || repairs.length === 0) return 0;
+
+  var supabase = getSupabaseConfig_();
+  var url = supabase.url + '/rest/v1/rpc/repair_assigned_language_states';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: getSupabaseHeaders_(supabase),
+    payload: JSON.stringify({ p_repairs: repairs }),
+    muteHttpExceptions: true
+  });
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase State repair HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  return Number(response.getContentText() || 0);
+}
+
+function getAssignedStateRepairSheetContext_(sheetName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+    ? getOrCreateTestEntriesSheet_()
+    : ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('找不到修復目標工作表：' + sheetName);
+
+  var headerMap = getSheetHeaderMap_(sheet);
+  var requiredHeaders = [
+    'UUID',
+    'T_State', 'T_Annotator', 'T_AssignmentStatus', 'T_UpdatedAt',
+    'H_State', 'H_Annotator', 'H_AssignmentStatus', 'H_UpdatedAt'
+  ];
+  var missingHeaders = requiredHeaders.filter(function(header) {
+    return !headerMap[header];
+  });
+  if (missingHeaders.length > 0) {
+    throw new Error(sheetName + ' 缺少修復欄位：' + missingHeaders.join(', '));
+  }
+
+  var lastRow = sheet.getLastRow();
+  var rowCount = Math.max(lastRow - 1, 0);
+  var columns = {};
+  requiredHeaders.slice(1).forEach(function(header) {
+    columns[header] = rowCount > 0
+      ? sheet.getRange(2, headerMap[header], rowCount, 1).getValues()
+      : [];
+  });
+
+  return {
+    sheet: sheet,
+    sheetName: sheetName,
+    headerMap: headerMap,
+    uuidRows: buildUuidRowMap_(sheet, headerMap),
+    rowCount: rowCount,
+    columns: columns,
+    dirtyColumns: {}
+  };
+}
+
+function repairAssignedStatesFromSupabase(options) {
+  options = options || {};
+  var dryRun = options.dryRun === true;
+  var lock = LockService.getScriptLock();
+  var lockAcquired = false;
+
+  try {
+    lockAcquired = lock.tryLock(30000);
+    if (!lockAcquired) throw new Error('無法取得 State 修復鎖，請稍後重試。');
+
+    var finalTasks = fetchSupabaseRows_(
+      'final_tasks?select=id,source_id,source_table,is_active&is_active=eq.true'
+    ).filter(function(task) {
+      return ['third_phase_places', 'test_places'].indexOf(String(task.source_table || '').trim()) >= 0;
+    });
+    var reviews = fetchSupabaseRows_(
+      'task_language_reviews?select=id,task_id,language,assigned_to,app_state,sheet_state'
+    );
+    var sourceRowsByKey = {};
+    ['third_phase_places', 'test_places'].forEach(function(sourceTable) {
+      fetchSupabaseRows_(sourceTable + '?select=uuid,tai_class,hak_class,t_state,h_state').forEach(function(row) {
+        sourceRowsByKey[sourceTable + '|' + String(row.uuid || '').trim()] = row;
+      });
+    });
+
+    var tasksById = {};
+    finalTasks.forEach(function(task) {
+      tasksById[String(task.id)] = task;
+    });
+
+    var candidates = [];
+    var seenReviewIds = {};
+    reviews.forEach(function(review) {
+      var language = String(review.language || '').trim();
+      var assignedTo = String(review.assigned_to || '').trim();
+      var appState = String(review.app_state || '').trim();
+      if (['台語', '客語'].indexOf(language) < 0) return;
+      if (!assignedTo) return;
+      if (['尚未標注', '待指派'].indexOf(appState) < 0) return;
+      if (seenReviewIds[String(review.id)]) return;
+
+      var task = tasksById[String(review.task_id)];
+      if (!task) return;
+      var sourceTable = String(task.source_table || '').trim();
+      var sourceId = String(task.source_id || '').trim();
+      var source = sourceRowsByKey[sourceTable + '|' + sourceId];
+      if (!source) return;
+
+      var languageClass = language === '台語' ? source.tai_class : source.hak_class;
+      var sourceState = language === '台語' ? source.t_state : source.h_state;
+      if (['', '待指派'].indexOf(String(sourceState || '').trim()) < 0) return;
+
+      candidates.push({
+        task_id: Number(task.id),
+        review_id: Number(review.id),
+        source_id: sourceId,
+        source_table: sourceTable,
+        language: language,
+        assigned_to: assignedTo,
+        app_state: appState,
+        sheet_state: String(review.sheet_state || '').trim(),
+        expected_state: isWrittenAnnotationClassValue_(languageClass) ? '書面標注中' : '錄音中'
+      });
+      seenReviewIds[String(review.id)] = true;
+    });
+
+    var contexts = {};
+    function getContext(sourceTable) {
+      var sheetName = sourceTable === 'test_places' ? TEST_ENTRIES_SHEET_NAME : THIRD_PHASE_SHEET_NAME;
+      if (!contexts[sheetName]) contexts[sheetName] = getAssignedStateRepairSheetContext_(sheetName);
+      return contexts[sheetName];
+    }
+
+    var repairRows = [];
+    var skipped = [];
+    var repairStamp = 'APP指派狀態修復|' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+    candidates.forEach(function(candidate) {
+      var context = getContext(candidate.source_table);
+      var rowNumber = context.uuidRows[candidate.source_id];
+      if (!rowNumber) {
+        skipped.push(candidate.source_id + '：工作表找不到 UUID');
+        return;
+      }
+
+      var rowIndex = rowNumber - 2;
+      var stateHeader = candidate.language === '台語' ? 'T_State' : 'H_State';
+      var annotatorHeader = candidate.language === '台語' ? 'T_Annotator' : 'H_Annotator';
+      var assignmentStatusHeader = candidate.language === '台語' ? 'T_AssignmentStatus' : 'H_AssignmentStatus';
+      var updatedAtHeader = candidate.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
+      var currentState = String(context.columns[stateHeader][rowIndex][0] || '').trim();
+      if (['', '待指派'].indexOf(currentState) < 0) return;
+
+      var changed = false;
+      if (currentState !== candidate.expected_state) {
+        context.columns[stateHeader][rowIndex][0] = candidate.expected_state;
+        context.dirtyColumns[stateHeader] = true;
+        changed = true;
+      }
+      if (String(context.columns[assignmentStatusHeader][rowIndex][0] || '').trim() !== '已指派') {
+        context.columns[assignmentStatusHeader][rowIndex][0] = '已指派';
+        context.dirtyColumns[assignmentStatusHeader] = true;
+        changed = true;
+      }
+      if (String(context.columns[annotatorHeader][rowIndex][0] || '').trim() !== candidate.assigned_to) {
+        context.columns[annotatorHeader][rowIndex][0] = candidate.assigned_to;
+        context.dirtyColumns[annotatorHeader] = true;
+        changed = true;
+      }
+      if (!changed) return;
+
+      context.columns[updatedAtHeader][rowIndex][0] = repairStamp;
+      context.dirtyColumns[updatedAtHeader] = true;
+      repairRows.push({
+        task_id: candidate.task_id,
+        review_id: candidate.review_id,
+        source_id: candidate.source_id,
+        source_table: candidate.source_table,
+        language: candidate.language,
+        expected_state: candidate.expected_state,
+        assigned_to: candidate.assigned_to,
+        updated_stamp: repairStamp
+      });
+    });
+
+    if (!dryRun) {
+      Object.keys(contexts).forEach(function(sheetName) {
+        var context = contexts[sheetName];
+        Object.keys(context.dirtyColumns).forEach(function(header) {
+          if (context.rowCount === 0) return;
+          context.sheet.getRange(2, context.headerMap[header], context.rowCount, 1)
+            .setValues(context.columns[header]);
+        });
+      });
+    }
+
+    var synced = dryRun ? 0 : callAssignedStateRepairRpc_(repairRows);
+    var mode = dryRun ? '預覽' : '修復';
+    var message = '✅ Assigned State ' + mode + '完成：候選 ' + candidates.length + ' 筆，' +
+      (dryRun ? '預計修復 ' : '實際修復 ') + repairRows.length + ' 筆，略過 ' + skipped.length + ' 筆。';
+    if (!dryRun) message += ' Supabase 同步回寫 ' + synced + ' 筆。';
+    if (skipped.length > 0) message += '\n略過原因：\n' + skipped.slice(0, 20).join('\n');
+    return notify_(message, options);
+  } catch (e) {
+    return handleSyncError_('Assigned State 批次修復', e, options);
+  } finally {
+    if (lockAcquired) lock.releaseLock();
+  }
+}
+
+function previewAssignedStatesFromSupabase() {
+  return repairAssignedStatesFromSupabase({ dryRun: true });
+}
 function syncApprovedReviewsToSheets(options) {
   return notify_('APP 審查回寫功能已暫停。', options);
 }
