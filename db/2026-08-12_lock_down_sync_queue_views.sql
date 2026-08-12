@@ -22,3 +22,6 @@ to service_role;
 
 commit;
 
+-- Rollback example (do not run without a new access review):
+-- grant select on table public.app_sheet_sync_queue to anon, authenticated;
+-- grant select on table public.app_review_workflow_writeback_queue to anon, authenticated;
