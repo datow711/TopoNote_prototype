@@ -831,7 +831,7 @@ function supabaseServiceFetch_(path, options) {
 
 function getUploadTask_(job) {
   var rows = JSON.parse(supabaseServiceFetch_(
-    '/rest/v1/final_tasks?select=id,source_id&task_id=eq.' + encodeURIComponent(job.taskId) + '&limit=1',
+    '/rest/v1/final_tasks?select=id,source_id&id=eq.' + encodeURIComponent(job.taskId) + '&limit=1',
     { method: 'get', muteHttpExceptions: true }
   ).getContentText() || '[]');
   if (!rows.length) throw uploadError_('TASK_NOT_FOUND', '找不到對應地名任務', 'VALIDATION', false);

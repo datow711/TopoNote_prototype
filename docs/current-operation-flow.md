@@ -92,7 +92,7 @@ Operator action:
 1. Investigator logs into the APP.
 2. Investigator opens an assigned place.
 3. Investigator records or uploads audio.
-4. In the deployed baseline, the browser still uses the old two-step write path; in the local First Stage branch, the browser sends one upload request to Root GAS and does not insert a new audio_records row directly.
+4. In the current deployed baseline, the browser sends one upload request to Root GAS and does not insert a new audio_records row directly.
 
 What happens:
 
@@ -103,11 +103,11 @@ Current safety behavior:
 
 - Test places `TEST0001` to `TEST0010` remain hidden from normal investigator "other places" unless assigned.
 
-## Audio upload reliability First Stage（本機停等點）
+## Audio upload reliability First Stage（正式部署 readback）
 
-本節記錄 2026-08-20 的第一階段本機修補；「本機完成」不代表正式 Supabase、Root GAS 或前端已更新。
+本節記錄 2026-08-20 第一階段修補的正式環境 readback；本文件只把已取得證據的 migration、Root GAS、GitHub Pages 與 smoke 結果列為完成。
 
-本機 HEAD 的新流程：
+正式環境目前流程：
 
 1. 前端在確認上傳時建立不可變 uploadJob，固定 clientUploadId、task snapshot、語言、帳號、原始檔名、實際 MIME、Blob 與註記。
 2. 前端只送一個 upload action 給 Root GAS；Root GAS 以 service role 驗證 task、取得 Script Lock、檢查 client_upload_id，再依序建立 Drive、寫入 audio_records、確保一筆 Records row，最後回傳正式 row id。
@@ -115,17 +115,19 @@ Current safety behavior:
 4. DB 失敗時只嘗試將本次新建且尚未被引用的 Drive 檔移到垃圾桶；Records 補寫失敗則保留正式 Drive/DB 資料並回傳 legacyLogPending。同一 ID 重試不重建資源。
 5. 管理員既有的 linkAudioRecords 仍是獨立的連結流程，不能與新上傳 coordinator 混淆。
 
-本機驗證證據：
+本機與正式驗證證據：
 
 - audio-upload、audio-playback 與 Root GAS contract focused tests：18/18。
 - npm run test:ui -- --reporter=line --workers=1：74/74。
 - node --check main.js、node --check gas\程式碼.js、測試語法檢查與 git diff --check 通過。
 
-正式環境停等點：
+正式環境 readback：
 
-- supabase/migrations/20260820120000_audio_upload_reliability.sql 尚未套用；live audio_records 尚未出現六個新欄位與唯一 constraint。
-- clasp status 顯示本機 Root GAS 有變更；clasp deployments 顯示目前 Web App URL 的 deployment 為 @32，本機修補尚未 push。
-- 尚未執行正式 Drive、Records、Supabase smoke write；第二階段未開始。
+- Supabase migration `20260820065202_audio_upload_reliability` 已套用；`audio_records` 六個欄位與 `audio_records_client_upload_id_key` 已 read back，既有資料列數在套用後保持 1806。
+- Root GAS 已部署至設定中的 Web App deployment `@34`；先前 `@32`、`@33` 版本仍可作為回復候選。正式部署前另修正 live `final_tasks` 使用 `id` 而非 `task_id` 的查詢欄位，並重新部署 @34。
+- GitHub Pages 根網址回傳 HTTP 200，live `index.html` 使用 `main.js?v=20260820-audio-upload-reliability`，live `main.js` 已包含 `pendingUploadJob` 與 `clientUploadId`。
+- 非破壞性 smoke 使用 `TEST0001`／task `23619`：`audio_records.id=1809`、Drive file `12HtvsDmaK_XmITwo1NQ1p63L2HvKfDaj`、Records row 的 `錄音ID` 均對應同一 clientUploadId；相同 payload 第二次送出回傳 `deduplicated=true`，未建立第二筆資源。
+- smoke 的 payload 是 4 bytes 合成測試資料，只驗證傳輸、協調、metadata 與 idempotency，不代表已驗證可解碼音檔播放；第二階段仍未開始。
 
 ### 5. Admin review approval
 

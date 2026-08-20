@@ -2,7 +2,7 @@
 
 更新時間：2026-08-20（Asia/Taipei）
 
-這份文件依 2026-08-20 本地工作區、Git 歷史、現有驗收文件、本次 live readback 與本地回歸測試更新。它優先於 2026-05 至 2026-07 的舊 `NEXT_*_HANDOFF.md`；正式環境仍須以本次 readback 與 deployment 證據為準，任何 migration、部署或 smoke write 都必須依本文件的停等點重新確認。
+這份文件依 2026-08-20 工作區、Git 歷史、現有驗收文件、本次正式 live readback 與回歸測試更新。它優先於 2026-05 至 2026-07 的舊 NEXT_HANDOFF 文件；正式環境狀態以本次 readback 與 deployment 證據為準。
 
 ## 一句話架構
 
@@ -11,7 +11,7 @@ TopoNote 是一套原生 HTML/CSS/JavaScript 的靜態 PWA：瀏覽器直接使�
 ## 接手後第一輪必做
 
 1. 先讀本文件、`docs/architecture-inventory.md`、`docs/current-operation-flow.md`。
-2. 先執行 `git status --short --branch`、`git remote -v`、`git log --oneline -8`，確認目前分支與工作區；目前基線為 `main`、`864691b`、乾淨且與 `origin/main` 同步。
+2. 先執行 git status --short --branch、git remote -v、git log --oneline -8，確認目前分支與工作區；本次 First Stage 正式部署 readback 對應 Root GAS @34，本機 follow-up 文件與 live-schema 修正 commit 仍需以 Git 狀態確認。
 3. 執行 JS 語法檢查：
 
    ```powershell
@@ -24,15 +24,15 @@ TopoNote 是一套原生 HTML/CSS/JavaScript 的靜態 PWA：瀏覽器直接使�
    ```
 
 4. 若要改登入、管理員密碼、RLS、view 或 RPC，先對線上 Supabase 做唯讀 schema/function/grant readback。
-5. 若要跑 Playwright，使用目前已可用的 npm／Chromium 環境；上一個 UI 回歸基線為 59/59；2026-08-20 First Stage 本機回歸為 74/74。
+5. 若要跑 Playwright，使用目前已可用的 npm／Chromium 環境；上一個 UI 回歸基線為 59/59；2026-08-20 First Stage 回歸為 74/74。
 6. 若要改 GAS，先分清楚 Root GAS 與 Places GAS，兩者不是同一個 Apps Script 專案。
 7. 若要改審查流程、RPC、Sheet 或部署，先讀 `docs/review-workflow-mvp-acceptance-report.md` 與 `docs/review-workflow-relaunch-decision-register.md`，再做正式端到端 readback。
 
 ## 2026-08-20 First Stage audio upload handoff
 
-本地 HEAD 已完成 spec 第一階段的音檔上傳可靠性修補與 74/74 UI 回歸，但尚未進入正式部署 gate。新前端建立不可變 uploadJob/clientUploadId，Root GAS local source 以 service role 協調 Drive、Supabase audio_records 與 legacy Records；失敗重試沿用同一 ID，正式 row id 回傳後保留立即編輯文字能力。
+第一階段已完成正式部署與 readback。新前端建立不可變 uploadJob/clientUploadId，Root GAS @34 以 service role 協調 Drive、Supabase audio_records 與 legacy Records；失敗重試沿用同一 ID，正式 row id 回傳後保留立即編輯文字能力。
 
-注意：目前 config.js 所指向的 Web App deployment 仍是 @32；clasp deployments 顯示 local source 尚未 push。Supabase migration 20260820120000_audio_upload_reliability.sql 尚未套用，未執行正式 Drive、Sheet 或 Supabase smoke write。下一個操作應先逐項批准 migration、clasp push/deployment update、前端發布與 smoke test；第二階段未開始。
+正式 readback：Supabase migration 20260820065202_audio_upload_reliability 已套用；Root GAS Web App 為 @34，@32／@33 可作回復候選；GitHub Pages live 回傳 HTTP 200 且載入 main.js?v=20260820-audio-upload-reliability。TEST0001／task 23619 smoke 建立 audio_records.id=1809 與 Drive file 12HtvsDmaK_XmITwo1NQ1p63L2HvKfDaj，Records row 使用同一 clientUploadId；第二次相同 payload 回傳 deduplicated=true。本次 smoke 使用 4 bytes 合成資料，未驗證真實音訊 codec 播放；第二階段未開始。
 
 ## 專案入口與檔案角色
 
@@ -60,7 +60,7 @@ npm run dev
 
 目前 `doPost` 路由：
 
-- upload：正式 @32 仍是舊雙段流程；local HEAD 已改為 Root GAS 單一 coordinator，並保留 Records compatibility row。
+- upload：正式 @34 使用 Root GAS 單一 coordinator，並保留 Records compatibility row；已完成 TEST0001 smoke 與同 ID retry readback。
 - `linkAudioRecords`：把既有 Drive 音檔連結到其他地名並寫舊 `Records`。
 - `getAudio`：代理 Drive 音檔供瀏覽器播放。
 - `submitFeedback`：寫問題回報試算表，可選擇通知 Chat webhook。
@@ -117,7 +117,7 @@ Root GAS 需要的 Script Properties 至少包括：
 - 台語與客語分語種指派、解除指派、批次選取。
 - 現場 MediaRecorder 錄音與手機／LINE 音檔上傳。
 - 選取地名後，錄音區標題下方會顯示 `info` 的「地名補充資訊」；空白時隱藏，多行內容保留換行。
-- 音檔先經 Root GAS 存 Drive，再由前端新增 `audio_records`。
+- 前端將不可變 upload job 送給 Root GAS；Root GAS 存 Drive、寫入 audio_records 並確保一筆 Records row。
 - 原上傳者可只修改音檔文字內容，不需重傳音檔。
 - 管理員可將既有音檔連結到其他地名，也可軟解除錯誤連結。
 - 管理員逐語種審查、比較各錄音內容並填入最終審定欄位。

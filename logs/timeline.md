@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-08-20] [DEPLOY]
+Completed formal First Stage deployment and readback: applied Supabase migration 20260820065202_audio_upload_reliability; corrected the live final_tasks.id lookup mismatch and deployed Root GAS Web App @34; verified GitHub Pages HTTP 200 with the audio-upload cache-bust; ran a controlled TEST0001/task 23619 smoke that created audio_records id 1809, one Drive file and one Records row, then confirmed the exact retry returned deduplicated=true. The smoke used a 4-byte synthetic body and did not claim codec playback. Existing data was not deleted and Stage Two has not started.
+
 [2026-08-20] [FIX]
 Implemented the local First Stage audio-upload reliability repair from the spec: immutable upload snapshot and clientUploadId, actual MediaRecorder MIME and safe Drive filename, Root GAS single coordinator with service-role audio_records write/readback, Drive compensation, Records dedup/warning, and retry-safe UI. Added 10 focused upload tests, a Playwright config for the existing tests/ directory, and updated the operation/architecture/handoff documentation. Local verification passed 18/18 focused audio and Root GAS contract tests and 74/74 full UI tests; main.js, Root GAS, test syntax, and git diff --check passed. The Supabase migration was not applied, Root GAS was not pushed, deployment @32 remains the live target, no production smoke write was run, and Stage Two has not started.
 

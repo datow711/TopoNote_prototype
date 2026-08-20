@@ -1,6 +1,6 @@
 # TopoNote architecture inventory
 
-Updated: 2026-08-20.
+Updated: 2026-08-20 (formal First Stage deployment readback).
 
 This inventory is a static local-code and prior read-only audit map. It is meant to answer: "What is active, what is legacy, and what needs a retention decision before removal?"
 
@@ -69,11 +69,11 @@ Frontend single-reference functions are not automatically dead code because many
 
 ## Root GAS inventory
 
-### Audio upload First Stage local status
+### Audio upload First Stage deployed status
 
-The local First Stage changes make Root GAS the single coordinator for a new upload. The browser keeps the immutable upload snapshot and sends one upload action with clientUploadId; Root GAS validates the task and MIME, acquires Script Lock, checks the idempotency key, creates the safe Drive file, inserts audio_records with service role and return=representation, then ensures one Records row.
+The deployed First Stage makes Root GAS the single coordinator for a new upload. The browser keeps the immutable upload snapshot and sends one upload action with clientUploadId; Root GAS validates the task and MIME, acquires Script Lock, checks the idempotency key, creates the safe Drive file, inserts audio_records with service role and return=representation, then ensures one Records row.
 
-The migration is additive and remains local at this gate. Live audio_records readback still shows the old columns, primary key and task foreign key, the existing anon INSERT/SELECT policy, the existing grants, and trg_audio_records_pending_review; no new columns or unique constraint have been applied. The current Web App deployment readback is @32, while the local Root GAS source is newer and has not been pushed.
+The additive migration 20260820065202_audio_upload_reliability is applied. Live audio_records readback shows the six nullable metadata columns and the unique client_upload_id constraint, while existing rows and the prior policies, grants and trigger remain. The current Web App deployment readback is @34; @32 and @33 remain available versions for rollback.
 
 
 Root GAS script:
@@ -87,7 +87,7 @@ Root GAS route map:
 | Route/action | Status | Current local evidence | Cleanup decision |
 | --- | --- | --- | --- |
 | `doPost` | Active | Apps Script Web App entrypoint | Keep. |
-| upload -> handleUpload | Active | local First Stage frontend calls one coordinator request | Root GAS validates the snapshot, writes Drive and audio_records with service role, then ensures the legacy Records row; the deployed @32 version is unchanged until the gate is approved. |
+| upload -> handleUpload | Active | deployed GitHub Pages frontend calls one coordinator request | Root GAS @34 validates the snapshot, writes Drive and audio_records with service role, then ensures the legacy Records row; a TEST0001 smoke and same-ID retry readback passed. |
 | `getAudio` -> `handleGetAudio` | Active | current frontend playback path | Keep. |
 | `submitFeedback` -> `handleSubmitFeedback` | Active | current frontend feedback path | Keep. |
 | `updateUserProfile` -> `handleUpdateUserProfile` | Active | current admin profile path | Keep; this protects service-role RPC from browser exposure. |
@@ -100,7 +100,7 @@ Root GAS old Sheet coupling:
 | Sheet/object | Status | Local evidence | Notes |
 | --- | --- | --- | --- |
 | `Users` | Active | profile write-through and legacy login | Current admin profile write-through needs it. |
-| Records | Active but awkward | local handleUpload ensures one row; deployed @32 still has the legacy append behavior | Keep as the audit/compatibility trail until a later approved cleanup. |
+| Records | Active but awkward | deployed @34 handleUpload ensures one row; TEST0001 smoke readback found one matching row | Keep as the audit/compatibility trail until a later approved cleanup. |
 | `Places` | Legacy candidate | used by legacy login and CSV export helper | Do not remove until Batch F and Sheet retention are settled. |
 | `Assignments` | Legacy candidate | used only by legacy login | Candidate for retention/archive after route is disabled. |
 
@@ -218,10 +218,10 @@ Recommendation: keep Batch B/C targeted. Treat a full app-facing view security r
 
 ### Dual audio logs
 
-The deployed baseline and the local First Stage both retain two audit surfaces, but the new upload write is coordinated in Root GAS:
+The deployed baseline and the First Stage both retain two audit surfaces, but the new upload write is coordinated in Root GAS:
 
 1. Root GAS writes the authoritative audio_records row and ensures one legacy Records Sheet row, using the same clientUploadId as the Sheet 錄音ID.
-2. The frontend reads audio_records for task history, report data and original-uploader text edits; it no longer creates a new audio_records row after a successful upload in the local First Stage.
+2. The frontend reads audio_records for task history, report data and original-uploader text edits; it no longer creates a new audio_records row after a successful upload in the deployed First Stage.
 
 The existing admin linkAudioRecords path is separate and remains direct for creating links to an existing Drive audio. Do not remove Records or change the old anon INSERT policy in this stage.
 

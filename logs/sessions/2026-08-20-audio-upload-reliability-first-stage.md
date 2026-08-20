@@ -2,7 +2,7 @@
 
 ## Goal
 
-- Deliver the spec's First Stage local repair while keeping the formal deployment gate intact.
+- Deliver the spec's First Stage repair through formal Supabase, Root GAS, frontend and smoke readback.
 
 ## Changes
 
@@ -25,13 +25,13 @@
 
 ## Formal environment status
 
-- Not applied: supabase/migrations/20260820120000_audio_upload_reliability.sql.
-- Not pushed: Root GAS source and GitHub.
-- Not deployed: Root GAS update and frontend cache-busting update.
-- Not smoke-tested: production Drive, Records Sheet and audio_records writes.
-- The live audio_records readback still has the pre-migration columns, existing RLS/policies/grants and trigger; the new columns and unique constraint are local only.
+- Applied: Supabase migration 20260820065202_audio_upload_reliability; six metadata columns and the unique client_upload_id constraint were read back, with existing row count preserved at 1806 immediately after migration.
+- Deployed: Root GAS Web App deployment @34. The live task lookup mismatch (final_tasks.id, not task_id) was corrected before the final deployment; @32 and @33 remain available versions for rollback.
+- Live frontend: GitHub Pages returned HTTP 200 and served main.js?v=20260820-audio-upload-reliability with the First Stage markers.
+- Smoke readback: task 23619 / source TEST0001 created audio_records.id=1809, Drive file 12HtvsDmaK_XmITwo1NQ1p63L2HvKfDaj, and one matching Records row. Repeating the exact payload returned deduplicated=true and did not create another resource.
+- The smoke payload was a 4-byte synthetic test body, so transport, metadata and idempotency were verified but real codec playback was not.
 - Stage Two was not started.
 
 ## Recovery
 
-Keep the additive migration and local source changes as a cohesive commit. If the first stage is rejected, revert the local frontend/GAS/cache-busting commit; do not drop the additive columns or delete existing Drive, Supabase or Records data.
+Keep the additive migration and source changes as cohesive commits. If rollback is required, point the configured Web App back to the retained @32 or @33 version and preserve the additive columns; do not delete the smoke Drive file, existing Drive files, Supabase rows or Records data automatically.

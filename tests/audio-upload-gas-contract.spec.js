@@ -216,6 +216,7 @@ function loadCoordinatorGas() {
     UrlFetchApp: {
       fetch: (url, options) => {
         if (url.includes('/final_tasks?')) {
+          expect(url).toContain('&id=eq.101');
           return response(200, JSON.stringify([{ id: 101, source_id: 'SRC-101' }]));
         }
         if (url.includes('/audio_records?')) {
