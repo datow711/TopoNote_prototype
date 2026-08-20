@@ -762,8 +762,7 @@ test('written annotation places are hidden from normal users but visible to admi
         hak_audio_count: 0
       },
       {
-        // 「直接標注」是「書面標注」的舊名稱，工作清單尚未整批改名，
-        // 因此必須和「書面標注」一樣對一般調查員隱藏。
+        // 單一語種是書面／直接標注時，仍保留另一語種的 APP 工作。
         task_id: 204,
         source_id: 'uuid-204',
         source_table: 'third_phase_places',
@@ -778,6 +777,25 @@ test('written annotation places are hidden from normal users but visible to admi
         t_assignee: 'lin@example.com',
         h_assignee: '',
         recording_status: '尚未錄音',
+        tai_audio_count: 0,
+        hak_audio_count: 0
+      },
+      {
+        // Hide only when both language classes are written annotation classes.
+        task_id: 205,
+        source_id: 'uuid-205',
+        source_table: 'third_phase_places',
+        place_name: 'Both-language written place',
+        county: '苗栗縣',
+        town: '頭份市',
+        type: '聚落',
+        tai_class: '\u76f4\u63a5\u6a19\u6ce8',
+        hak_class: '\u66f8\u9762\u6a19\u6ce8',
+        assigned_users: 'lin@example.com',
+        assigned_to: '',
+        t_assignee: 'lin@example.com',
+        h_assignee: '',
+        recording_status: '\u5c1a\u672a\u9304\u97f3',
         tai_audio_count: 0,
         hak_audio_count: 0
       }
@@ -817,10 +835,10 @@ test('written annotation places are hidden from normal users but visible to admi
     return { userAssignedIds, userOtherIds, adminAssignedIds };
   });
 
-  // 204 是舊名「直接標注」，和 202/203 一樣不該出現在一般調查員的清單。
-  expect(result.userAssignedIds).toEqual([201]);
-  expect(result.userOtherIds).toEqual([]);
-  expect(result.adminAssignedIds).toEqual([201, 202, 203, 204]);
+  // 單一語種書面類別要保留另一語種工作；205 才應被隱藏。
+  expect(result.userAssignedIds).toEqual([201, 202, 204]);
+  expect(result.userOtherIds).toEqual([203]);
+  expect(result.adminAssignedIds).toEqual([201, 202, 203, 204, 205]);
 });
 
 test('admin task loading includes test places beyond the first Supabase page', async ({ page }) => {

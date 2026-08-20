@@ -876,7 +876,7 @@ function isWrittenAnnotationClass(value) {
 
 function isWrittenAnnotationPlace(place) {
     if (!place) return false;
-    return [place.taiClass, place.hakClass].some(isWrittenAnnotationClass);
+    return [place.taiClass, place.hakClass].every(isWrittenAnnotationClass);
 }
 
 function normalizeReviewTask(t) {
