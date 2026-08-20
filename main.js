@@ -5207,6 +5207,7 @@ function getPlaceCoordinates(place) {
     const lng = Number(rawLng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    if (lat === 0 && lng === 0) return null;
     return { lat, lng };
 }
 

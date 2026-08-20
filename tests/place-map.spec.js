@@ -114,13 +114,23 @@ test('place map controls only appear for village or coordinate data', async ({ p
         town: '乙鄉',
         longitude: 121,
         latitude: 23.5
+      }),
+      normalizeTask({
+        task_id: 204,
+        source_id: 'MAP-204',
+        place_name: '零座標',
+        county: '甲縣',
+        town: '乙鄉',
+        village: '丁村',
+        longitude: 0,
+        latitude: 0
       })
     ]);
   });
 
   await expect(page.locator('#place-map-toggle')).toBeVisible();
   await expect(page.locator('#place-map-summary')).toContainText('1 筆可精準定位');
-  await expect(page.locator('#place-map-summary')).toContainText('1 筆僅有村里');
+  await expect(page.locator('#place-map-summary')).toContainText('2 筆僅有村里');
 
   await page.evaluate(() => openRecordingUI(getPlaceByTaskId(201), null));
   await expect(page.locator('#selected-place-location-row')).toBeVisible();
@@ -132,9 +142,15 @@ test('place map controls only appear for village or coordinate data', async ({ p
 
   await page.locator('#place-map-toggle').click();
   await expect(page.locator('#place-map-panel')).toBeVisible();
-  await expect(page.locator('#place-map-status')).toContainText('2 筆可開啟地圖');
+  await expect(page.locator('#place-map-status')).toContainText('3 筆可開啟地圖');
   await expect(page.locator('#place-map-status')).toContainText('1 筆有經緯度');
   await expect(page.locator('#leaflet-js')).toHaveCount(0);
+
+  await page.evaluate(() => openRecordingUI(getPlaceByTaskId(204), null));
+  await expect(page.locator('#selected-place-location-btn')).toBeVisible();
+  await page.locator('#selected-place-location-btn').click();
+  await expect(page.locator('#place-map-card')).toContainText('目前沒有經緯度');
+  await expect(page.locator('#place-map-card button[disabled]')).toHaveCount(2);
 });
 
 test('selected coordinate place shows straight-line distance after user location', async ({ page }) => {
