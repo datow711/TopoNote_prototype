@@ -1,8 +1,8 @@
 # TopoNote App 最新開發交接
 
-更新時間：2026-08-10（Asia/Taipei）
+更新時間：2026-08-20（Asia/Taipei）
 
-這份文件依 2026-08-10 本地工作區、Git 歷史、現有驗收文件與本地回歸測試更新。它優先於 2026-05 至 2026-07 的舊 `NEXT_*_HANDOFF.md`；Supabase、Google Sheet 與 Apps Script 的正式環境狀態以下以 2026-08-06 驗收報告記載為主，本次更新未重新執行 live readback，因此涉及正式資料或部署的工作仍須先重新確認。
+這份文件依 2026-08-20 本地工作區、Git 歷史、現有驗收文件、本次 live readback 與本地回歸測試更新。它優先於 2026-05 至 2026-07 的舊 `NEXT_*_HANDOFF.md`；正式環境仍須以本次 readback 與 deployment 證據為準，任何 migration、部署或 smoke write 都必須依本文件的停等點重新確認。
 
 ## 一句話架構
 
@@ -24,9 +24,15 @@ TopoNote 是一套原生 HTML/CSS/JavaScript 的靜態 PWA：瀏覽器直接使�
    ```
 
 4. 若要改登入、管理員密碼、RLS、view 或 RPC，先對線上 Supabase 做唯讀 schema/function/grant readback。
-5. 若要跑 Playwright，使用目前已可用的 npm／Chromium 環境；完整 UI 回歸基線為 59/59 通過。
+5. 若要跑 Playwright，使用目前已可用的 npm／Chromium 環境；上一個 UI 回歸基線為 59/59；2026-08-20 First Stage 本機回歸為 74/74。
 6. 若要改 GAS，先分清楚 Root GAS 與 Places GAS，兩者不是同一個 Apps Script 專案。
 7. 若要改審查流程、RPC、Sheet 或部署，先讀 `docs/review-workflow-mvp-acceptance-report.md` 與 `docs/review-workflow-relaunch-decision-register.md`，再做正式端到端 readback。
+
+## 2026-08-20 First Stage audio upload handoff
+
+本地 HEAD 已完成 spec 第一階段的音檔上傳可靠性修補與 74/74 UI 回歸，但尚未進入正式部署 gate。新前端建立不可變 uploadJob/clientUploadId，Root GAS local source 以 service role 協調 Drive、Supabase audio_records 與 legacy Records；失敗重試沿用同一 ID，正式 row id 回傳後保留立即編輯文字能力。
+
+注意：目前 config.js 所指向的 Web App deployment 仍是 @32；clasp deployments 顯示 local source 尚未 push。Supabase migration 20260820120000_audio_upload_reliability.sql 尚未套用，未執行正式 Drive、Sheet 或 Supabase smoke write。下一個操作應先逐項批准 migration、clasp push/deployment update、前端發布與 smoke test；第二階段未開始。
 
 ## 專案入口與檔案角色
 
@@ -54,7 +60,7 @@ npm run dev
 
 目前 `doPost` 路由：
 
-- `upload`：音檔存入 Google Drive，並保留舊 `Records` Sheet 紀錄。
+- upload：正式 @32 仍是舊雙段流程；local HEAD 已改為 Root GAS 單一 coordinator，並保留 Records compatibility row。
 - `linkAudioRecords`：把既有 Drive 音檔連結到其他地名並寫舊 `Records`。
 - `getAudio`：代理 Drive 音檔供瀏覽器播放。
 - `submitFeedback`：寫問題回報試算表，可選擇通知 Chat webhook。

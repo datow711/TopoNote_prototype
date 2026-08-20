@@ -1,6 +1,6 @@
 # TopoNote architecture inventory
 
-Updated: 2026-06-24.
+Updated: 2026-08-20.
 
 This inventory is a static local-code and prior read-only audit map. It is meant to answer: "What is active, what is legacy, and what needs a retention decision before removal?"
 
@@ -41,7 +41,7 @@ Active Supabase reads:
 | `app_tasks_view` | Active | `main.js` loads task rows through `/rest/v1/app_tasks_view` | Primary task list source for investigators and admins. |
 | `app_review_queue_view` | Active | `main.js` loads review rows for admin review | Keep while review UI is active. |
 | `app_users_view` | Active | `main.js` uses it for session restore, admin user manager, and assignee labels | Keep name-first display contract; email/account remain identifiers. |
-| `audio_records` | Active | `main.js` reads, inserts, and patches rows | Used for uploaded audio history and original-uploader text edits. |
+| audio_records | Active | main.js reads and patches rows; new upload is coordinated by Root GAS | Used for uploaded audio history and original-uploader text edits; admin linkAudioRecords remains a separate direct-link path. |
 
 Active Supabase RPCs called by frontend:
 
@@ -60,7 +60,7 @@ Active frontend-to-root-GAS actions:
 
 | Action | Status | Current local evidence | Notes |
 | --- | --- | --- | --- |
-| `upload` | Active | `main.js` sends audio payload to `CONFIG.GAS_WEB_APP_URL` | Stores Drive file; frontend then inserts `audio_records` in Supabase. |
+| upload | Active | main.js sends one immutable upload payload to Root GAS | Local First Stage no longer inserts a new audio_records row after GAS success; admin link flow remains separate. |
 | `getAudio` | Active | playback proxy for Drive audio | Keep unless playback is moved away from Drive/GAS. |
 | `submitFeedback` | Active | feedback dialog | Writes feedback sheet and optional chat webhook. |
 | `updateUserProfile` | Active | admin profile editor | Updates Supabase through service-role RPC and writes Places `Users` sheet. |
@@ -68,6 +68,13 @@ Active frontend-to-root-GAS actions:
 Frontend single-reference functions are not automatically dead code because many are called from inline HTML attributes or dynamically generated buttons. Examples include `loginAdmin`, `selectHakArea`, `selectStatus`, `handleFileUpload`, `stopRecording`, `uploadAudio`, `batchAssignTasks`, and `batchUnassignTasks`.
 
 ## Root GAS inventory
+
+### Audio upload First Stage local status
+
+The local First Stage changes make Root GAS the single coordinator for a new upload. The browser keeps the immutable upload snapshot and sends one upload action with clientUploadId; Root GAS validates the task and MIME, acquires Script Lock, checks the idempotency key, creates the safe Drive file, inserts audio_records with service role and return=representation, then ensures one Records row.
+
+The migration is additive and remains local at this gate. Live audio_records readback still shows the old columns, primary key and task foreign key, the existing anon INSERT/SELECT policy, the existing grants, and trg_audio_records_pending_review; no new columns or unique constraint have been applied. The current Web App deployment readback is @32, while the local Root GAS source is newer and has not been pushed.
+
 
 Root GAS script:
 
@@ -80,7 +87,7 @@ Root GAS route map:
 | Route/action | Status | Current local evidence | Cleanup decision |
 | --- | --- | --- | --- |
 | `doPost` | Active | Apps Script Web App entrypoint | Keep. |
-| `upload` -> `handleUpload` | Active but awkward | current frontend calls it | Keep. It still appends to old `Records`; later decide whether the legacy log is still needed. |
+| upload -> handleUpload | Active | local First Stage frontend calls one coordinator request | Root GAS validates the snapshot, writes Drive and audio_records with service role, then ensures the legacy Records row; the deployed @32 version is unchanged until the gate is approved. |
 | `getAudio` -> `handleGetAudio` | Active | current frontend playback path | Keep. |
 | `submitFeedback` -> `handleSubmitFeedback` | Active | current frontend feedback path | Keep. |
 | `updateUserProfile` -> `handleUpdateUserProfile` | Active | current admin profile path | Keep; this protects service-role RPC from browser exposure. |
@@ -93,7 +100,7 @@ Root GAS old Sheet coupling:
 | Sheet/object | Status | Local evidence | Notes |
 | --- | --- | --- | --- |
 | `Users` | Active | profile write-through and legacy login | Current admin profile write-through needs it. |
-| `Records` | Active but awkward | `handleUpload` appends a row; legacy login reads it | Decide whether this log is still useful before removing write. |
+| Records | Active but awkward | local handleUpload ensures one row; deployed @32 still has the legacy append behavior | Keep as the audit/compatibility trail until a later approved cleanup. |
 | `Places` | Legacy candidate | used by legacy login and CSV export helper | Do not remove until Batch F and Sheet retention are settled. |
 | `Assignments` | Legacy candidate | used only by legacy login | Candidate for retention/archive after route is disabled. |
 
@@ -211,12 +218,12 @@ Recommendation: keep Batch B/C targeted. Treat a full app-facing view security r
 
 ### Dual audio logs
 
-Audio upload has two records:
+The deployed baseline and the local First Stage both retain two audit surfaces, but the new upload write is coordinated in Root GAS:
 
-1. Root GAS writes a legacy row to the `Records` Sheet.
-2. Frontend writes current metadata to Supabase `audio_records`.
+1. Root GAS writes the authoritative audio_records row and ensures one legacy Records Sheet row, using the same clientUploadId as the Sheet 錄音ID.
+2. The frontend reads audio_records for task history, report data and original-uploader text edits; it no longer creates a new audio_records row after a successful upload in the local First Stage.
 
-The Supabase row is the current app source. The Sheet `Records` log may still be useful as an operational audit trail, but it should be explicitly decided rather than left as accidental coupling.
+The existing admin linkAudioRecords path is separate and remains direct for creating links to an existing Drive audio. Do not remove Records or change the old anon INSERT policy in this stage.
 
 ### Assignment model layers
 

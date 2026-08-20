@@ -138,16 +138,14 @@ function doGet(e) {
 // 🟠 API 路由：POST (加上 getAudio 路由)
 // ==========================================
 function doPost(e) {
+  var requestData = {};
   try {
-    var requestData = JSON.parse(e.postData.contents);
+    requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
-
-    if (action === 'login') {
-      throw new Error('legacy_login_disabled: current app login uses Supabase RPCs.');
-    }
+    if (action === 'login') throw new Error('legacy_login_disabled: current app login uses Supabase RPCs.');
     if (action === 'upload') return handleUpload(requestData);
     if (action === 'linkAudioRecords') return handleLinkAudioRecords(requestData);
-    if (action === 'getAudio') return handleGetAudio(requestData); // 🚀 新增讀取音檔 API
+    if (action === 'getAudio') return handleGetAudio(requestData);
     if (action === 'submitFeedback') return handleSubmitFeedback(requestData);
     if (action === 'setInvestigatorActive') return handleSetInvestigatorActive(requestData);
     if (action === 'deleteInvestigatorUser') return handleDeleteInvestigatorUser(requestData);
@@ -157,14 +155,20 @@ function doPost(e) {
     if (action === 'getAnnouncements') return handleGetAnnouncements(requestData);
     if (action === 'markAnnouncementRead') return handleMarkAnnouncementRead(requestData);
     if (action === 'createAnnouncement') return handleCreateAnnouncement(requestData);
-
-    throw new Error("未知的操作");
+    throw new Error('未知的操作');
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
-                         .setMimeType(ContentService.MimeType.JSON);
+    var isUpload = requestData.action === 'upload';
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      stage: error.stage || (isUpload ? 'VALIDATION' : 'UNKNOWN'),
+      code: error.code || (isUpload ? 'UPLOAD_FAILED' : 'UNKNOWN_ERROR'),
+      retryable: error.retryable !== false,
+      requestId: requestData.requestId || requestData.clientUploadId || '',
+      message: error.message || String(error),
+      error: error.message || String(error)
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
-
 // ==========================================
 // 處理登入與撈取指派清單
 // ==========================================
@@ -688,7 +692,35 @@ function handleLogin(data) {
 // ==========================================
 // 🚀 處理錄音檔上傳 (支援任意格式)
 // ==========================================
+// ==========================================
+// 音檔上傳 payload 與 MIME 驗證
+// ==========================================
+var AUDIO_EXTENSION_BY_MIME_ = {
+  'audio/aac': 'aac',
+  'audio/amr': 'amr',
+  'audio/3gpp': '3gp',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/ogg': 'ogg',
+  'audio/wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/x-caf': 'caf'
+};
+
+function normalizeAudioMimeType_(mimeType) {
+  var value = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  var aliases = {
+    'audio/x-aac': 'audio/aac',
+    'audio/vnd.dlna.adts': 'audio/aac',
+    'audio/x-m4a': 'audio/mp4',
+    'audio/x-wav': 'audio/wav'
+  };
+  return aliases[value] || value;
+}
+
 function resolveAudioMimeType_(fileName, mimeType) {
+  var normalizedMimeType = normalizeAudioMimeType_(mimeType);
+  if (normalizedMimeType.indexOf('audio/') === 0) return normalizedMimeType;
   var extension = String(fileName || '').split('.').pop().toLowerCase();
   var mimeTypesByExtension = {
     aac: 'audio/aac',
@@ -705,53 +737,254 @@ function resolveAudioMimeType_(fileName, mimeType) {
     wav: 'audio/wav',
     webm: 'audio/webm'
   };
-  if (mimeTypesByExtension[extension]) return mimeTypesByExtension[extension];
+  return mimeTypesByExtension[extension] || normalizedMimeType || 'application/octet-stream';
+}
 
-  var normalizedMimeType = String(mimeType || '').split(';')[0].trim().toLowerCase();
-  var mimeAliases = {
-    'audio/x-aac': 'audio/aac',
-    'audio/vnd.dlna.adts': 'audio/aac',
-    'audio/x-m4a': 'audio/mp4',
-    'audio/x-wav': 'audio/wav'
+function getAudioExtension_(mimeType, fileName) {
+  var normalizedMimeType = resolveAudioMimeType_(fileName || '', mimeType);
+  if (AUDIO_EXTENSION_BY_MIME_[normalizedMimeType]) return AUDIO_EXTENSION_BY_MIME_[normalizedMimeType];
+  var extensionMatch = String(fileName || '').match(/\.([a-z0-9]+)$/i);
+  return extensionMatch ? extensionMatch[1].toLowerCase() : 'webm';
+}
+
+function uploadError_(code, message, stage, retryable) {
+  var error = new Error(message);
+  error.code = code;
+  error.stage = stage || 'VALIDATION';
+  error.retryable = retryable !== false;
+  return error;
+}
+
+function isUuid_(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
+function parseUploadDataUrl_(value) {
+  var match = String(value || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\r\n]+)$/i);
+  if (!match) throw uploadError_('INVALID_DATA_URL', '音檔資料格式不正確', 'VALIDATION', false);
+  var mimeType = normalizeAudioMimeType_(match[1]);
+  var bytes;
+  try {
+    bytes = Utilities.base64Decode(match[2].replace(/\s/g, ''));
+  } catch (error) {
+    throw uploadError_('INVALID_BASE64', '音檔資料無法解碼', 'VALIDATION', false);
+  }
+  if (!bytes || bytes.length === 0) throw uploadError_('EMPTY_AUDIO', '音檔內容不可為空', 'VALIDATION', false);
+  return { mimeType: mimeType, bytes: bytes };
+}
+
+function validateUploadPayload_(data) {
+  data = data || {};
+  var clientUploadId = String(data.clientUploadId || data.requestId || '').trim();
+  if (!isUuid_(clientUploadId)) throw uploadError_('INVALID_CLIENT_UPLOAD_ID', 'clientUploadId 必須是 UUID', 'VALIDATION', false);
+  var taskId = String(data.taskId || data.placeId || '').trim();
+  if (!taskId) throw uploadError_('INVALID_TASK_ID', '缺少 taskId', 'VALIDATION', false);
+  var recorderAccount = String(data.recorderAccount || data.userId || '').trim();
+  if (!recorderAccount) throw uploadError_('INVALID_RECORDER_ACCOUNT', '缺少 recorderAccount', 'VALIDATION', false);
+  var language = String(data.language || '').trim();
+  if (!language) throw uploadError_('INVALID_LANGUAGE', '缺少錄音語言', 'VALIDATION', false);
+
+  var parsed = parseUploadDataUrl_(data.audioBase64);
+  var declaredMimeType = normalizeAudioMimeType_(data.mimeType || '');
+  if (declaredMimeType.indexOf('audio/') === 0 && parsed.mimeType.indexOf('audio/') === 0 && declaredMimeType !== parsed.mimeType) {
+    throw uploadError_('MIME_MISMATCH', '音檔 MIME 與 Data URL 不一致', 'VALIDATION', false);
+  }
+  var mimeType = declaredMimeType.indexOf('audio/') === 0
+    ? declaredMimeType
+    : resolveAudioMimeType_(data.originalFileName || data.filename || '', parsed.mimeType);
+  if (mimeType.indexOf('audio/') !== 0) throw uploadError_('INVALID_MIME', '無法確認音檔 MIME', 'VALIDATION', false);
+
+  return {
+    clientUploadId: clientUploadId,
+    taskId: taskId,
+    sourceId: String(data.sourceId || '').trim(),
+    placeName: String(data.placeName || '').trim(),
+    language: language,
+    phonetic: String(data.phonetic || '').trim(),
+    note: data.note == null ? '' : String(data.note),
+    annotations: data.annotations || {},
+    respondentKey: String(data.respondentKey || '').trim(),
+    recorderAccount: recorderAccount,
+    recorderName: String(data.recorderName || recorderAccount).trim(),
+    uploadSource: String(data.uploadSource || 'file').trim(),
+    originalFileName: String(data.originalFileName || data.filename || 'audio').trim(),
+    mimeType: mimeType,
+    fileSizeBytes: parsed.bytes.length,
+    bytes: parsed.bytes
   };
-  return mimeAliases[normalizedMimeType] || normalizedMimeType || 'application/octet-stream';
+}
+
+function supabaseServiceFetch_(path, options) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) throw uploadError_('MISSING_SERVICE_ROLE', 'Root GAS 缺少 Supabase service role key', 'DB', false);
+  var fetchOptions = options || {};
+  fetchOptions.headers = Object.assign({}, fetchOptions.headers || {}, {
+    apikey: config.serviceRoleKey,
+    Authorization: 'Bearer ' + config.serviceRoleKey,
+    'Content-Type': 'application/json'
+  });
+  var response = UrlFetchApp.fetch(config.url + path, fetchOptions);
+  var status = response.getResponseCode();
+  if (status < 200 || status >= 300) throw uploadError_('SUPABASE_REQUEST_FAILED', 'Supabase request failed (' + status + ')', 'DB', true);
+  return response;
+}
+
+function getUploadTask_(job) {
+  var rows = JSON.parse(supabaseServiceFetch_(
+    '/rest/v1/final_tasks?select=id,source_id&task_id=eq.' + encodeURIComponent(job.taskId) + '&limit=1',
+    { method: 'get', muteHttpExceptions: true }
+  ).getContentText() || '[]');
+  if (!rows.length) throw uploadError_('TASK_NOT_FOUND', '找不到對應地名任務', 'VALIDATION', false);
+  return rows[0];
+}
+
+function findAudioRecordByClientUploadId_(clientUploadId) {
+  var rows = JSON.parse(supabaseServiceFetch_(
+    '/rest/v1/audio_records?select=*&client_upload_id=eq.' + encodeURIComponent(clientUploadId) + '&limit=1',
+    { method: 'get', muteHttpExceptions: true }
+  ).getContentText() || '[]');
+  return rows.length ? rows[0] : null;
+}
+
+function insertAudioRecord_(job, task, fileUrl) {
+  var body = {
+    task_id: Number(task.id) || task.id,
+    recorder_name: job.recorderName,
+    audio_file_id: fileUrl,
+    phonetic_reading: job.phonetic,
+    language: job.language,
+    note: job.note,
+    client_upload_id: job.clientUploadId,
+    recorder_account: job.recorderAccount,
+    original_file_name: job.originalFileName,
+    audio_mime_type: job.mimeType,
+    file_size_bytes: job.fileSizeBytes,
+    upload_source: job.uploadSource
+  };
+  var response = supabaseServiceFetch_('/rest/v1/audio_records', {
+    method: 'post',
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true,
+    headers: { Prefer: 'return=representation' }
+  });
+  var rows = JSON.parse(response.getContentText() || '[]');
+  if (!rows.length) throw uploadError_('DB_INSERT_EMPTY', 'Supabase 未回傳正式 audio_records', 'DB', true);
+  return rows[0];
+}
+
+function buildSafeDriveFileName_(taskId, clientUploadId, mimeType) {
+  return 'Record_' + String(taskId).replace(/[^0-9A-Za-z_-]/g, '_') + '_' + clientUploadId + '.' + getAudioExtension_(mimeType);
+}
+
+function trashNewDriveFile_(file) {
+  try {
+    if (file && typeof file.setTrashed === 'function') file.setTrashed(true);
+  } catch (error) {
+    Logger.log('Drive compensation failed');
+  }
+}
+
+function ensureLegacyRecordsRow_(job, task, dbRecord) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = ss.getSheetByName('Records');
+  if (!sheet) throw new Error('Records sheet not found');
+  var values = sheet.getDataRange().getValues();
+  var headers = values.length ? values[0].map(function(value) { return String(value).trim(); }) : [];
+  var idIndex = headers.indexOf('錄音ID');
+  if (idIndex >= 0) {
+    for (var index = 1; index < values.length; index++) {
+      var existingId = String(values[index][idIndex] || '');
+      if (existingId === job.clientUploadId || existingId === String(dbRecord.id)) return false;
+    }
+  }
+  var recordPlaceId = task.source_id || job.sourceId || job.taskId;
+  sheet.appendRow([
+    new Date(),
+    job.recorderAccount,
+    recordPlaceId,
+    job.placeName,
+    job.language,
+    job.phonetic,
+    dbRecord.audio_file_id || '',
+    job.clientUploadId
+  ]);
+  return true;
+}
+
+function buildUploadRecordData_(job, task, dbRecord, deduplicated, legacyLogPending) {
+  return {
+    id: dbRecord.id,
+    clientUploadId: dbRecord.client_upload_id || job.clientUploadId,
+    taskId: Number(dbRecord.task_id || task.id),
+    sourceId: task.source_id || job.sourceId || '',
+    language: dbRecord.language || job.language,
+    phonetic: dbRecord.phonetic_reading || job.phonetic,
+    url: dbRecord.audio_file_id || '',
+    audioFileId: dbRecord.audio_file_id || '',
+    recorderAccount: dbRecord.recorder_account || job.recorderAccount,
+    recorderName: dbRecord.recorder_name || job.recorderName,
+    createdAt: dbRecord.created_at || new Date().toISOString(),
+    deduplicated: deduplicated === true,
+    legacyLogPending: legacyLogPending === true
+  };
 }
 
 function handleUpload(data) {
-  var base64Data = data.audioBase64;
-  var filename = data.filename;
-  var placeId = data.placeId;     
-  var sourceId = data.sourceId || '';
-  var placeName = data.placeName;
-  var uploaderId = data.userId || "未登入";
-  var language = data.language || ""; 
-  var phonetic = data.phonetic || ""; 
-  
-  var folder = DriveApp.getFolderById(FOLDER_ID);
-  
-  // 完美解析前端傳來的 Data URL (包含 mimeType)
-  var splitBase = base64Data.split(',');
-  var mimeType = splitBase[0].split(';')[0].replace('data:', ''); // 例如 "audio/mp3"
-  mimeType = resolveAudioMimeType_(filename, mimeType);
-  var byteCharacters = Utilities.base64Decode(splitBase[1]);
-  
-  var blob = Utilities.newBlob(byteCharacters, mimeType, filename);
-  var file = folder.createFile(blob);
-  var fileUrl = file.getUrl();
-  var recordId = Utilities.getUuid(); 
-  
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var recordSheet = ss.getSheetByName('Records');
-  var recordPlaceId = sourceId || resolveSourceIdForTask_(placeId) || placeId;
-  recordSheet.appendRow([new Date(), uploaderId, recordPlaceId, placeName, language, phonetic, fileUrl, recordId]);
-  
-  return ContentService.createTextOutput(JSON.stringify({ 
-    success: true, 
-    fileUrl: fileUrl,
-    recordData: { placeId: placeId, sourceId: sourceId, language: language, phonetic: phonetic, url: fileUrl, recordId: recordId, uploaderId: uploaderId }
-  })).setMimeType(ContentService.MimeType.JSON);
-}
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw uploadError_('LOCK_TIMEOUT', '上傳工作忙碌中，請稍後使用相同 request ID 重試', 'LOCK', true);
+  try {
+    var job = validateUploadPayload_(data);
+    var existing = findAudioRecordByClientUploadId_(job.clientUploadId);
+    var task = getUploadTask_(job);
+    if (existing) {
+      if (String(existing.task_id || '') !== String(job.taskId)) {
+        throw uploadError_('CLIENT_UPLOAD_ID_CONFLICT', 'clientUploadId 已經綁定其他 task', 'VALIDATION', false);
+      }
+      var pending = false;
+      try {
+        ensureLegacyRecordsRow_(job, task, existing);
+      } catch (error) {
+        pending = true;
+        Logger.log(JSON.stringify({ stage: 'RECORDS', code: 'LEGACY_LOG_FAILED', clientUploadId: job.clientUploadId }));
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        recordData: buildUploadRecordData_(job, task, existing, true, pending)
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
 
+    var fileName = buildSafeDriveFileName_(job.taskId, job.clientUploadId, job.mimeType);
+    var blob = Utilities.newBlob(job.bytes, job.mimeType, fileName);
+    var file;
+    try {
+      file = DriveApp.getFolderById(FOLDER_ID).createFile(blob);
+    } catch (error) {
+      throw uploadError_('DRIVE_UPLOAD_FAILED', 'Drive 建檔失敗', 'DRIVE', true);
+    }
+    var dbRecord;
+    try {
+      dbRecord = insertAudioRecord_(job, task, file.getUrl());
+    } catch (error) {
+      trashNewDriveFile_(file);
+      throw error;
+    }
+
+    var legacyLogPending = false;
+    try {
+      ensureLegacyRecordsRow_(job, task, dbRecord);
+    } catch (error) {
+      legacyLogPending = true;
+      Logger.log(JSON.stringify({ stage: 'RECORDS', code: 'LEGACY_LOG_FAILED', clientUploadId: job.clientUploadId }));
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      recordData: buildUploadRecordData_(job, task, dbRecord, false, legacyLogPending)
+    })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
 // ==========================================
 // 🚀 繞過 CORS：去 Drive 抓音檔並轉成 Base64 回傳
 // ==========================================

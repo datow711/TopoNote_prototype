@@ -1,6 +1,6 @@
 # TopoNote current operation flow
 
-更新時間：2026-05-29
+更新時間：2026-08-20
 
 這份文件整理目前 `TopoNote_App` 的主要資料流、操作順序、回寫安全邊界，以及本次稽核看到的衝突風險。
 
@@ -92,7 +92,7 @@ Operator action:
 1. Investigator logs into the APP.
 2. Investigator opens an assigned place.
 3. Investigator records or uploads audio.
-4. APP writes a row to `audio_records`.
+4. In the deployed baseline, the browser still uses the old two-step write path; in the local First Stage branch, the browser sends one upload request to Root GAS and does not insert a new audio_records row directly.
 
 What happens:
 
@@ -102,6 +102,30 @@ What happens:
 Current safety behavior:
 
 - Test places `TEST0001` to `TEST0010` remain hidden from normal investigator "other places" unless assigned.
+
+## Audio upload reliability First Stage（本機停等點）
+
+本節記錄 2026-08-20 的第一階段本機修補；「本機完成」不代表正式 Supabase、Root GAS 或前端已更新。
+
+本機 HEAD 的新流程：
+
+1. 前端在確認上傳時建立不可變 uploadJob，固定 clientUploadId、task snapshot、語言、帳號、原始檔名、實際 MIME、Blob 與註記。
+2. 前端只送一個 upload action 給 Root GAS；Root GAS 以 service role 驗證 task、取得 Script Lock、檢查 client_upload_id，再依序建立 Drive、寫入 audio_records、確保一筆 Records row，最後回傳正式 row id。
+3. 新 Drive 檔名為 Record_<taskId>_<clientUploadId>.<extension>；原始檔名與上傳者資料留在 metadata，不放進 Drive 檔名。
+4. DB 失敗時只嘗試將本次新建且尚未被引用的 Drive 檔移到垃圾桶；Records 補寫失敗則保留正式 Drive/DB 資料並回傳 legacyLogPending。同一 ID 重試不重建資源。
+5. 管理員既有的 linkAudioRecords 仍是獨立的連結流程，不能與新上傳 coordinator 混淆。
+
+本機驗證證據：
+
+- audio-upload、audio-playback 與 Root GAS contract focused tests：18/18。
+- npm run test:ui -- --reporter=line --workers=1：74/74。
+- node --check main.js、node --check gas\程式碼.js、測試語法檢查與 git diff --check 通過。
+
+正式環境停等點：
+
+- supabase/migrations/20260820120000_audio_upload_reliability.sql 尚未套用；live audio_records 尚未出現六個新欄位與唯一 constraint。
+- clasp status 顯示本機 Root GAS 有變更；clasp deployments 顯示目前 Web App URL 的 deployment 為 @32，本機修補尚未 push。
+- 尚未執行正式 Drive、Records、Supabase smoke write；第二階段未開始。
 
 ### 5. Admin review approval
 

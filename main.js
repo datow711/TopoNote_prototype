@@ -96,7 +96,10 @@ window.addEventListener('resize', () => {
 let mediaRecorder;
 let audioChunks = [];
 let audioBlob = null;
-let uploadedFileName = ""; 
+let uploadedFileName = "";
+let recordingStream = null;
+let pendingUploadJob = null;
+let uploadInProgress = false;
 let tutorialState = null;
 
 const SESSION_KEY = 'toponote_session';
@@ -5588,6 +5591,10 @@ function toggleSelectedPlaceNameHistory() {
 }
 
 function openRecordingUI(place, element) {
+    if (pendingUploadJob) {
+        alert('目前有一筆待完成的音檔上傳，請先重試或重新選擇音檔。');
+        return;
+    }
     state.selectedPlace = place;
     document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
     if(element) element.classList.add('active');
@@ -6119,10 +6126,6 @@ const AUDIO_MIME_TYPES_BY_EXTENSION = Object.freeze({
 });
 
 function resolveAudioMimeType(fileName = '', mimeType = '') {
-    const extension = String(fileName).split('.').pop().toLowerCase();
-    const extensionMimeType = AUDIO_MIME_TYPES_BY_EXTENSION[extension] || '';
-    if (extensionMimeType) return extensionMimeType;
-
     const normalizedMimeType = String(mimeType).split(';')[0].trim().toLowerCase();
     const mimeAliases = {
         'audio/x-aac': 'audio/aac',
@@ -6130,9 +6133,11 @@ function resolveAudioMimeType(fileName = '', mimeType = '') {
         'audio/x-m4a': 'audio/mp4',
         'audio/x-wav': 'audio/wav'
     };
-    return mimeAliases[normalizedMimeType] || normalizedMimeType || 'application/octet-stream';
+    const canonicalMimeType = mimeAliases[normalizedMimeType] || normalizedMimeType;
+    if (canonicalMimeType.startsWith('audio/')) return canonicalMimeType;
+    const extension = String(fileName).split('.').pop().toLowerCase();
+    return AUDIO_MIME_TYPES_BY_EXTENSION[extension] || canonicalMimeType || 'application/octet-stream';
 }
-
 function normalizeAudioDataUrl(dataUrl, fileName = '', mimeType = '') {
     const value = String(dataUrl || '');
     const currentMimeType = value.match(/^data:([^;,]+)/i)?.[1] || '';
@@ -6143,7 +6148,7 @@ function normalizeAudioDataUrl(dataUrl, fileName = '', mimeType = '') {
 async function fetchAndPlayAudioToContainer(driveUrl, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    container.innerHTML = "<span style='color:#e67e22; font-weight:bold;'>⏳ 檔案載入與轉碼中，請稍候...</span>";
+    container.innerHTML = "<span style='color:#e67e22; font-weight:bold;'>⏳ 檔案載入中，請稍候...</span>";
     try {
         const response = await fetch(API_URL, {
             method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -6190,6 +6195,9 @@ function resetRecordingState(preferredLanguage = getDefaultAnnotationLanguage())
     document.getElementById('audio-file-input').value = ""; 
     audioBlob = null;
     uploadedFileName = "";
+    audioChunks = [];
+    mediaRecorder = null;
+    recordingStream = null;
 }
 
 function toggleLineHelp() {
@@ -6256,170 +6264,314 @@ function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|m4a|wav|aac|ogg|mp4|3gp|3gpp|amr|opus|caf)$/i)) {
-        event.target.value = "";
-        return alert("這個檔案不像音檔。請從 LINE 重新分享或儲存語音檔，再回來選擇。");
+        event.target.value = '';
+        return alert('這個檔案不像音檔。請從 LINE 重新分享或儲存語音檔，再回來選擇。');
     }
     const normalizedMimeType = resolveAudioMimeType(file.name, file.type);
-    audioBlob = file.type === normalizedMimeType
-        ? file
-        : new Blob([file], { type: normalizedMimeType });
+    audioBlob = file.type === normalizedMimeType ? file : new Blob([file], { type: normalizedMimeType });
     uploadedFileName = file.name;
     document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
     showAudioConfirmation('LINE/手機音檔', file);
-    document.getElementById('status').innerText = `已選擇音檔：${file.name}，請先播放確認再上傳。`;
-    document.getElementById('status').style.color = "green";
+    document.getElementById('status').innerText = '已選擇音檔：' + file.name + '，請先播放確認再上傳。';
+    document.getElementById('status').style.color = 'green';
+}
+function getPreferredRecordingMimeType() {
+    const recorder = window.MediaRecorder;
+    if (!recorder || typeof recorder.isTypeSupported !== 'function') return '';
+    return ['audio/mp4', 'audio/aac', 'audio/webm', 'audio/ogg']
+        .find(mimeType => recorder.isTypeSupported(mimeType)) || '';
+}
+
+function getAudioExtensionForMimeType(mimeType, fileName = '') {
+    const normalized = resolveAudioMimeType(fileName, mimeType);
+    const extensions = {
+        'audio/aac': 'aac',
+        'audio/amr': 'amr',
+        'audio/3gpp': '3gp',
+        'audio/mp4': 'm4a',
+        'audio/mpeg': 'mp3',
+        'audio/ogg': 'ogg',
+        'audio/wav': 'wav',
+        'audio/webm': 'webm',
+        'audio/x-caf': 'caf'
+    };
+    if (extensions[normalized]) return extensions[normalized];
+    const fallback = String(fileName || '').match(/\.([a-z0-9]+)$/i);
+    return fallback ? fallback[1].toLowerCase() : 'webm';
 }
 
 async function startRecording() {
+    const status = document.getElementById('status');
+    const showFallback = message => {
+        if (status) {
+            status.innerText = message;
+            status.style.color = 'red';
+        }
+        document.querySelector('.audio-source-panel')?.classList.remove('hidden');
+        document.getElementById('file-btn').style.display = 'block';
+    };
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        showFallback('❌ 不支援現場錄音，請改用上傳音檔。');
+        return;
+    }
+    const preferredMimeType = getPreferredRecordingMimeType();
+    if (typeof window.MediaRecorder.isTypeSupported === 'function' && !preferredMimeType) {
+        showFallback('❌ 此瀏覽器沒有可用的錄音格式，請改用上傳音檔。');
+        return;
+    }
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        recordingStream = stream;
+        const options = preferredMimeType ? { mimeType: preferredMimeType } : undefined;
+        mediaRecorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
         audioChunks = [];
-        mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-        mediaRecorder.onstop = () => {
-            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            uploadedFileName = ""; 
+        const recorder = mediaRecorder;
+        recorder.ondataavailable = event => {
+            if (event.data && event.data.size !== 0) audioChunks.push(event.data);
+        };
+        recorder.onstop = () => {
+            const actualMimeType = resolveAudioMimeType(
+                '',
+                recorder.mimeType || audioChunks.find(chunk => chunk.type)?.type || preferredMimeType || 'audio/webm'
+            );
+            audioBlob = new Blob(audioChunks, { type: actualMimeType });
+            uploadedFileName = '現場錄音.' + getAudioExtensionForMimeType(actualMimeType);
             document.getElementById('audio-playback').src = URL.createObjectURL(audioBlob);
             showAudioConfirmation('現場錄音', null);
         };
-        mediaRecorder.start();
+        recorder.start();
         document.querySelector('.audio-source-panel')?.classList.add('hidden');
         document.getElementById('start-btn').style.display = 'none';
         document.getElementById('file-btn').style.display = 'none';
         document.getElementById('stop-btn').style.display = 'block';
-        document.getElementById('status').innerText = "🔴 現場錄音中...";
-        document.getElementById('status').style.color = "red";
-    } catch (err) { alert("無法存取麥克風！"); }
+        if (status) {
+            status.innerText = '🔴 現場錄音中...';
+            status.style.color = 'red';
+        }
+    } catch (error) {
+        const denied = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError');
+        showFallback(denied
+            ? '❌ 麥克風權限被拒絕，請改用上傳音檔。'
+            : '❌ 無法使用現場錄音，請改用上傳音檔。');
+    }
 }
 
 function stopRecording() {
-    mediaRecorder.stop();
+    const recorder = mediaRecorder;
+    const stream = recordingStream || recorder?.stream;
+    if (!recorder || recorder.state === 'inactive') return;
+    recorder.stop();
     document.getElementById('stop-btn').style.display = 'none';
-    document.getElementById('status').innerText = "錄音完成，請先播放確認。可以重錄，也可以直接上傳。";
-    document.getElementById('status').style.color = "green";
-    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    document.getElementById('status').innerText = '錄音完成，請先播放確認。可以重錄，也可以直接上傳。';
+    document.getElementById('status').style.color = 'green';
+    stream?.getTracks().forEach(track => track.stop());
+    recordingStream = null;
 }
-
 // ==========================================
 // 🌟 核心修改 2：上傳音檔至 GAS + 紀錄寫入 Supabase
 // ==========================================
-function uploadAudio() {
-    if (!audioBlob || !state.selectedPlace) return;
+function createClientUploadId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    window.crypto?.getRandomValues?.(bytes);
+    if (!bytes.some(Boolean)) {
+        for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return hex.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+}
 
-    const uploadBtn = document.getElementById('upload-btn');
-    const statusDiv = document.getElementById('status');
-    const lang = document.querySelector('input[name="lang"]:checked').value;
-    const respondentKey = document.getElementById('respondent-key-input')?.value.trim() || '';
+function readBlobAsDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('音檔讀取失敗'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+function createUploadJobSnapshot() {
+    const place = state.selectedPlace;
+    const blob = audioBlob;
+    const language = getCurrentLanguageLabel();
     const annotations = collectAnnotationInputs();
-    const phonetic = lang === '台語' ? annotations.tl1 : annotations.hp1;
-    const hasAnnotation = Object.values(annotations).some(value => value);
-    const uploadScopeWarning = getUploadScopeWarning(state.selectedPlace, lang);
-    const baseConfirmText = hasAnnotation
-        ? `你正在上傳「${state.selectedPlace.placeName}」的${lang}音檔，確定送出嗎？`
-        : `這筆「${state.selectedPlace.placeName}」的${lang}音檔還沒有填文字註記，要直接送出錄音嗎？`;
-    const confirmText = uploadScopeWarning
-        ? `${uploadScopeWarning}\n\n${baseConfirmText}`
-        : baseConfirmText;
-    if (!confirm(confirmText)) return;
+    const mimeType = resolveAudioMimeType(uploadedFileName, blob?.type || '');
+    const extension = getAudioExtensionForMimeType(mimeType, uploadedFileName);
+    const originalFileName = uploadedFileName || '現場錄音.' + extension;
+    const recorderAccount = state.userId || state.userEmail || '';
+    const recorderName = getUserAnnotatorName(recorderAccount) || state.userName || recorderAccount;
+    const clientUploadId = createClientUploadId();
+    return Object.freeze({
+        clientUploadId,
+        requestId: clientUploadId,
+        taskId: String(place.id),
+        sourceId: place.sourceId || '',
+        placeName: place.placeName || '',
+        language,
+        phonetic: language === '台語' ? annotations.tl1 : annotations.hp1,
+        annotations: { ...annotations },
+        respondentKey: document.getElementById('respondent-key-input')?.value.trim() || '',
+        recorderAccount,
+        recorderName,
+        uploadSource: uploadedFileName ? 'file' : 'recording',
+        originalFileName,
+        mimeType,
+        fileSizeBytes: Number(blob?.size || 0),
+        audioBlob: blob
+    });
+}
 
-    uploadBtn.innerText = "⏳ 轉碼與上傳 Drive 中..."; uploadBtn.disabled = true;
-
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async function() {
-        const extension = uploadedFileName ? uploadedFileName.split('.').pop() : "webm";
-        const finalFileName = `Record_${state.userId}_${state.selectedPlace.id}_${new Date().getTime()}.${extension}`;
-
-        const payload = {
-            action: 'upload',
-            userId: state.userId, placeId: String(state.selectedPlace.id), sourceId: state.selectedPlace.sourceId || '', placeName: state.selectedPlace.placeName,
-            filename: finalFileName, audioBase64: reader.result, language: lang, phonetic: phonetic
-        };
-
-        try {
-            // 階段一：傳送給 GAS 存入 Google Drive
-            const response = await fetch(API_URL, {
-                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                // GAS 成功後，取得回傳的 Drive URL 或檔案 ID
-                const driveFileIdOrUrl = result.recordData ? result.recordData.url : "";
-                
-                statusDiv.innerText = "⏳ Drive 上傳成功，正在寫入資料庫...";
-                
-                // 階段二：🌟 將紀錄寫入 Supabase (安全防護：前端只能寫入，不能刪改)
-                const supaUrl = `${CONFIG.SUPABASE_URL}/rest/v1/audio_records`;
-                const recorderName = getUserAnnotatorName(state.userId) || state.userName || state.userId;
-                const supaPayload = {
-                    task_id: state.selectedPlace.id,
-                    recorder_name: recorderName,
-                    audio_file_id: driveFileIdOrUrl,
-                    phonetic_reading: phonetic,
-                    language: lang,
-                    note: JSON.stringify(buildRecordNotePayload(annotations, null, respondentKey))
-                };
-
-                const supaResponse = await fetch(supaUrl, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': CONFIG.SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify(supaPayload)
-                });
-                if (!supaResponse.ok) throw new Error(await supaResponse.text());
-                const insertedRecord = await supaResponse.json();
-
-                statusDiv.innerText = `🎉 錄音與資料庫存檔完成！`; 
-                statusDiv.style.color = "blue";
-                
-                // 更新畫面狀態
-                state.uploadedRecords.push({
-                    recordId: insertedRecord && insertedRecord[0] ? insertedRecord[0].id : new Date().getTime(),
-                    placeId: state.selectedPlace.id,
-                    language: lang,
-                    uploaderId: recorderName,
-                    phonetic: phonetic,
-                    url: driveFileIdOrUrl,
-                    createdAt: insertedRecord && insertedRecord[0] ? (insertedRecord[0].created_at || new Date().toISOString()) : new Date().toISOString(),
-                    annotations: annotations,
-                    respondentKey,
-                    linkMeta: null
-                });
-                if (state.userRole === 'admin') {
-                    state.uploadReportRecords.push({
-                        recordId: insertedRecord && insertedRecord[0] ? insertedRecord[0].id : new Date().getTime(),
-                        placeId: state.selectedPlace.id,
-                        language: lang,
-                        uploaderId: recorderName,
-                        phonetic: phonetic,
-                        url: driveFileIdOrUrl,
-                        createdAt: insertedRecord && insertedRecord[0] ? (insertedRecord[0].created_at || new Date().toISOString()) : new Date().toISOString(),
-                        annotations: annotations,
-                        linkMeta: null,
-                        unlinkedAt: null
-                    });
-                }
-                refreshPlaceRecordingStatus(state.selectedPlace, lang);
-                renderHistoryList(state.selectedPlace.id); 
-                applyFilters(); 
-                resetRecordingState();
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error) {
-            statusDiv.innerText = "❌ 上傳失敗：" + error.message; statusDiv.style.color = "red";
-        } finally {
-            uploadBtn.innerText = "⬆️ 上傳並準備下一筆"; uploadBtn.disabled = false;
-        }
+function createUploadPayload(job, audioBase64) {
+    const extension = getAudioExtensionForMimeType(job.mimeType, job.originalFileName);
+    const filename = 'Record_' + job.taskId + '_' + job.clientUploadId + '.' + extension;
+    return {
+        action: 'upload',
+        requestId: job.requestId,
+        clientUploadId: job.clientUploadId,
+        userId: job.recorderAccount,
+        taskId: job.taskId,
+        placeId: job.taskId,
+        sourceId: job.sourceId,
+        placeName: job.placeName,
+        language: job.language,
+        phonetic: job.phonetic,
+        note: JSON.stringify(buildRecordNotePayload(job.annotations, null, job.respondentKey)),
+        annotations: job.annotations,
+        respondentKey: job.respondentKey,
+        recorderAccount: job.recorderAccount,
+        recorderName: job.recorderName,
+        uploadSource: job.uploadSource,
+        originalFileName: job.originalFileName,
+        mimeType: job.mimeType,
+        fileSizeBytes: job.fileSizeBytes,
+        filename,
+        audioBase64
     };
 }
 
+function addUploadedRecordFromJob(job, recordData) {
+    const recordId = recordData?.id || recordData?.recordId;
+    if (!recordId) throw new Error('伺服器未回傳正式 audio_records id');
+    const placeId = String(recordData.taskId ?? job.taskId);
+    const url = recordData.url || recordData.audioFileId || '';
+    const uploaderId = recordData.recorderAccount || job.recorderAccount || recordData.recorderName || job.recorderName;
+    const record = {
+        recordId,
+        placeId,
+        language: recordData.language || job.language,
+        uploaderId,
+        phonetic: recordData.phonetic || job.phonetic,
+        url,
+        createdAt: recordData.createdAt || recordData.created_at || new Date().toISOString(),
+        annotations: { ...job.annotations },
+        respondentKey: job.respondentKey,
+        linkMeta: null
+    };
+    if (!state.uploadedRecords.some(existing => String(existing.recordId) === String(recordId))) {
+        state.uploadedRecords.push(record);
+    }
+    if (state.userRole === 'admin' && !state.uploadReportRecords.some(existing => String(existing.recordId) === String(recordId))) {
+        state.uploadReportRecords.push({ ...record, unlinkedAt: null });
+    }
+    return record;
+}
+
+async function executeUploadJob(job) {
+    if (!job || uploadInProgress) return;
+    uploadInProgress = true;
+    const uploadBtn = document.getElementById('upload-btn');
+    const statusDiv = document.getElementById('status');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerText = '⏳ 上傳音檔中...';
+    }
+    if (statusDiv) {
+        statusDiv.innerText = '⏳ 上傳音檔中，請稍候...';
+        statusDiv.style.color = 'green';
+    }
+
+    try {
+        const audioBase64 = await readBlobAsDataUrl(job.audioBlob);
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(createUploadPayload(job, audioBase64))
+        });
+        let result;
+        try {
+            result = await response.json();
+        } catch (parseError) {
+            throw new Error('伺服器回應遺失，請使用相同 request ID 重試');
+        }
+        if (!response.ok || !result.success) {
+            const error = new Error(result.message || result.error || '音檔上傳失敗');
+            error.stage = result.stage || 'VALIDATION';
+            error.code = result.code || 'UPLOAD_FAILED';
+            error.retryable = result.retryable !== false;
+            throw error;
+        }
+
+        const recordData = result.recordData || {};
+        addUploadedRecordFromJob(job, recordData);
+        const place = getPlaceByTaskId(job.taskId) || state.selectedPlace;
+        if (place) refreshPlaceRecordingStatus(place, job.language);
+        if (place && state.selectedPlace && String(state.selectedPlace.id) === String(job.taskId)) {
+            renderHistoryList(job.taskId);
+        }
+        applyFilters();
+        pendingUploadJob = null;
+        const warning = recordData.legacyLogPending ? '；Records 尚待補寫' : '';
+        resetRecordingState();
+        if (statusDiv) {
+            statusDiv.innerText = '🎉 錄音上傳完成' + warning + '！';
+            statusDiv.style.color = recordData.legacyLogPending ? '#e67e22' : 'blue';
+        }
+    } catch (error) {
+        if (statusDiv) {
+            statusDiv.innerText = '❌ 上傳失敗：' + error.message + '（可重試，request ID：' + job.clientUploadId + '）';
+            statusDiv.style.color = 'red';
+        }
+        if (uploadBtn) {
+            uploadBtn.innerText = '🔁 重試這筆上傳';
+            uploadBtn.disabled = false;
+        }
+    } finally {
+        uploadInProgress = false;
+        if (uploadBtn && !pendingUploadJob) uploadBtn.disabled = false;
+    }
+}
+
+function uploadAudio() {
+    if (pendingUploadJob) {
+        executeUploadJob(pendingUploadJob);
+        return;
+    }
+    if (!audioBlob || !state.selectedPlace) return;
+
+    const lang = getCurrentLanguageLabel();
+    const annotations = collectAnnotationInputs();
+    const hasAnnotation = Object.values(annotations).some(value => value);
+    const uploadScopeWarning = getUploadScopeWarning(state.selectedPlace, lang);
+    const baseConfirmText = hasAnnotation
+        ? '你正在上傳「' + state.selectedPlace.placeName + '」的' + lang + '音檔，確定送出嗎？'
+        : '這筆「' + state.selectedPlace.placeName + '」的' + lang + '音檔還沒有填文字註記，要直接送出錄音嗎？';
+    const confirmText = uploadScopeWarning
+        ? uploadScopeWarning + '\n\n' + baseConfirmText
+        : baseConfirmText;
+    if (!confirm(confirmText)) return;
+
+    pendingUploadJob = createUploadJobSnapshot();
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.innerText = '⏳ 準備上傳...';
+        uploadBtn.disabled = true;
+    }
+    executeUploadJob(pendingUploadJob);
+}
 function toggleAdminAssignPanel() {
     const bar = document.getElementById('admin-assign-bar');
     const button = document.getElementById('admin-assign-toggle');

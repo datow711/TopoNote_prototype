@@ -1,5 +1,8 @@
 # Project Timeline
 
+[2026-08-20] [FIX]
+Implemented the local First Stage audio-upload reliability repair from the spec: immutable upload snapshot and clientUploadId, actual MediaRecorder MIME and safe Drive filename, Root GAS single coordinator with service-role audio_records write/readback, Drive compensation, Records dedup/warning, and retry-safe UI. Added 10 focused upload tests, a Playwright config for the existing tests/ directory, and updated the operation/architecture/handoff documentation. Local verification passed 18/18 focused audio and Root GAS contract tests and 74/74 full UI tests; main.js, Root GAS, test syntax, and git diff --check passed. The Supabase migration was not applied, Root GAS was not pushed, deployment @32 remains the live target, no production smoke write was run, and Stage Two has not started.
+
 [2026-08-10] [DOCS]
 Updated `LATEST_HANDOFF.md` and this timeline to reflect the current `main` baseline (`864691b`), the resolved Git metadata state, the review-workflow MVP relaunch, the TestEntries satellite flow, and the latest local verification. The 2026-08-06 Supabase/Sheet/Places GAS readback remains documented as an acceptance-report record and still requires a fresh live readback before claiming a new production cutover.
 

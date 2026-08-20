@@ -67,6 +67,8 @@ test('admin changes own password through Apps Script wrapper', async ({ page }) 
     }
   });
 
-  const alerts = await page.evaluate(() => window.__alerts);
-  expect(alerts).toContain('管理員密碼已更新。下次登入請使用新密碼。');
+  await expect.poll(
+    () => page.evaluate(() => window.__alerts),
+    { timeout: 5000 }
+  ).toContain('管理員密碼已更新。下次登入請使用新密碼。');
 });
