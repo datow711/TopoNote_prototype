@@ -3683,6 +3683,7 @@ button:disabled {
     .review-workflow-filter-bar { align-items: stretch; flex-direction: column; }
     .review-workflow-filter-bar label { justify-content: space-between; }
     .review-workflow-filter-bar select { flex: 1; min-width: 0; }
+}
 @media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-fields { grid-template-columns: 1fr; } .review-workflow-field { display: block; } .review-workflow-field.is-multiline { grid-column: auto; } }
 
 /* Review workbench split */
