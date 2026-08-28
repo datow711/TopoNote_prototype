@@ -4174,6 +4174,12 @@ button:disabled {
     justify-content: flex-end;
     gap: 8px;
 }
+.review-workflow-audio-filter-hint {
+    margin: 0;
+    color: #6a7b87;
+    font-size: .84rem;
+    line-height: 1.5;
+}
 .review-workflow-audio-secondary-actions button {
     min-height: 36px;
     padding: 6px 12px;

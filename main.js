@@ -20,7 +20,7 @@ const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft', reviewWorkbenchMode: 'proofing',
-    reviewWorkflowAudioStatusFilter: 'all', reviewWorkflowAudioClaimFilter: 'all', reviewWorkflowAudioKeyword: '',
+    reviewWorkflowAudioStatusFilter: 'all', reviewWorkflowAudioFlagFilter: 'all', reviewWorkflowAudioClaimFilter: 'all', reviewWorkflowAudioKeyword: '',
     reviewWorkflowAudioCountyFilter: '', reviewWorkflowAudioSelectedTowns: null, reviewWorkflowAudioTownDropdownOpen: false, reviewWorkflowAudioLanguageFilter: 'all',
     userDbId: "",
     userName: "",
@@ -1148,6 +1148,7 @@ function logout() {
     state.reviewWorkflowQueue = [];
     state.reviewWorkflowDraftFilter = 'draft';
     state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioFlagFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
     state.reviewWorkflowAudioCountyFilter = '';
@@ -3844,13 +3845,17 @@ function getReviewWorkflowAudioFilterState(rows = state.reviewWorkflowQueue) {
         : [...towns];
     const languages = [...new Set(sourceRows.map(row => row?.language).filter(Boolean))]
         .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
-    const validStatuses = ['all', 'attention', 'unreviewed', 'followup', 'unusable', 'completed'];
+    const validStatuses = ['all', 'unreviewed', 'completed'];
+    const validFlags = ['all', 'followup', 'unusable'];
     const validClaims = ['all', 'mine', 'available', 'other'];
     const validLanguage = state.reviewWorkflowAudioLanguageFilter === 'all'
         || languages.includes(state.reviewWorkflowAudioLanguageFilter);
     return {
         status: validStatuses.includes(state.reviewWorkflowAudioStatusFilter)
             ? state.reviewWorkflowAudioStatusFilter
+            : 'all',
+        flag: validFlags.includes(state.reviewWorkflowAudioFlagFilter)
+            ? state.reviewWorkflowAudioFlagFilter
             : 'all',
         claim: validClaims.includes(state.reviewWorkflowAudioClaimFilter)
             ? state.reviewWorkflowAudioClaimFilter
@@ -3928,17 +3933,17 @@ function getReviewWorkflowAudioVisibleRows(rows = state.reviewWorkflowQueue) {
         const countyMatches = !filters.county || row?.county === filters.county;
         const townMatches = !filters.county || filters.selectedTowns.includes(row?.town);
         const languageMatches = filters.language === 'all' || row?.language === filters.language;
-        const statusMatches = filters.status === 'all'
-            || (filters.status === 'attention' && (hasUnreviewed || hasFollowup))
+        const progressMatches = filters.status === 'all'
             || (filters.status === 'unreviewed' && hasUnreviewed)
-            || (filters.status === 'followup' && hasFollowup)
-            || (filters.status === 'unusable' && hasUnusable)
-            || (filters.status === 'completed' && !hasUnreviewed && !hasFollowup);
+            || (filters.status === 'completed' && !hasUnreviewed);
+        const flagMatches = filters.flag === 'all'
+            || (filters.flag === 'followup' && hasFollowup)
+            || (filters.flag === 'unusable' && hasUnusable);
         const claimMatches = filters.claim === 'all'
             || getReviewWorkflowAudioClaimState(row) === filters.claim;
         const keywordMatches = !filters.keyword
             || getReviewWorkflowAudioKeywordText(row).includes(filters.keyword);
-        return countyMatches && townMatches && languageMatches && statusMatches && claimMatches && keywordMatches;
+        return countyMatches && townMatches && languageMatches && progressMatches && flagMatches && claimMatches && keywordMatches;
     });
 }
 
@@ -3990,7 +3995,16 @@ function setReviewWorkflowAudioLanguageFilter(value) {
 function setReviewWorkflowAudioStatusFilter(value, form) {
     const keywordInput = form?.querySelector('[data-role="audio-keyword"]');
     if (keywordInput) state.reviewWorkflowAudioKeyword = keywordInput.value.trim();
-    state.reviewWorkflowAudioStatusFilter = ['all', 'attention', 'unreviewed', 'followup', 'unusable', 'completed'].includes(value)
+    state.reviewWorkflowAudioStatusFilter = ['all', 'unreviewed', 'completed'].includes(value)
+        ? value
+        : 'all';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function setReviewWorkflowAudioFlagFilter(value, form) {
+    const keywordInput = form?.querySelector('[data-role="audio-keyword"]');
+    if (keywordInput) state.reviewWorkflowAudioKeyword = keywordInput.value.trim();
+    state.reviewWorkflowAudioFlagFilter = ['all', 'followup', 'unusable'].includes(value)
         ? value
         : 'all';
     if (state.currentTab === 'review') renderReviewWorkflowQueue();
@@ -4012,6 +4026,7 @@ function applyReviewWorkflowAudioKeywordFilter(form) {
 
 function clearReviewWorkflowAudioFilters() {
     state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioFlagFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
     state.reviewWorkflowAudioCountyFilter = '';
@@ -4115,14 +4130,18 @@ function renderReviewWorkflowAudioTownFilter(filters) {
 function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
     const filters = getReviewWorkflowAudioFilterState(totalRows);
     const statusOptions = [
-        ['all', '全部音檔案件'],
-        ['attention', '待處理（未審聽或需後續）'],
+        ['all', '不限音檔進度'],
         ['unreviewed', '尚有未審聽'],
-        ['followup', '需後續處理'],
-        ['unusable', '含不可用音檔'],
-        ['completed', '全部已判定']
+        ['completed', '所有音檔均已判定']
     ].map(([value, label]) =>
         '<option value="' + value + '"' + (filters.status === value ? ' selected' : '') + '>' + label + '</option>'
+    ).join('');
+    const flagOptions = [
+        ['all', '不限特殊標記'],
+        ['followup', '需後續處理'],
+        ['unusable', '含不可用音檔']
+    ].map(([value, label]) =>
+        '<option value="' + value + '"' + (filters.flag === value ? ' selected' : '') + '>' + label + '</option>'
     ).join('');
     const claimOptions = [
         ['all', '全部領取狀態'],
@@ -4171,7 +4190,7 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
             <details class="review-workflow-audio-secondary">
                 <summary>
                     <span>其他篩選</span>
-                    <small>進度、領取狀態、關鍵字</small>
+                    <small>進度、特殊標記、領取狀態、關鍵字</small>
                 </summary>
                 <div class="review-workflow-audio-secondary-body">
                     <label class="review-workflow-audio-keyword">
@@ -4180,9 +4199,15 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                     </label>
                     <div class="review-workflow-audio-secondary-options">
                         <label>
-                            <span>案件進度</span>
+                            <span>音檔進度</span>
                             <select id="review-workflow-audio-status-filter" onchange="setReviewWorkflowAudioStatusFilter(this.value, this.form)">
                                 ${statusOptions}
+                            </select>
+                        </label>
+                        <label>
+                            <span>特殊標記</span>
+                            <select id="review-workflow-audio-flag-filter" onchange="setReviewWorkflowAudioFlagFilter(this.value, this.form)">
+                                ${flagOptions}
                             </select>
                         </label>
                         <label>
@@ -4192,6 +4217,7 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                             </select>
                         </label>
                     </div>
+                    <p class="review-workflow-audio-filter-hint">音檔進度只看每筆音檔是否已判定；特殊標記則看是否需後續處理或含不可用音檔，兩者可以同時套用。</p>
                     <div class="review-workflow-audio-secondary-actions">
                         <button type="submit" class="review-workflow-audio-filter-apply">套用其他篩選</button>
                         <button type="button" class="review-workflow-audio-filter-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
