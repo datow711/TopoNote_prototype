@@ -4164,28 +4164,37 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
             <div class="review-workflow-audio-primary">
                 <div class="review-workflow-audio-primary-heading">
                     <strong>主要篩選</strong>
-                    <span>依縣市、鄉鎮與語種縮小案件</span>
+                    <span>先選行政區與語種，再開始審聽</span>
+                    <button type="button" class="review-workflow-audio-primary-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
                 </div>
-                <div class="review-workflow-audio-primary-controls">
-                    <label>
-                        <span>縣市</span>
-                        <select id="review-workflow-audio-county-filter" aria-label="縣市" onchange="setReviewWorkflowAudioCountyFilter(this.value)">
-                            <option value=""${filters.county === '' ? ' selected' : ''}>全部縣市</option>
-                            ${countyOptions}
-                        </select>
-                    </label>
-                    <div class="review-workflow-audio-town-label">
-                        <span>鄉鎮</span>
-                        ${renderReviewWorkflowAudioTownFilter(filters)}
+                <section class="review-workflow-audio-filter-group">
+                    <h3>行政區</h3>
+                    <div class="review-workflow-audio-filter-row">
+                        <label>
+                            <span>縣市</span>
+                            <select id="review-workflow-audio-county-filter" aria-label="縣市" onchange="setReviewWorkflowAudioCountyFilter(this.value)">
+                                <option value=""${filters.county === '' ? ' selected' : ''}>全部縣市</option>
+                                ${countyOptions}
+                            </select>
+                        </label>
+                        <div class="review-workflow-audio-town-label">
+                            <span>鄉鎮</span>
+                            ${renderReviewWorkflowAudioTownFilter(filters)}
+                        </div>
                     </div>
-                    <label>
-                        <span>語種</span>
-                        <select id="review-workflow-audio-language-filter" aria-label="語種" onchange="setReviewWorkflowAudioLanguageFilter(this.value)">
-                            <option value="all"${filters.language === 'all' ? ' selected' : ''}>全部語種</option>
-                            ${languageOptions}
-                        </select>
-                    </label>
-                </div>
+                </section>
+                <section class="review-workflow-audio-filter-group">
+                    <h3>語種</h3>
+                    <div id="review-workflow-audio-language-filter" class="review-workflow-audio-language-chips" role="radiogroup" aria-label="語種">
+                        <button type="button" class="review-workflow-audio-language-option ${filters.language === 'all' ? 'is-selected' : ''}" data-language="all" aria-pressed="${filters.language === 'all'}" onclick="setReviewWorkflowAudioLanguageFilter('all')">全部語種</button>
+                        ${filters.languages.map(language =>
+                            '<button type="button" class="review-workflow-audio-language-option ' + (filters.language === language ? 'is-selected' : '') +
+                            '" data-language="' + escapeHtml(language) + '" aria-pressed="' + (filters.language === language) +
+                            '" onclick="setReviewWorkflowAudioLanguageFilter(\'' + escapeJsString(language) + '\')">' +
+                            escapeHtml(language) + '</button>'
+                        ).join('')}
+                    </div>
+                </section>
             </div>
             <details class="review-workflow-audio-secondary">
                 <summary>
@@ -4377,6 +4386,50 @@ function getReviewWorkflowAudioEvidence(row) {
     return [];
 }
 
+function formatReviewWorkflowAudioAssessmentTime(value) {
+    if (!value) return '時間未知';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    try {
+        return new Intl.DateTimeFormat('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(date);
+    } catch (error) {
+        return date.toLocaleString('zh-TW');
+    }
+}
+
+function getReviewWorkflowAudioAssessorLabel(account) {
+    const normalizedAccount = String(account || '').trim();
+    if (!normalizedAccount) return '未提供';
+    if (isCurrentUserIdentifier(normalizedAccount) && state.userName) return state.userName;
+    return getUserDisplayName(normalizedAccount) || normalizedAccount;
+}
+
+function getReviewWorkflowAudioAssessorTitle(account) {
+    const normalizedAccount = String(account || '').trim();
+    if (!normalizedAccount) return '';
+    const email = getUserEmail(normalizedAccount);
+    return email ? '帳號：' + email : '';
+}
+
+function renderReviewWorkflowAudioAssessmentMeta(item) {
+    const decision = item?.assessment_decision || '';
+    if (decision === '未審聽' || (!item?.assessor_account && !item?.assessed_at)) return '';
+    const assessorAccount = item.assessor_account || '';
+    const assessorLabel = getReviewWorkflowAudioAssessorLabel(assessorAccount);
+    const assessorTitle = getReviewWorkflowAudioAssessorTitle(assessorAccount);
+    return '<div class="review-workflow-assessment-meta">' +
+        '<span><strong>最後判定人</strong>：<span title="' + escapeHtml(assessorTitle) + '">' + escapeHtml(assessorLabel) + '</span></span>' +
+        '<span><strong>最後判定時間</strong>：' + escapeHtml(formatReviewWorkflowAudioAssessmentTime(item.assessed_at)) + '</span>' +
+        '</div>';
+}
+
 function canAssessReviewWorkflowAudio(row) {
     if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return false;
     if (state.userRole === 'admin') return true;
@@ -4510,16 +4563,19 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
                                 <span>${escapeHtml(recorder)}</span>
                                 <span>\u53D7\u8A2A\u8005\uFF1A${escapeHtml(respondent)}</span>
                                 <span>\u5224\u5B9A\uFF1A${escapeHtml(decision)}</span>
+                                ${renderReviewWorkflowAudioAssessmentMeta(item)}
                             </div>
                             <div class="review-workflow-source-actions">
+                                ${decision !== '\u672a\u5be9\u807d' ? `<button class="review-workflow-history-btn" type="button" data-history-toggle onclick="toggleReviewWorkflowAudioAssessmentHistory(${row.case_id}, ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-history-${row.case_id}-${item.audio_record_id}">檢視判定紀錄</button>` : ''}
                                 ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">\u64AD\u653e</button>` : ''}
-                                ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="openReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-${row.case_id}-${item.audio_record_id}">${decision !== '\u672a\u5be9\u807d' ? '修改判定' : '開始判定'}</button>` : ''}
+                                ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="openReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-${row.case_id}-${item.audio_record_id}">${decision !== '\u672a\u5be9\u807d' ? '重新判定' : '開始判定'}</button>` : ''}
                             </div>
                         </div>
                         <div class="review-workflow-source-grid">
                             ${compareFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit)).join('')}
                         </div>
                         ${canAssess ? renderReviewWorkflowAudioAssessmentPanel(row, item) : ''}
+                        ${renderReviewWorkflowAudioAssessmentHistoryPanel(row, item)}
                         <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
                     </article>
                 `;
@@ -4535,6 +4591,7 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
     const currentDecision = item.assessment_decision || '';
     const respondentKey = item.respondent_key || '';
     const assessmentKey = String(row.case_id) + '-' + String(item.audio_record_id);
+    const isReassessment = Boolean(currentDecision && currentDecision !== '\u672a\u5be9\u807d');
     return `
         <section class="review-workflow-assessment-panel hidden"
             id="review-workflow-assessment-${escapeHtml(assessmentKey)}"
@@ -4550,6 +4607,10 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
                     <span>請先播放音檔，再選擇判定結果。</span>
                 </div>
                 <span class="review-workflow-assessment-current">目前：${escapeHtml(currentDecision || '未審聽')}</span>
+            </div>
+            <div class="review-workflow-assessment-append-note ${isReassessment ? 'is-reassessment' : ''}">
+                <strong>${isReassessment ? '重新判定' : '新增審查事件'}</strong>
+                <span>${isReassessment ? '這次儲存後會新增一筆審查事件，舊紀錄不會被覆蓋。' : '儲存後會新增一筆審查事件。'}</span>
             </div>
             <fieldset class="review-workflow-assessment-fieldset">
                 <legend>判定結果</legend>
@@ -4602,6 +4663,109 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
     `;
 }
 
+function renderReviewWorkflowAudioAssessmentHistoryPanel(row, item) {
+    const historyKey = String(row.case_id) + '-' + String(item.audio_record_id);
+    return `
+        <section class="review-workflow-assessment-history hidden"
+            id="review-workflow-assessment-history-${escapeHtml(historyKey)}"
+            data-review-assessment-history-panel="${escapeHtml(historyKey)}"
+            aria-labelledby="review-workflow-assessment-history-title-${escapeHtml(historyKey)}">
+            <div class="review-workflow-assessment-history-header">
+                <div>
+                    <strong id="review-workflow-assessment-history-title-${escapeHtml(historyKey)}">判定紀錄</strong>
+                    <span>每次儲存都會新增一筆事件，舊紀錄會保留。</span>
+                </div>
+            </div>
+            <div class="review-workflow-assessment-history-message" data-role="assessment-history-message" aria-live="polite">尚未載入判定紀錄。</div>
+            <ol class="review-workflow-assessment-history-list" data-role="assessment-history-list"></ol>
+            <div class="review-workflow-assessment-history-actions">
+                <button type="button" class="review-workflow-history-btn" data-history-toggle onclick="toggleReviewWorkflowAudioAssessmentHistory(${row.case_id}, ${item.audio_record_id}, this)" aria-expanded="true" aria-controls="review-workflow-assessment-history-${escapeHtml(historyKey)}">收合判定紀錄</button>
+            </div>
+        </section>
+    `;
+}
+
+function renderReviewWorkflowAudioAssessmentHistoryRows(rows) {
+    return rows.map((entry, index) => {
+        const assessorAccount = entry.assessor_account || '';
+        const assessorLabel = getReviewWorkflowAudioAssessorLabel(assessorAccount);
+        const assessorTitle = getReviewWorkflowAudioAssessorTitle(assessorAccount);
+        const decision = entry.decision || '未審聽';
+        const reason = entry.reason || '';
+        const unusableReason = [entry.unusable_reason_code, entry.unusable_reason_text]
+            .filter(Boolean).join('：');
+        const followupReason = entry.followup_reason_text || '';
+        return `
+            <li class="review-workflow-assessment-history-entry ${index === 0 ? 'is-latest' : ''}">
+                <div class="review-workflow-assessment-history-entry-header">
+                    <strong>第 ${rows.length - index} 筆判定事件</strong>
+                    ${index === 0 ? '<span class="review-workflow-assessment-history-latest">目前摘要</span>' : ''}
+                </div>
+                <dl class="review-workflow-assessment-history-fields">
+                    <div><dt>判定</dt><dd>${escapeHtml(decision)}</dd></div>
+                    <div><dt>判定人</dt><dd title="${escapeHtml(assessorTitle)}">${escapeHtml(assessorLabel)}</dd></div>
+                    <div><dt>判定時間</dt><dd>${escapeHtml(formatReviewWorkflowAudioAssessmentTime(entry.created_at))}</dd></div>
+                    <div><dt>受訪者代號</dt><dd>${escapeHtml(entry.respondent_key || '未指定')}</dd></div>
+                    ${reason ? `<div><dt>補充說明</dt><dd>${escapeHtml(reason)}</dd></div>` : ''}
+                    ${unusableReason ? `<div><dt>不可用原因</dt><dd>${escapeHtml(unusableReason)}</dd></div>` : ''}
+                    ${entry.needs_followup ? `<div><dt>後續處理</dt><dd>${escapeHtml(followupReason || '需要後續處理')}</dd></div>` : ''}
+                </dl>
+            </li>
+        `;
+    }).join('');
+}
+
+async function toggleReviewWorkflowAudioAssessmentHistory(caseId, audioRecordId, button) {
+    if (!isReviewWorkflowRole()) return;
+    const card = button?.closest('.review-workflow-source-card');
+    const panel = card?.querySelector('[data-review-assessment-history-panel]');
+    if (!panel) return;
+    const isOpen = !panel.classList.contains('hidden');
+    const toggles = card.querySelectorAll('[data-history-toggle]');
+    if (isOpen) {
+        panel.classList.add('hidden');
+        toggles.forEach(toggle => {
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.textContent = '檢視判定紀錄';
+        });
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    toggles.forEach(toggle => {
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.textContent = '收合判定紀錄';
+    });
+    const message = panel.querySelector('[data-role="assessment-history-message"]');
+    const list = panel.querySelector('[data-role="assessment-history-list"]');
+    if (message) {
+        message.textContent = '正在讀取判定紀錄...';
+        message.classList.remove('is-error');
+    }
+    if (list) list.innerHTML = '';
+    if (button) button.disabled = true;
+    try {
+        const rows = await reviewWorkflowRpc('get_audio_assessment_history', {
+            p_case_id: Number(caseId),
+            p_audio_record_id: Number(audioRecordId),
+            p_actor_account: state.userId
+        });
+        const historyRows = Array.isArray(rows) ? rows : [];
+        if (message) {
+            message.textContent = historyRows.length > 0
+                ? '共 ' + historyRows.length + ' 筆審查事件；最新一筆就是目前摘要。'
+                : '目前沒有判定紀錄。';
+        }
+        if (list) list.innerHTML = renderReviewWorkflowAudioAssessmentHistoryRows(historyRows);
+    } catch (error) {
+        if (message) {
+            message.textContent = '判定紀錄讀取失敗：' + error.message;
+            message.classList.add('is-error');
+        }
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
 function setReviewWorkflowAudioAssessmentMessage(panel, message, isError = false, isSuccess = false) {
     const messageElement = panel?.querySelector('[data-role="assessment-message"]');
     if (!messageElement) return;
@@ -4834,7 +4998,7 @@ async function saveReviewWorkflowAudioAssessment(taskId, language, audioRecordId
             p_claim_token: row.audio_claim_token || null
         });
         preserveMessage = true;
-        setReviewWorkflowAudioAssessmentMessage(panel, '音檔判定已保存，正在更新工作清單。', false, true);
+        setReviewWorkflowAudioAssessmentMessage(panel, '判定已新增一筆審查事件，舊紀錄保留；正在更新工作清單。', false, true);
         try {
             await loadReviewWorkflowQueue({ silent: true });
         } catch (reloadError) {

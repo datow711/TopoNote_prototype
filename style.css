@@ -4053,6 +4053,26 @@ button:disabled {
     color: #60717b;
     font-size: .9rem;
 }
+.review-workflow-audio-primary-heading {
+    justify-content: space-between;
+}
+.review-workflow-audio-primary-clear {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid #b7cbd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #315467;
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-primary-clear:hover,
+.review-workflow-audio-primary-clear:focus-visible {
+    border-color: #2586b2;
+    background: #eef8fc;
+}
 .review-workflow-audio-primary-controls {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4214,6 +4234,230 @@ button:disabled {
     }
     .review-workflow-audio-secondary-actions button {
         width: 100%;
+    }
+}
+.review-workflow-audio-filter-group {
+    display: grid;
+    gap: 8px;
+}
+.review-workflow-audio-filter-group + .review-workflow-audio-filter-group {
+    padding-top: 10px;
+    border-top: 1px solid #dfe8ed;
+}
+.review-workflow-audio-filter-group h3 {
+    margin: 0;
+    color: #315467;
+    font-size: .92rem;
+}
+.review-workflow-audio-filter-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.review-workflow-audio-filter-row > label,
+.review-workflow-audio-filter-row > .review-workflow-audio-town-label {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-filter-row select,
+.review-workflow-audio-filter-row .review-workflow-audio-town-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+.review-workflow-audio-language-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.review-workflow-audio-language-option {
+    min-height: 36px;
+    padding: 6px 14px;
+    border: 1px solid #b7cbd5;
+    border-radius: 999px;
+    background: #fff;
+    color: #315467;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-language-option:hover,
+.review-workflow-audio-language-option:focus-visible {
+    border-color: #2586b2;
+    background: #eef8fc;
+}
+.review-workflow-audio-language-option.is-selected {
+    border-color: #176b8b;
+    background: #176b8b;
+    color: #fff;
+}
+.review-workflow-audio-language-option:focus-visible,
+.review-workflow-audio-filter-row select:focus,
+.review-workflow-audio-town-button:focus-visible {
+    outline: 2px solid #7db8d4;
+    outline-offset: 1px;
+}
+.review-workflow-assessment-meta {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    color: #526573;
+    font-size: .9rem;
+}
+.review-workflow-assessment-meta strong {
+    color: #173849;
+}
+.review-workflow-history-btn {
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid #b7cbd5;
+    border-radius: 7px;
+    background: #f5fafc;
+    color: #315467;
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-history-btn:hover,
+.review-workflow-history-btn:focus-visible {
+    border-color: #2586b2;
+    background: #eef8fc;
+}
+.review-workflow-history-btn:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+.review-workflow-assessment-history {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-top: 1px solid #dfe6eb;
+    background: #fff;
+}
+.review-workflow-assessment-history.hidden {
+    display: none !important;
+}
+.review-workflow-assessment-history-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.review-workflow-assessment-history-header > div {
+    display: grid;
+    gap: 3px;
+}
+.review-workflow-assessment-history-header strong {
+    color: #173849;
+}
+.review-workflow-assessment-history-header span {
+    color: #60717b;
+    font-size: .9rem;
+}
+.review-workflow-assessment-history-message {
+    color: #526573;
+    font-size: .9rem;
+}
+.review-workflow-assessment-history-message.is-error {
+    color: #b42318;
+}
+.review-workflow-assessment-history-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.review-workflow-assessment-history-entry {
+    padding: 10px;
+    border: 1px solid #dfe6eb;
+    border-radius: 8px;
+    background: #f8fbfd;
+}
+.review-workflow-assessment-history-entry.is-latest {
+    border-color: #a9cedd;
+    background: #f1f9fc;
+}
+.review-workflow-assessment-history-entry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #315467;
+}
+.review-workflow-assessment-history-latest {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #d8f0e3;
+    color: #146c3b;
+    font-size: .8rem;
+    font-weight: 700;
+}
+.review-workflow-assessment-history-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 14px;
+    margin: 0;
+}
+.review-workflow-assessment-history-fields > div {
+    min-width: 0;
+}
+.review-workflow-assessment-history-fields dt {
+    color: #6a7b87;
+    font-size: .82rem;
+}
+.review-workflow-assessment-history-fields dd {
+    margin: 2px 0 0;
+    color: #20313d;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+.review-workflow-assessment-history-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+.review-workflow-assessment-append-note {
+    display: grid;
+    gap: 2px;
+    padding: 9px 10px;
+    border-left: 3px solid #72a8bc;
+    background: #edf7fa;
+    color: #315467;
+}
+.review-workflow-assessment-append-note strong {
+    color: #173849;
+}
+.review-workflow-assessment-append-note.is-reassessment {
+    border-left-color: #d58a36;
+    background: #fff7e8;
+}
+@media (max-width: 640px) {
+    .review-workflow-audio-filter-row {
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-audio-language-chips {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .review-workflow-audio-language-option {
+        width: 100%;
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+    .review-workflow-assessment-history-entry-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .review-workflow-assessment-history-fields {
+        grid-template-columns: 1fr;
     }
 }
 /* Review workbench split */

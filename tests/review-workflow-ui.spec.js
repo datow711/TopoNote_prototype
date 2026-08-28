@@ -68,6 +68,106 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
   expect(result.assessmentCall.body.p_metadata.needs_followup).toBe(false);
 });
 
+test('audio assessment shows last assessor and append-only history inline', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      if (rpcName === 'get_audio_assessment_history') {
+        return [
+          {
+            id: 2,
+            task_id: 13,
+            language: '\u53f0\u8a9e',
+            audio_record_id: 31,
+            assessor_account: 'assessor@example.com',
+            respondent_key: 'R02',
+            decision: '\u4e0d\u53ef\u7528',
+            reason: '\u9700\u8981\u91cd\u65b0\u6aa2\u67e5',
+            created_at: '2026-08-28T02:03:04Z'
+          },
+          {
+            id: 1,
+            task_id: 13,
+            language: '\u53f0\u8a9e',
+            audio_record_id: 31,
+            assessor_account: 'other@example.com',
+            respondent_key: 'R01',
+            decision: '\u53ef\u7528',
+            reason: '',
+            created_at: '2026-08-27T02:03:04Z'
+          }
+        ];
+      }
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.reviewWorkbenchMode = 'audio';
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.allUserRecords = [
+      { account: 'assessor@example.com', name: '\u5be9\u807d\u54e1\u7532', email: 'assessor@example.com' },
+      { account: 'other@example.com', name: '\u5be9\u807d\u54e1\u4e59', email: 'other@example.com' }
+    ];
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 13,
+      task_id: 13,
+      language: '\u53f0\u8a9e',
+      place_name: '\u6b77\u53f2\u6aa2\u8996\u6e2c\u8a66',
+      county: '\u81fa\u5317\u5e02',
+      town: '\u5317\u6295\u5340',
+      class_name: 'test',
+      state: 'pending',
+      audio_record_count: 1,
+      assessed_audio_count: 1,
+      usable_audio_count: 1,
+      audio_review_state: '\u5df2\u5224\u5b9a',
+      audio_evidence: [{
+        audio_record_id: 31,
+        audio_file_id: 'drive-31',
+        recorder_name: '\u9304\u97f3\u54e1',
+        respondent_key: 'R01',
+        assessment_decision: '\u53ef\u7528',
+        assessor_account: 'assessor@example.com',
+        assessed_at: '2026-08-28T01:02:03Z'
+      }],
+      audio_sources_loaded: true,
+      audio_sources: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workflow-assessment-meta')).toContainText('\u5be9\u807d\u54e1\u7532');
+  await expect(page.locator('.review-workflow-assessment-meta')).toContainText('\u6700\u5f8c\u5224\u5b9a\u6642\u9593');
+  await expect(page.locator('.review-workflow-assess-btn')).toHaveText('\u91cd\u65b0\u5224\u5b9a');
+  const history = page.locator('.review-workflow-assessment-history');
+  await expect(history).toBeHidden();
+
+  await page.locator('.review-workflow-history-btn').first().click();
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('\u5171 2 \u7b46\u5be9\u67e5\u4e8b\u4ef6');
+  await expect(history.locator('li').first()).toContainText('\u4e0d\u53ef\u7528');
+  await expect(history.locator('li').nth(1)).toContainText('\u53ef\u7528');
+
+  await page.locator('.review-workflow-assess-btn').click();
+  const panel = page.locator('.review-workflow-assessment-panel');
+  await expect(panel).toContainText('\u91cd\u65b0\u5224\u5b9a');
+  await expect(panel).toContainText('\u820a\u7d00\u9304\u4e0d\u6703\u88ab\u8986\u84cb');
+  await panel.locator('[data-action="save"]').click();
+  await page.waitForFunction(() => window.__workflowCalls.some(call => call.rpcName === 'submit_audio_assessment'));
+  await expect(panel).toContainText('\u65b0\u589e\u4e00\u7b46\u5be9\u67e5\u4e8b\u4ef6');
+
+  const assessmentCall = await page.evaluate(() =>
+    window.__workflowCalls.find(call => call.rpcName === 'submit_audio_assessment')
+  );
+  expect(assessmentCall.body.p_audio_record_id).toBe(31);
+  expect(assessmentCall.body.p_decision).toBe('\u53ef\u7528');
+});
 test('audio assessment shows conditional fields inline', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
@@ -225,6 +325,9 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
 
   await expect(page.locator('#review-workflow-audio-county-filter')).toBeVisible();
   await expect(page.locator('#review-workflow-audio-language-filter')).toBeVisible();
+  await expect(page.locator('.review-workflow-audio-filter-group')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-audio-filter-group').first()).toContainText('行政區');
+  await expect(page.locator('.review-workflow-audio-filter-group').nth(1)).toContainText('語種');
   await expect(page.locator('#review-workflow-audio-flag-filter')).toBeAttached();
   await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toBeDisabled();
   await expect(page.locator('.review-workflow-audio-secondary')).not.toHaveAttribute('open', '');
@@ -252,7 +355,7 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await page.locator('#review-workflow-audio-county-filter').selectOption({ label: '新北市' });
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
-  await page.locator('#review-workflow-audio-language-filter').selectOption('客語');
+  await page.locator('#review-workflow-audio-language-filter .review-workflow-audio-language-option[data-language="客語"]').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
 
   const openSecondaryFilters = async () => {
