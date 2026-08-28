@@ -3918,6 +3918,113 @@ button:disabled {
 }
 @media (max-width: 640px) { .review-workflow-grid { grid-template-columns: 1fr; } .review-workflow-fields { grid-template-columns: 1fr; } .review-workflow-field { display: block; } .review-workflow-field.is-multiline { grid-column: auto; } }
 
+.review-workflow-audio-filter-bar {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid #dfe6eb;
+    border-radius: 8px;
+    background: #f8fbfc;
+}
+.review-workflow-audio-filter-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: end;
+    gap: 8px;
+}
+.review-workflow-audio-keyword {
+    display: grid;
+    gap: 5px;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-keyword input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-audio-keyword input:focus,
+.review-workflow-audio-filter-options select:focus {
+    outline: 2px solid #7db8d4;
+    outline-offset: 1px;
+    border-color: #2586b2;
+}
+.review-workflow-audio-filter-main button {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-filter-apply {
+    border: 1px solid #176b8b;
+    background: #176b8b;
+    color: #fff;
+}
+.review-workflow-audio-filter-clear {
+    border: 1px solid #bdccd5;
+    background: #fff;
+    color: #526573;
+}
+.review-workflow-audio-filter-options {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.review-workflow-audio-filter-options label {
+    display: grid;
+    gap: 5px;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-filter-options select {
+    min-width: 190px;
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-audio-filter-count {
+    margin-left: auto;
+    color: #6a7b87;
+    font-size: .9rem;
+}
+@media (max-width: 640px) {
+    .review-workflow-audio-filter-main {
+        grid-template-columns: 1fr 1fr;
+    }
+    .review-workflow-audio-keyword {
+        grid-column: 1 / -1;
+    }
+    .review-workflow-audio-filter-main button {
+        width: 100%;
+    }
+    .review-workflow-audio-filter-options {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-audio-filter-options select {
+        width: 100%;
+        min-width: 0;
+    }
+    .review-workflow-audio-filter-count {
+        margin-left: 0;
+    }
+}
 /* Review workbench split */
 .review-workbench-switcher {
     display: flex;

@@ -121,6 +121,136 @@ test('audio assessment shows conditional fields inline', async ({ page }) => {
   await panel.locator('[data-action="cancel"]').click();
   await expect(panel).toBeHidden();
 });
+test('audio workbench filters cases by progress, claim, and keyword', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'audio_assessor';
+    state.userId = 'audio@example.com';
+    state.userName = 'Audio Assessor';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioClaimFilter = 'all';
+    state.reviewWorkflowAudioKeyword = '';
+    state.reviewWorkflowQueue = [
+      {
+        case_id: 101,
+        task_id: 101,
+        language: '台語',
+        place_name: '石崁頭',
+        source_id: 'TEST0001',
+        class_name: 'test',
+        state: 'pending',
+        audio_record_count: 1,
+        assessed_audio_count: 0,
+        usable_audio_count: 0,
+        unusable_audio_count: 0,
+        follow_up_audio_count: 0,
+        audio_review_state: '未審聽',
+        audio_claim_by: 'audio@example.com',
+        audio_claim_token: '00000000-0000-0000-0000-000000000101',
+        audio_claim_until: '2999-01-01T00:00:00Z',
+        audio_evidence: [
+          { audio_record_id: 1001, audio_file_id: 'drive-1001', recorder_name: 'Recorder 1', assessment_decision: '未審聽' }
+        ],
+        audio_sources_loaded: true,
+        audio_sources: []
+      },
+      {
+        case_id: 102,
+        task_id: 102,
+        language: '台語',
+        place_name: '完成案件',
+        source_id: 'TEST0002',
+        class_name: 'test',
+        state: 'pending',
+        audio_record_count: 1,
+        assessed_audio_count: 1,
+        usable_audio_count: 1,
+        unusable_audio_count: 0,
+        follow_up_audio_count: 0,
+        audio_review_state: '已判定',
+        audio_claim_by: null,
+        audio_claim_token: null,
+        audio_claim_until: null,
+        audio_evidence: [
+          { audio_record_id: 1002, audio_file_id: 'drive-1002', recorder_name: 'Recorder 2', assessment_decision: '可用' }
+        ],
+        audio_sources_loaded: true,
+        audio_sources: []
+      },
+      {
+        case_id: 103,
+        task_id: 103,
+        language: '台語',
+        place_name: '待追問案件',
+        source_id: 'TEST0003',
+        class_name: 'test',
+        state: 'pending',
+        audio_record_count: 1,
+        assessed_audio_count: 1,
+        usable_audio_count: 0,
+        unusable_audio_count: 1,
+        follow_up_audio_count: 1,
+        audio_review_state: '待追問',
+        audio_claim_by: 'another@example.com',
+        audio_claim_token: null,
+        audio_claim_until: '2999-01-01T00:00:00Z',
+        audio_evidence: [
+          {
+            audio_record_id: 1003,
+            audio_file_id: 'drive-1003',
+            recorder_name: 'Recorder 3',
+            assessment_decision: '不可用',
+            unusable_reason_code: '其他',
+            needs_followup: true,
+            followup_reason_text: '確認版本'
+          }
+        ],
+        audio_sources_loaded: true,
+        audio_sources: []
+      }
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('#review-workflow-audio-status-filter')).toBeVisible();
+  const filterWidth = await page.locator('.review-workflow-audio-filter-bar').evaluate(element => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth
+  }));
+  expect(filterWidth.scrollWidth).toBeLessThanOrEqual(filterWidth.clientWidth);
+
+  await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(3);
+
+  await page.locator('#review-workflow-audio-status-filter').selectOption('unreviewed');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
+
+  await page.locator('#review-workflow-audio-status-filter').selectOption('followup');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
+
+  await page.locator('#review-workflow-audio-status-filter').selectOption('all');
+  await page.locator('#review-workflow-audio-claim-filter').selectOption('other');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
+
+  await page.locator('#review-workflow-audio-claim-filter').selectOption('mine');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await page.locator('#review-workflow-audio-keyword').fill('TEST0001');
+  await page.locator('.review-workflow-audio-filter-apply').click();
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
+
+  await page.locator('.review-workflow-audio-filter-clear').click();
+  await expect(page.locator('.review-workflow-item')).toHaveCount(3);
+  await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
+});
+
 test('audio assessor sees claimed audio workbench and sends audio claim token', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {

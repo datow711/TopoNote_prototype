@@ -20,6 +20,7 @@ const LOW_ACCURACY_THRESHOLD_METERS = 100;
 
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft', reviewWorkbenchMode: 'proofing',
+    reviewWorkflowAudioStatusFilter: 'all', reviewWorkflowAudioClaimFilter: 'all', reviewWorkflowAudioKeyword: '',
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -1133,6 +1134,9 @@ function logout() {
     state.reviewQueue = [];
     state.reviewWorkflowQueue = [];
     state.reviewWorkflowDraftFilter = 'draft';
+    state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioClaimFilter = 'all';
+    state.reviewWorkflowAudioKeyword = '';
     state.reviewWorkbenchMode = 'proofing';
     state.reviewWorkflowAvailable = false;
     state.selectedPlace = null;
@@ -3800,10 +3804,120 @@ function getReviewWorkflowDraftFilter() {
 }
 
 function getReviewWorkflowVisibleRows() {
+    if (getReviewWorkbenchMode() === 'audio') return state.reviewWorkflowQueue;
     const filter = getReviewWorkflowDraftFilter();
     if (filter === 'draft') return state.reviewWorkflowQueue.filter(hasReviewWorkflowDraft);
     if (filter === 'no-draft') return state.reviewWorkflowQueue.filter(row => !hasReviewWorkflowDraft(row));
     return state.reviewWorkflowQueue;
+}
+
+function getReviewWorkflowAudioFilterState() {
+    const validStatuses = ['all', 'attention', 'unreviewed', 'followup', 'unusable', 'completed'];
+    const validClaims = ['all', 'mine', 'available', 'other'];
+    return {
+        status: validStatuses.includes(state.reviewWorkflowAudioStatusFilter)
+            ? state.reviewWorkflowAudioStatusFilter
+            : 'all',
+        claim: validClaims.includes(state.reviewWorkflowAudioClaimFilter)
+            ? state.reviewWorkflowAudioClaimFilter
+            : 'all',
+        keyword: String(state.reviewWorkflowAudioKeyword || '').trim().toLocaleLowerCase()
+    };
+}
+
+function getReviewWorkflowAudioProgress(row) {
+    const evidence = getReviewWorkflowAudioEvidence(row);
+    const total = Math.max(Number(row?.audio_record_count || 0), evidence.length);
+    const assessed = Math.max(
+        Number(row?.assessed_audio_count || 0),
+        evidence.filter(item => item.assessment_decision && item.assessment_decision !== '未審聽').length
+    );
+    const followup = Math.max(
+        Number(row?.follow_up_audio_count || 0),
+        evidence.filter(item => item.needs_followup || item.assessment_decision === '待追問').length
+    );
+    const unusable = Math.max(
+        Number(row?.unusable_audio_count || 0),
+        evidence.filter(item => item.assessment_decision === '不可用').length
+    );
+    return { total, assessed, followup, unusable };
+}
+
+function getReviewWorkflowAudioClaimState(row) {
+    const claimUntil = new Date(row?.audio_claim_until || 0).getTime();
+    const active = Boolean(row?.audio_claim_by)
+        && Number.isFinite(claimUntil)
+        && claimUntil > Date.now();
+    if (!active) return 'available';
+    return row.audio_claim_by === state.userId ? 'mine' : 'other';
+}
+
+function getReviewWorkflowAudioKeywordText(row) {
+    const evidence = getReviewWorkflowAudioEvidence(row);
+    return [
+        row?.place_name, row?.source_id, row?.source_table, row?.county, row?.town,
+        row?.village, row?.language, row?.class_name, row?.case_id, row?.task_id,
+        ...evidence.flatMap(item => [
+            item.audio_record_id, item.audio_file_id, item.recorder_name,
+            item.respondent_key, item.assessment_decision, item.assessment_reason,
+            item.unusable_reason_code, item.unusable_reason_text,
+            item.followup_reason_text
+        ])
+    ].filter(value => value !== null && value !== undefined)
+        .join(' ')
+        .toLocaleLowerCase();
+}
+
+function getReviewWorkflowAudioVisibleRows(rows = state.reviewWorkflowQueue) {
+    const filters = getReviewWorkflowAudioFilterState();
+    return rows.filter(row => {
+        const progress = getReviewWorkflowAudioProgress(row);
+        if (progress.total <= 0) return false;
+        const hasUnreviewed = progress.total > progress.assessed;
+        const hasFollowup = progress.followup > 0;
+        const hasUnusable = progress.unusable > 0;
+        const statusMatches = filters.status === 'all'
+            || (filters.status === 'attention' && (hasUnreviewed || hasFollowup))
+            || (filters.status === 'unreviewed' && hasUnreviewed)
+            || (filters.status === 'followup' && hasFollowup)
+            || (filters.status === 'unusable' && hasUnusable)
+            || (filters.status === 'completed' && !hasUnreviewed && !hasFollowup);
+        const claimMatches = filters.claim === 'all'
+            || getReviewWorkflowAudioClaimState(row) === filters.claim;
+        const keywordMatches = !filters.keyword
+            || getReviewWorkflowAudioKeywordText(row).includes(filters.keyword);
+        return statusMatches && claimMatches && keywordMatches;
+    });
+}
+
+function setReviewWorkflowAudioStatusFilter(value, form) {
+    const keywordInput = form?.querySelector('[data-role="audio-keyword"]');
+    if (keywordInput) state.reviewWorkflowAudioKeyword = keywordInput.value.trim();
+    state.reviewWorkflowAudioStatusFilter = ['all', 'attention', 'unreviewed', 'followup', 'unusable', 'completed'].includes(value)
+        ? value
+        : 'all';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function setReviewWorkflowAudioClaimFilter(value, form) {
+    const keywordInput = form?.querySelector('[data-role="audio-keyword"]');
+    if (keywordInput) state.reviewWorkflowAudioKeyword = keywordInput.value.trim();
+    state.reviewWorkflowAudioClaimFilter = ['all', 'mine', 'available', 'other'].includes(value)
+        ? value
+        : 'all';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function applyReviewWorkflowAudioKeywordFilter(form) {
+    state.reviewWorkflowAudioKeyword = String(form?.querySelector('[data-role="audio-keyword"]')?.value || '').trim();
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function clearReviewWorkflowAudioFilters() {
+    state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioClaimFilter = 'all';
+    state.reviewWorkflowAudioKeyword = '';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
 }
 
 function setReviewWorkflowDraftFilter(value) {
@@ -3865,6 +3979,55 @@ function renderReviewWorkflowAdminFilter(visibleRows) {
         </div>
     `;
 }
+function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
+    const filters = getReviewWorkflowAudioFilterState();
+    const statusOptions = [
+        ['all', '全部音檔案件'],
+        ['attention', '待處理（未審聽或需後續）'],
+        ['unreviewed', '尚有未審聽'],
+        ['followup', '需後續處理'],
+        ['unusable', '含不可用音檔'],
+        ['completed', '全部已判定']
+    ].map(([value, label]) =>
+        '<option value="' + value + '"' + (filters.status === value ? ' selected' : '') + '>' + label + '</option>'
+    ).join('');
+    const claimOptions = [
+        ['all', '全部領取狀態'],
+        ['mine', '我已領取'],
+        ['available', '可領取'],
+        ['other', '他人檢驗中']
+    ].map(([value, label]) =>
+        '<option value="' + value + '"' + (filters.claim === value ? ' selected' : '') + '>' + label + '</option>'
+    ).join('');
+    return `
+        <form class="review-workflow-audio-filter-bar" onsubmit="event.preventDefault(); applyReviewWorkflowAudioKeywordFilter(this)">
+            <div class="review-workflow-audio-filter-main">
+                <label class="review-workflow-audio-keyword">
+                    <span>搜尋案件</span>
+                    <input id="review-workflow-audio-keyword" type="search" data-role="audio-keyword" value="${escapeHtml(state.reviewWorkflowAudioKeyword || '')}" placeholder="地名／來源 ID／音檔 ID／錄音人" autocomplete="off">
+                </label>
+                <button type="submit" class="review-workflow-audio-filter-apply">套用</button>
+                <button type="button" class="review-workflow-audio-filter-clear" onclick="clearReviewWorkflowAudioFilters()">清除</button>
+            </div>
+            <div class="review-workflow-audio-filter-options">
+                <label>
+                    <span>案件進度</span>
+                    <select id="review-workflow-audio-status-filter" onchange="setReviewWorkflowAudioStatusFilter(this.value, this.form)">
+                        ${statusOptions}
+                    </select>
+                </label>
+                <label>
+                    <span>領取狀態</span>
+                    <select id="review-workflow-audio-claim-filter" onchange="setReviewWorkflowAudioClaimFilter(this.value, this.form)">
+                        ${claimOptions}
+                    </select>
+                </label>
+                <span class="review-workflow-audio-filter-count">顯示 ${visibleRows.length} / ${totalRows.length} 筆音檔案件</span>
+            </div>
+        </form>
+    `;
+}
+
 function getReviewWorkflowFields(row) {
     const fields = row?.annotation_fields || {};
     if (typeof fields === 'string') {
@@ -4510,9 +4673,19 @@ function renderReviewWorkflowQueue() {
         container.innerHTML = '<div class="empty-state">新審查 workflow 尚未部署；既有資料仍保留在原流程。</div>';
         return;
     }
-    const visibleRows = getReviewWorkflowVisibleRows();
-    if (state.userRole === 'admin') {
+    const queueRows = getReviewWorkflowVisibleRows();
+    const isAudioMode = workbenchMode === 'audio';
+    const audioRows = isAudioMode
+        ? queueRows.filter(row => getReviewWorkflowAudioProgress(row).total > 0)
+        : [];
+    const visibleRows = isAudioMode
+        ? getReviewWorkflowAudioVisibleRows(audioRows)
+        : queueRows;
+    if (state.userRole === 'admin' && !isAudioMode) {
         container.insertAdjacentHTML('beforeend', renderReviewWorkflowAdminFilter(visibleRows));
+    }
+    if (isAudioMode) {
+        container.insertAdjacentHTML('beforeend', renderReviewWorkflowAudioFilter(audioRows, visibleRows));
     }
     if (!state.reviewWorkflowQueue.length) {
         container.insertAdjacentHTML('beforeend', '<div class="empty-state">目前沒有分派給此帳號的審查案件。</div>');
@@ -4520,12 +4693,16 @@ function renderReviewWorkflowQueue() {
     }
 
     if (!visibleRows.length) {
-        container.insertAdjacentHTML('beforeend', '<div class="empty-state">\u76ee\u524d\u6c92\u6709\u7b26\u5408\u8349\u7a3f\u72c0\u614b\u7684\u5be9\u67e5\u6848\u4ef6\u3002</div>');
+        container.insertAdjacentHTML(
+            'beforeend',
+            isAudioMode
+                ? '<div class="empty-state">目前沒有符合音檔篩選條件的案件。</div>'
+                : '<div class="empty-state">\u76ee\u524d\u6c92\u6709\u7b26\u5408\u8349\u7a3f\u72c0\u614b\u7684\u5be9\u67e5\u6848\u4ef6\u3002</div>'
+        );
         return;
     }
     visibleRows.forEach(row => {
         const fields = getReviewWorkflowFields(row);
-        const isAudioMode = workbenchMode === 'audio';
         const isWritten = isReviewWorkflowWrittenRow(row);
         const canEdit = !isAudioMode && (state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId));
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
