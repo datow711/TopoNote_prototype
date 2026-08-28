@@ -534,8 +534,14 @@ function setupUsersSheetHeaders() {
   sheet.getRange(1, 1, 1, USER_SHEET_HEADERS.length).setValues([USER_SHEET_HEADERS]);
   sheet.getRange(1, 1, 1, USER_SHEET_HEADERS.length).setFontWeight('bold');
   sheet.getRange(2, USER_SHEET_HEADERS.length, Math.max(sheet.getMaxRows() - 1, 1), 1).insertCheckboxes();
+  var roleColumn = USER_SHEET_HEADERS.indexOf('role') + 1;
+  var roleValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(USER_SHEET_ALLOWED_ROLES, true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, roleColumn, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(roleValidation);
   sheet.autoResizeColumns(1, USER_SHEET_HEADERS.length);
-  SpreadsheetApp.getUi().alert('✅ Users 表頭已設定完成。email 與 name 為必填，active 欄可勾選。');
+  SpreadsheetApp.getUi().alert('✅ Users 表頭已設定完成。email 與 name 為必填，role 可選 user／proofreader／audio_assessor，active 欄可勾選。');
 }
 
 function normalizeUserActive_(value) {
@@ -570,25 +576,26 @@ function syncUsersToSupabase(options) {
   }
 
   var payload = [];
-  var skipped = 0;
+  var skippedRequired = 0;
+  var skippedInvalidRole = 0;
   for (var r = 1; r < data.length; r++) {
     var row = data[r];
     var email = String(row[colMap.email] || '').trim().toLowerCase();
     var name = String(row[colMap.name] || '').trim();
-    var role = colMap.role === undefined ? 'user' : String(row[colMap.role] || 'user').trim().toLowerCase();
+    var role = normalizeUserRole_(colMap.role === undefined ? 'user' : row[colMap.role]);
     if (!email || !name) {
-      skipped++;
+      skippedRequired++;
       continue;
     }
-    if (role && role !== 'user') {
-      skipped++;
+    if (!role) {
+      skippedInvalidRole++;
       continue;
     }
 
     payload.push({
       email: email,
       name: name,
-      role: 'user',
+      role: role,
       phone: String(row[colMap.phone] || '').trim(),
       languages: String(row[colMap.languages] || '').trim(),
       hakka_dialect: String(row[colMap.hakka_dialect] || '').trim(),
@@ -622,7 +629,9 @@ function syncUsersToSupabase(options) {
       throw new Error('Supabase HTTP ' + statusCode + ': ' + response.getContentText());
     }
 
-    return notify_('✅ 已同步 ' + payload.length + ' 位 Users 至 Supabase。略過 ' + skipped + ' 列缺少 email/name 的資料。', options);
+    var message = '✅ 已同步 ' + payload.length + ' 位 Users 至 Supabase。略過 ' + skippedRequired + ' 列缺少 email/name 的資料。';
+    if (skippedInvalidRole > 0) message += ' 略過 ' + skippedInvalidRole + ' 列不允許的 role（admin 或拼字錯誤）。';
+    return notify_(message, options);
   } catch (e) {
     return handleSyncError_('Users 同步', e, options);
   }
