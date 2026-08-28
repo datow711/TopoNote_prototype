@@ -5095,7 +5095,6 @@ function renderReviewWorkflowQueue() {
             : !hasDraft
                 ? '\u8acb\u5148\u5efa\u7acb\u6821\u5c0d\u8349\u7a3f'
                 : (!isAdmin && !isClaimOwner ? '\u8acb\u5148\u9818\u53d6\u6848\u4ef6' : '');
-        const legacyBadge = row.legacy_unreviewed ? '<span class="review-state review-pending">legacy 未審查/未審聽</span>' : '';
         const sourceBadge = isReviewWorkflowSatelliteRow(row)
             ? '<span class="review-workflow-source-badge">衛星草稿</span>'
             : '';
@@ -5114,7 +5113,6 @@ function renderReviewWorkflowQueue() {
                         ${sourceBadge}
                         <span class="meta-badge">${escapeHtml(row.county || '')} ${escapeHtml(row.town || '')}</span>
                         <span class="review-state review-pending">${escapeHtml(row.state || '待指派')}</span>
-                        ${legacyBadge}
                     </div>
                 </div>
                 <div class="review-action-group">${claimAction}${assignButton}</div>

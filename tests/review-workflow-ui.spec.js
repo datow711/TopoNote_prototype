@@ -462,6 +462,7 @@ test('audio assessor sees claimed audio workbench and sends audio claim token', 
 
   await expect(page.locator('.review-workbench-mode-btn[aria-label="目前工作台：音檔檢驗"]')).toBeVisible();
   await expect(page.locator('.review-workflow-item')).toContainText('audio-claim-case');
+  await expect(page.locator('.review-workflow-item')).not.toContainText('legacy \u672a\u5be9\u67e5/\u672a\u5be9\u807d');
   await expect(page.locator('.review-workflow-release-btn')).toContainText('\u91cb\u653e\u97f3\u6a94\u6848\u4ef6');
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item input:visible, .review-workflow-item textarea:visible')).toHaveCount(0);
