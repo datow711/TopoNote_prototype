@@ -4149,12 +4149,13 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
                             </div>
                             <div class="review-workflow-source-actions">
                                 ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">\u64AD\u653e</button>` : ''}
-                                ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="submitReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)">\u5224\u5b9a</button>` : ''}
+                                ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="openReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-${row.case_id}-${item.audio_record_id}">${decision !== '\u672a\u5be9\u807d' ? '修改判定' : '開始判定'}</button>` : ''}
                             </div>
                         </div>
                         <div class="review-workflow-source-grid">
                             ${compareFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit)).join('')}
                         </div>
+                        ${canAssess ? renderReviewWorkflowAudioAssessmentPanel(row, item) : ''}
                         <div id="review-audio-${escapeHtml(String(item.audio_record_id))}" class="review-player"></div>
                     </article>
                 `;
@@ -4166,6 +4167,227 @@ function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
     return renderReviewWorkflowAudioSourceTable(row, canEdit);
 }
 
+function renderReviewWorkflowAudioAssessmentPanel(row, item) {
+    const currentDecision = item.assessment_decision || '';
+    const respondentKey = item.respondent_key || '';
+    const assessmentKey = String(row.case_id) + '-' + String(item.audio_record_id);
+    return `
+        <section class="review-workflow-assessment-panel hidden"
+            id="review-workflow-assessment-${escapeHtml(assessmentKey)}"
+            data-review-assessment-panel="${escapeHtml(assessmentKey)}"
+            data-task-id="${escapeHtml(row.task_id)}"
+            data-language="${escapeHtml(row.language)}"
+            data-audio-record-id="${escapeHtml(item.audio_record_id)}"
+            data-initial-decision="${escapeHtml(currentDecision)}"
+            data-initial-respondent="${escapeHtml(respondentKey)}">
+            <div class="review-workflow-assessment-header">
+                <div>
+                    <strong>音檔判定</strong>
+                    <span>請先播放音檔，再選擇判定結果。</span>
+                </div>
+                <span class="review-workflow-assessment-current">目前：${escapeHtml(currentDecision || '未審聽')}</span>
+            </div>
+            <fieldset class="review-workflow-assessment-fieldset">
+                <legend>判定結果</legend>
+                <div class="review-workflow-assessment-options" role="radiogroup" aria-label="音檔判定結果">
+                    <button type="button" class="review-workflow-decision-btn ${currentDecision === '可用' ? 'is-selected' : ''}" data-decision="可用" aria-pressed="${currentDecision === '可用'}">可用</button>
+                    <button type="button" class="review-workflow-decision-btn is-danger ${currentDecision === '不可用' ? 'is-selected' : ''}" data-decision="不可用" aria-pressed="${currentDecision === '不可用'}">不可用</button>
+                    <button type="button" class="review-workflow-decision-btn is-followup ${currentDecision === '待追問' ? 'is-selected' : ''}" data-decision="待追問" aria-pressed="${currentDecision === '待追問'}">待追問</button>
+                </div>
+            </fieldset>
+            <div class="review-workflow-assessment-grid">
+                <label class="review-workflow-assessment-field">
+                    <span>受訪者代號（可留空）</span>
+                    <input type="text" data-role="respondent-key" value="${escapeHtml(respondentKey)}" placeholder="若有需要，再填寫代號">
+                </label>
+                <label class="review-workflow-assessment-field review-workflow-assessment-field-wide">
+                    <span>判定補充說明（可留空）</span>
+                    <textarea data-role="reason" rows="2" placeholder="記錄音質、內容或其他判斷依據"></textarea>
+                </label>
+                <label class="review-workflow-assessment-field hidden" data-field="unusable-reason">
+                    <span>不可用原因 <em>必填</em></span>
+                    <select data-role="unusable-reason-code">
+                        <option value="">請選擇原因</option>
+                        <option value="無聲">無聲</option>
+                        <option value="聽不清楚">聽不清楚</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </label>
+                <label class="review-workflow-assessment-field hidden review-workflow-assessment-field-wide" data-field="unusable-other">
+                    <span>其他不可用原因 <em>必填</em></span>
+                    <textarea data-role="unusable-reason-text" rows="2" placeholder="請說明音檔為何不可用"></textarea>
+                </label>
+                <label class="review-workflow-assessment-field review-workflow-followup-toggle">
+                    <span>需要後續處理</span>
+                    <span class="review-workflow-checkbox-label">
+                        <input type="checkbox" data-role="needs-followup">
+                        <span>需要</span>
+                    </span>
+                </label>
+                <label class="review-workflow-assessment-field hidden review-workflow-assessment-field-wide" data-field="followup-reason">
+                    <span>後續處理原因 <em>必填</em></span>
+                    <textarea data-role="followup-reason" rows="2" placeholder="請說明要追問或後續處理的內容"></textarea>
+                </label>
+            </div>
+            <div class="review-workflow-assessment-message" data-role="assessment-message" aria-live="polite"></div>
+            <div class="review-workflow-assessment-actions">
+                <button type="button" class="review-workflow-assessment-cancel" data-action="cancel">取消</button>
+                <button type="button" class="review-workflow-assessment-save" data-action="save" disabled>儲存判定</button>
+            </div>
+        </section>
+    `;
+}
+
+function setReviewWorkflowAudioAssessmentMessage(panel, message, isError = false, isSuccess = false) {
+    const messageElement = panel?.querySelector('[data-role="assessment-message"]');
+    if (!messageElement) return;
+    messageElement.textContent = message || '';
+    messageElement.classList.toggle('is-error', Boolean(isError));
+    messageElement.classList.toggle('is-success', Boolean(isSuccess));
+}
+
+function getReviewWorkflowAudioAssessmentValues(panel) {
+    const decision = panel?.dataset.decision || '';
+    const unusableReasonCode = panel?.querySelector('[data-role="unusable-reason-code"]')?.value || '';
+    const unusableReasonText = panel?.querySelector('[data-role="unusable-reason-text"]')?.value.trim() || '';
+    const needsFollowup = decision === '待追問'
+        || Boolean(panel?.querySelector('[data-role="needs-followup"]')?.checked);
+    return {
+        respondentKey: panel?.querySelector('[data-role="respondent-key"]')?.value.trim() || '',
+        decision,
+        reason: panel?.querySelector('[data-role="reason"]')?.value || '',
+        unusableReasonCode,
+        unusableReasonText,
+        needsFollowup,
+        followupReasonText: panel?.querySelector('[data-role="followup-reason"]')?.value.trim() || ''
+    };
+}
+
+function getReviewWorkflowAudioAssessmentValidation(values) {
+    if (!['可用', '不可用', '待追問'].includes(values.decision)) {
+        return '請先選擇判定結果。';
+    }
+    if (values.decision === '不可用' && !['無聲', '聽不清楚', '其他'].includes(values.unusableReasonCode)) {
+        return '請選擇不可用原因。';
+    }
+    if (values.decision === '不可用' && values.unusableReasonCode === '其他' && !values.unusableReasonText) {
+        return '請補充其他不可用原因。';
+    }
+    if (values.needsFollowup && !values.followupReasonText) {
+        return '需要後續處理時，請填寫原因。';
+    }
+    return '';
+}
+
+function refreshReviewWorkflowAudioAssessmentPanel(panel) {
+    if (!panel) return;
+    const values = getReviewWorkflowAudioAssessmentValues(panel);
+    const isUnusable = values.decision === '不可用';
+    const isFollowupRequired = values.decision === '待追問' || values.needsFollowup;
+    panel.querySelector('[data-field="unusable-reason"]')?.classList.toggle('hidden', !isUnusable);
+    panel.querySelector('[data-field="unusable-other"]')?.classList.toggle(
+        'hidden',
+        !isUnusable || values.unusableReasonCode !== '其他'
+    );
+    panel.querySelector('[data-field="followup-reason"]')?.classList.toggle('hidden', !isFollowupRequired);
+    const followupCheckbox = panel.querySelector('[data-role="needs-followup"]');
+    if (followupCheckbox) {
+        followupCheckbox.disabled = values.decision === '待追問';
+        if (values.decision === '待追問') followupCheckbox.checked = true;
+    }
+    const validationMessage = getReviewWorkflowAudioAssessmentValidation(values);
+    const saveButton = panel.querySelector('[data-action="save"]');
+    if (saveButton) saveButton.disabled = Boolean(validationMessage);
+    if (!panel.dataset.submitting) {
+        setReviewWorkflowAudioAssessmentMessage(
+            panel,
+            validationMessage || '內容確認無誤後，按「儲存判定」。',
+            Boolean(validationMessage)
+        );
+    }
+}
+
+function resetReviewWorkflowAudioAssessmentPanel(panel) {
+    if (!panel) return;
+    panel.dataset.decision = panel.dataset.initialDecision || '';
+    const respondentInput = panel.querySelector('[data-role="respondent-key"]');
+    if (respondentInput) respondentInput.value = panel.dataset.initialRespondent || '';
+    const reasonInput = panel.querySelector('[data-role="reason"]');
+    if (reasonInput) reasonInput.value = '';
+    const unusableReasonCode = panel.querySelector('[data-role="unusable-reason-code"]');
+    if (unusableReasonCode) unusableReasonCode.value = '';
+    const unusableReasonText = panel.querySelector('[data-role="unusable-reason-text"]');
+    if (unusableReasonText) unusableReasonText.value = '';
+    const followupCheckbox = panel.querySelector('[data-role="needs-followup"]');
+    if (followupCheckbox) followupCheckbox.checked = panel.dataset.initialDecision === '待追問';
+    const followupReason = panel.querySelector('[data-role="followup-reason"]');
+    if (followupReason) followupReason.value = '';
+    panel.querySelectorAll('[data-decision]').forEach(decisionButton => {
+        const selected = decisionButton.dataset.decision === panel.dataset.decision;
+        decisionButton.classList.toggle('is-selected', selected);
+        decisionButton.setAttribute('aria-pressed', String(selected));
+    });
+    refreshReviewWorkflowAudioAssessmentPanel(panel);
+}
+
+function closeReviewWorkflowAudioAssessment(panel) {
+    resetReviewWorkflowAudioAssessmentPanel(panel);
+    panel?.classList.add('hidden');
+    const trigger = panel?.closest('.review-workflow-source-card')?.querySelector('.review-workflow-assess-btn');
+    trigger?.setAttribute('aria-expanded', 'false');
+}
+
+function bindReviewWorkflowAudioAssessmentPanel(panel, taskId, language, audioRecordId, trigger) {
+    if (!panel || panel.dataset.bound === 'true') return;
+    panel.dataset.bound = 'true';
+    panel.querySelectorAll('[data-decision]').forEach(decisionButton => {
+        decisionButton.addEventListener('click', () => {
+            panel.dataset.decision = decisionButton.dataset.decision || '';
+            panel.querySelectorAll('[data-decision]').forEach(candidate => {
+                const selected = candidate === decisionButton;
+                candidate.classList.toggle('is-selected', selected);
+                candidate.setAttribute('aria-pressed', String(selected));
+            });
+            refreshReviewWorkflowAudioAssessmentPanel(panel);
+        });
+    });
+    panel.querySelectorAll('input, select, textarea').forEach(field => {
+        field.addEventListener('input', () => refreshReviewWorkflowAudioAssessmentPanel(panel));
+        field.addEventListener('change', () => refreshReviewWorkflowAudioAssessmentPanel(panel));
+    });
+    panel.querySelector('[data-action="cancel"]')?.addEventListener('click', () => {
+        closeReviewWorkflowAudioAssessment(panel);
+    });
+    panel.querySelector('[data-action="save"]')?.addEventListener('click', () => {
+        saveReviewWorkflowAudioAssessment(taskId, language, audioRecordId, panel, trigger);
+    });
+}
+
+function openReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
+    if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return;
+    const row = state.reviewWorkflowQueue.find(candidate =>
+        Number(candidate.task_id) === Number(taskId) && candidate.language === language
+    );
+    if (!row) return;
+    const panel = button?.closest('.review-workflow-source-card')?.querySelector('[data-review-assessment-panel]')
+        || document.querySelector('[data-review-assessment-panel="' + row.case_id + '-' + audioRecordId + '"]');
+    if (!panel) return;
+    if (isAudioAssessorRole() && !canAssessReviewWorkflowAudio(row)) {
+        setReviewWorkflowAudioAssessmentMessage(panel, '請先領取這筆音檔案件，再提交判定。', true);
+        panel.classList.remove('hidden');
+        return;
+    }
+    if (!panel.dataset.bound) bindReviewWorkflowAudioAssessmentPanel(panel, taskId, language, audioRecordId, button);
+    if (!panel.classList.contains('hidden')) {
+        closeReviewWorkflowAudioAssessment(panel);
+        return;
+    }
+    panel.dataset.decision = panel.dataset.initialDecision || '';
+    panel.classList.remove('hidden');
+    refreshReviewWorkflowAudioAssessmentPanel(panel);
+    button?.setAttribute('aria-expanded', 'true');
+    panel.querySelector('[data-role="respondent-key"]')?.focus();
+}
 
 async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit) {
     if (row.audio_sources_loaded) return getReviewWorkflowAudioSources(row);
@@ -4211,60 +4433,68 @@ async function fillReviewWorkflowDraftFieldFromAudio(caseId, audioRecordId, fiel
     button?.classList.add('is-selected');
 }
 
-async function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
+async function saveReviewWorkflowAudioAssessment(taskId, language, audioRecordId, panel) {
     if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return;
     const row = state.reviewWorkflowQueue.find(candidate =>
         Number(candidate.task_id) === Number(taskId) && candidate.language === language
     );
-    if (isAudioAssessorRole() && !canAssessReviewWorkflowAudio(row)) {
-        alert('請先領取這筆音檔案件，再提交判定。');
+    if (!row || (isAudioAssessorRole() && !canAssessReviewWorkflowAudio(row))) {
+        setReviewWorkflowAudioAssessmentMessage(panel, '請先領取這筆音檔案件，再提交判定。', true);
         return;
     }
-
-    const respondentKey = prompt('錄音人／受訪者代號（可留空）：', '');
-    if (respondentKey === null) return;
-    const decision = prompt('請輸入判定：可用／不可用／待追問', '可用');
-    if (!['可用', '不可用', '待追問'].includes(decision)) {
-        return alert('判定只能是：可用、不可用、待追問。');
+    const values = getReviewWorkflowAudioAssessmentValues(panel);
+    const validationMessage = getReviewWorkflowAudioAssessmentValidation(values);
+    if (validationMessage) {
+        setReviewWorkflowAudioAssessmentMessage(panel, validationMessage, true);
+        return;
     }
-
-    let unusableReasonCode = '';
-    let unusableReasonText = '';
-    if (decision === '不可用') {
-        unusableReasonCode = (prompt('不可用原因：無聲／聽不清楚／其他', '聽不清楚') || '').trim();
-        if (!['無聲', '聽不清楚', '其他'].includes(unusableReasonCode)) {
-            return alert('不可用原因只能是：無聲、聽不清楚、其他。');
+    const controls = panel.querySelectorAll('button, input, select, textarea');
+    const saveButton = panel.querySelector('[data-action="save"]');
+    controls.forEach(control => { control.disabled = true; });
+    if (saveButton) saveButton.innerText = '儲存中...';
+    panel.dataset.submitting = 'true';
+    setReviewWorkflowAudioAssessmentMessage(panel, '正在保存判定...', false);
+    let preserveMessage = false;
+    try {
+        await reviewWorkflowRpc('submit_audio_assessment', {
+            p_task_id: Number(taskId), p_language: language, p_audio_record_id: Number(audioRecordId),
+            p_assessor_account: state.userId, p_respondent_key: values.respondentKey,
+            p_decision: values.decision,
+            p_metadata: {
+                reason: values.reason,
+                unusable_reason_code: values.unusableReasonCode,
+                unusable_reason_text: values.unusableReasonText,
+                needs_followup: values.needsFollowup,
+                followup_reason_text: values.followupReasonText
+            },
+            p_claim_token: row.audio_claim_token || null
+        });
+        preserveMessage = true;
+        setReviewWorkflowAudioAssessmentMessage(panel, '音檔判定已保存，正在更新工作清單。', false, true);
+        try {
+            await loadReviewWorkflowQueue({ silent: true });
+        } catch (reloadError) {
+            setReviewWorkflowAudioAssessmentMessage(
+                panel,
+                '判定已保存，但工作清單更新失敗：' + reloadError.message,
+                true
+            );
         }
-        if (unusableReasonCode === '其他') {
-            unusableReasonText = (prompt('請補充其他不可用原因：', '') || '').trim();
-            if (!unusableReasonText) return alert('請補充其他不可用原因。');
+    } catch (error) {
+        preserveMessage = true;
+        setReviewWorkflowAudioAssessmentMessage(panel, '音檔判定保存失敗：' + error.message, true);
+    } finally {
+        delete panel.dataset.submitting;
+        if (panel.isConnected) {
+            controls.forEach(control => { control.disabled = false; });
+            if (saveButton) saveButton.innerText = '儲存判定';
+            if (!preserveMessage) refreshReviewWorkflowAudioAssessmentPanel(panel);
         }
     }
+}
 
-    const reason = prompt('請輸入判定補充說明（可留空）：', '') || '';
-    const followupAnswer = prompt('需要後續處理嗎？請輸入「是」或「否」：', '否');
-    if (followupAnswer === null) return;
-    const needsFollowup = decision === '待追問'
-        || ['是', 'yes', 'y', 'true'].includes(String(followupAnswer || '否').trim().toLowerCase());
-    let followupReasonText = '';
-    if (needsFollowup) {
-        followupReasonText = (prompt('請輸入後續處理原因：', '') || '').trim();
-        if (!followupReasonText) return alert('需要後續處理時，請填寫原因。');
-    }
-
-    await performReviewWorkflowAction('submit_audio_assessment', {
-        p_task_id: Number(taskId), p_language: language, p_audio_record_id: Number(audioRecordId),
-        p_assessor_account: state.userId, p_respondent_key: String(respondentKey || '').trim(),
-        p_decision: decision,
-        p_metadata: {
-            reason,
-            unusable_reason_code: unusableReasonCode,
-            unusable_reason_text: unusableReasonText,
-            needs_followup: needsFollowup,
-            followup_reason_text: followupReasonText
-        },
-        p_claim_token: row?.audio_claim_token || null
-    }, button, '音檔判定已保存。');
+function submitReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button) {
+    openReviewWorkflowAudioAssessment(taskId, language, audioRecordId, button);
 }
 
 function renderReviewWorkflowQueue() {

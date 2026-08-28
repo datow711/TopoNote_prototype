@@ -12,32 +12,115 @@ test('recording respondent key is optional and not presented as a two-person req
 test('admin can save an audio assessment with a blank respondent key', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
-    window.__prompts = ['', '\u53ef\u7528', ''];
-    window.__rpcCalls = [];
+    window.__workflowCalls = [];
     window.__alerts = [];
-    window.prompt = () => window.__prompts.shift();
+    window.prompt = () => { throw new Error('音檔判定不應再呼叫 prompt'); };
     window.alert = message => window.__alerts.push(String(message));
-    window.fetch = async (url, options = {}) => {
-      window.__rpcCalls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
-      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [];
     };
+    window.loadReviewWorkflowQueue = async () => {};
     state.reviewWorkbenchMode = 'audio';
     state.userRole = 'admin';
     state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 11,
+      task_id: 11,
+      language: '\u53f0\u8a9e',
+      place_name: 'panel-case',
+      class_name: 'test',
+      state: 'pending',
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: '測試漢字' },
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_evidence: [
+        { audio_record_id: 22, audio_file_id: 'drive-22', recorder_name: 'Recorder', assessment_decision: '\u672a\u5be9\u807d' }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
   });
 
-  await page.evaluate(async () => {
-    await submitReviewWorkflowAudioAssessment(11, '\u53f0\u8a9e', 22, null);
-  });
+  const panel = page.locator('.review-workflow-assessment-panel');
+  await expect(panel).toBeHidden();
+  await page.locator('.review-workflow-assess-btn').click();
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[data-field="unusable-reason"]')).toBeHidden();
+  await panel.locator('[data-decision="可用"]').click();
+  await expect(panel.locator('[data-action="save"]')).toBeEnabled();
+  await panel.locator('[data-action="save"]').click();
+  await page.waitForFunction(() => window.__workflowCalls.length === 1);
 
   const result = await page.evaluate(() => ({
-    assessmentCall: window.__rpcCalls[0]
+    assessmentCall: window.__workflowCalls[0]
   }));
-  expect(result.assessmentCall.url).toContain('/rpc/submit_audio_assessment');
+  expect(result.assessmentCall.rpcName).toBe('submit_audio_assessment');
   expect(result.assessmentCall.body.p_respondent_key).toBe('');
   expect(result.assessmentCall.body.p_decision).toBe('\u53ef\u7528');
+  expect(result.assessmentCall.body.p_metadata.needs_followup).toBe(false);
 });
 
+test('audio assessment shows conditional fields inline', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.reviewWorkbenchMode = 'audio';
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 12,
+      task_id: 12,
+      language: '\u53f0\u8a9e',
+      place_name: 'conditional-panel-case',
+      class_name: 'test',
+      state: 'pending',
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: '測試漢字' },
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_evidence: [
+        { audio_record_id: 23, audio_file_id: 'drive-23', recorder_name: 'Recorder', assessment_decision: '\u672a\u5be9\u807d' }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  const panel = page.locator('.review-workflow-assessment-panel');
+  await page.locator('.review-workflow-assess-btn').click();
+  const assessmentWidth = await panel.evaluate(element => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth
+  }));
+  expect(assessmentWidth.scrollWidth).toBeLessThanOrEqual(assessmentWidth.clientWidth);
+  await panel.locator('[data-decision="不可用"]').click();
+  await expect(panel.locator('[data-field="unusable-reason"]')).toBeVisible();
+  await expect(panel.locator('[data-action="save"]')).toBeDisabled();
+  await panel.locator('[data-role="unusable-reason-code"]').selectOption('其他');
+  await expect(panel.locator('[data-field="unusable-other"]')).toBeVisible();
+  await panel.locator('[data-role="needs-followup"]').check();
+  await expect(panel.locator('[data-field="followup-reason"]')).toBeVisible();
+  await panel.locator('[data-role="unusable-reason-text"]').fill('背景雜訊過大');
+  await expect(panel.locator('[data-action="save"]')).toBeDisabled();
+  await panel.locator('[data-role="followup-reason"]').fill('請請調查員確認是否有較清楚版本');
+  await expect(panel.locator('[data-action="save"]')).toBeEnabled();
+  await panel.locator('[data-action="cancel"]').click();
+  await expect(panel).toBeHidden();
+});
 test('audio assessor sees claimed audio workbench and sends audio claim token', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -88,11 +171,13 @@ test('audio assessor sees claimed audio workbench and sends audio claim token', 
   await expect(page.locator('.review-workflow-item')).toContainText('audio-claim-case');
   await expect(page.locator('.review-workflow-release-btn')).toContainText('\u91cb\u653e\u97f3\u6a94\u6848\u4ef6');
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
-  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-item input:visible, .review-workflow-item textarea:visible')).toHaveCount(0);
 
-  await page.evaluate(async () => {
-    await submitReviewWorkflowAudioAssessment(88, '\u53f0\u8a9e', 881, null);
-  });
+  await page.locator('.review-workflow-assess-btn').click();
+  await expect(page.locator('.review-workflow-assessment-panel')).toBeVisible();
+  await page.locator('.review-workflow-assessment-panel [data-decision="可用"]').click();
+  await page.locator('.review-workflow-assessment-panel [data-action="save"]').click();
+  await page.waitForFunction(() => window.__workflowCalls.length === 1);
 
   const call = await page.evaluate(() => window.__workflowCalls[0]);
   expect(call.rpcName).toBe('submit_audio_assessment');
@@ -378,7 +463,7 @@ test('admin audio inspection workbench hides proofing controls', async ({ page }
   await expect(page.locator('.review-workflow-item')).toContainText('音檔檢驗工作台');
   await expect(page.locator('.review-workflow-source-card')).toHaveCount(1);
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
-  await expect(page.locator('.review-workflow-item input, .review-workflow-item textarea')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-item input:visible, .review-workflow-item textarea:visible')).toHaveCount(0);
   await expect(page.locator('.review-workflow-draft-btn, .review-workflow-approve-btn')).toHaveCount(0);
 });
 

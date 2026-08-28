@@ -3675,6 +3675,238 @@ button:disabled {
     background: #1d4f85;
     color: #fff;
 }
+.review-workflow-assessment-panel {
+    display: grid;
+    gap: 12px;
+    padding: 14px 12px 12px;
+    border-top: 1px solid #dfe6eb;
+    background: #f8fbfd;
+}
+.review-workflow-assessment-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.review-workflow-assessment-header > div {
+    display: grid;
+    gap: 3px;
+}
+.review-workflow-assessment-header strong {
+    color: #173849;
+    font-size: 1rem;
+}
+.review-workflow-assessment-header span {
+    color: #60717b;
+    line-height: 1.45;
+}
+.review-workflow-assessment-current {
+    flex: 0 0 auto;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #fff;
+    color: #526573;
+    font-size: .9rem;
+    white-space: nowrap;
+}
+.review-workflow-assessment-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid #d4e1e8;
+    border-radius: 8px;
+    background: #fff;
+}
+.review-workflow-assessment-fieldset legend {
+    padding: 0 6px;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-assessment-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+.review-workflow-decision-btn {
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid #9ebdca;
+    border-radius: 8px;
+    background: #fff;
+    color: #1e5c74;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-decision-btn:hover,
+.review-workflow-decision-btn:focus-visible {
+    border-color: #176b8b;
+    background: #edf8fc;
+}
+.review-workflow-decision-btn.is-selected {
+    border-color: #176b8b;
+    background: #176b8b;
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(23, 107, 139, .15);
+}
+.review-workflow-decision-btn.is-danger {
+    border-color: #d19a9f;
+    color: #963b45;
+}
+.review-workflow-decision-btn.is-danger:hover,
+.review-workflow-decision-btn.is-danger:focus-visible {
+    background: #fff1f2;
+}
+.review-workflow-decision-btn.is-danger.is-selected {
+    border-color: #a8323e;
+    background: #a8323e;
+    color: #fff;
+}
+.review-workflow-decision-btn.is-followup {
+    border-color: #d4b276;
+    color: #866018;
+}
+.review-workflow-decision-btn.is-followup:hover,
+.review-workflow-decision-btn.is-followup:focus-visible {
+    background: #fff8e9;
+}
+.review-workflow-decision-btn.is-followup.is-selected {
+    border-color: #a66b08;
+    background: #a66b08;
+    color: #fff;
+}
+.review-workflow-assessment-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.review-workflow-assessment-field {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-assessment-field-wide {
+    grid-column: 1 / -1;
+}
+.review-workflow-assessment-field em {
+    color: #a8323e;
+    font-size: .86rem;
+    font-style: normal;
+}
+.review-workflow-assessment-field input:not([type="checkbox"]),
+.review-workflow-assessment-field select,
+.review-workflow-assessment-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-assessment-field textarea {
+    min-height: 68px;
+    resize: vertical;
+}
+.review-workflow-assessment-field input:not([type="checkbox"]):focus,
+.review-workflow-assessment-field select:focus,
+.review-workflow-assessment-field textarea:focus {
+    outline: 2px solid #7db8d4;
+    outline-offset: 1px;
+    border-color: #2586b2;
+}
+.review-workflow-followup-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #d4e1e8;
+    border-radius: 7px;
+    background: #fff;
+}
+.review-workflow-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #315467;
+    font-weight: 400;
+}
+.review-workflow-checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: #176b8b;
+}
+.review-workflow-assessment-message {
+    min-height: 1.4em;
+    color: #60717b;
+    line-height: 1.45;
+}
+.review-workflow-assessment-message.is-error {
+    color: #a8323e;
+    font-weight: 700;
+}
+.review-workflow-assessment-message.is-success {
+    color: #177245;
+    font-weight: 700;
+}
+.review-workflow-assessment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.review-workflow-assessment-actions button {
+    min-height: 38px;
+    padding: 7px 13px;
+    border-radius: 7px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-assessment-cancel {
+    border: 1px solid #bdccd5;
+    background: #fff;
+    color: #526573;
+}
+.review-workflow-assessment-save {
+    border: 1px solid #176b8b;
+    background: #176b8b;
+    color: #fff;
+}
+.review-workflow-assessment-save:disabled {
+    border-color: #cbd5dc;
+    background: #e2e8ed;
+    color: #60717b;
+    cursor: not-allowed;
+}
+@media (max-width: 640px) {
+    .review-workflow-assessment-header {
+        display: grid;
+    }
+    .review-workflow-assessment-current {
+        justify-self: start;
+    }
+    .review-workflow-assessment-options,
+    .review-workflow-assessment-grid {
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-assessment-field-wide {
+        grid-column: auto;
+    }
+    .review-workflow-assessment-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .review-workflow-assessment-actions button {
+        width: 100%;
+    }
+}
 .review-workflow-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #dfe6eb; border-radius: 8px; background: #f8fbfc; }
 .review-workflow-filter-bar label { display: flex; align-items: center; gap: 8px; color: #526573; font-weight: 700; }
 .review-workflow-filter-bar select { min-width: 150px; min-height: 36px; padding: 6px 10px; border: 1px solid #bdccd5; border-radius: 7px; background: #fff; color: #20313d; font: inherit; }
