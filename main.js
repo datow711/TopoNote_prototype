@@ -21,6 +21,7 @@ const LOW_ACCURACY_THRESHOLD_METERS = 100;
 let state = {
     userId: "", assignedPlaces: [], allPlaces: [], uploadedRecords: [], uploadReportRecords: [], uploadReportGroupMode: 'date', reviewQueue: [], reviewWorkflowQueue: [], reviewWorkflowAvailable: false, reviewWorkflowDraftFilter: 'draft', reviewWorkbenchMode: 'proofing',
     reviewWorkflowAudioStatusFilter: 'all', reviewWorkflowAudioClaimFilter: 'all', reviewWorkflowAudioKeyword: '',
+    reviewWorkflowAudioCountyFilter: '', reviewWorkflowAudioSelectedTowns: null, reviewWorkflowAudioTownDropdownOpen: false, reviewWorkflowAudioLanguageFilter: 'all',
     userDbId: "",
     userName: "",
     userEmail: "",
@@ -77,12 +78,24 @@ document.addEventListener('click', event => {
         state.townDropdownOpen = false;
         renderTownMultiSelect();
     }
+    if (state.reviewWorkflowAudioTownDropdownOpen) {
+        const filter = document.getElementById('review-workflow-audio-town-filter');
+        if (!filter?.contains(event.target)) {
+            state.reviewWorkflowAudioTownDropdownOpen = false;
+            renderReviewWorkflowQueue();
+        }
+    }
 });
 
 document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     if (document.getElementById('filter-panel')?.classList.contains('is-open')) {
         closeMobileFilterPanel();
+        return;
+    }
+    if (state.reviewWorkflowAudioTownDropdownOpen) {
+        state.reviewWorkflowAudioTownDropdownOpen = false;
+        renderReviewWorkflowQueue();
         return;
     }
     closeUserMoreMenu();
@@ -1137,6 +1150,10 @@ function logout() {
     state.reviewWorkflowAudioStatusFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
+    state.reviewWorkflowAudioCountyFilter = '';
+    state.reviewWorkflowAudioSelectedTowns = null;
+    state.reviewWorkflowAudioTownDropdownOpen = false;
+    state.reviewWorkflowAudioLanguageFilter = 'all';
     state.reviewWorkbenchMode = 'proofing';
     state.reviewWorkflowAvailable = false;
     state.selectedPlace = null;
@@ -3811,9 +3828,26 @@ function getReviewWorkflowVisibleRows() {
     return state.reviewWorkflowQueue;
 }
 
-function getReviewWorkflowAudioFilterState() {
+function getReviewWorkflowAudioFilterState(rows = state.reviewWorkflowQueue) {
+    const sourceRows = rows.filter(row => getReviewWorkflowAudioProgress(row).total > 0);
+    const counties = [...new Set(sourceRows.map(row => row?.county).filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
+    const requestedCounty = String(state.reviewWorkflowAudioCountyFilter || '').trim();
+    const county = counties.includes(requestedCounty) ? requestedCounty : '';
+    const towns = [...new Set(sourceRows
+        .filter(row => !county || row?.county === county)
+        .map(row => row?.town)
+        .filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
+    const selectedTowns = Array.isArray(state.reviewWorkflowAudioSelectedTowns)
+        ? state.reviewWorkflowAudioSelectedTowns.filter(town => towns.includes(town))
+        : [...towns];
+    const languages = [...new Set(sourceRows.map(row => row?.language).filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
     const validStatuses = ['all', 'attention', 'unreviewed', 'followup', 'unusable', 'completed'];
     const validClaims = ['all', 'mine', 'available', 'other'];
+    const validLanguage = state.reviewWorkflowAudioLanguageFilter === 'all'
+        || languages.includes(state.reviewWorkflowAudioLanguageFilter);
     return {
         status: validStatuses.includes(state.reviewWorkflowAudioStatusFilter)
             ? state.reviewWorkflowAudioStatusFilter
@@ -3821,8 +3855,23 @@ function getReviewWorkflowAudioFilterState() {
         claim: validClaims.includes(state.reviewWorkflowAudioClaimFilter)
             ? state.reviewWorkflowAudioClaimFilter
             : 'all',
-        keyword: String(state.reviewWorkflowAudioKeyword || '').trim().toLocaleLowerCase()
+        keyword: String(state.reviewWorkflowAudioKeyword || '').trim().toLocaleLowerCase(),
+        county,
+        counties,
+        towns,
+        selectedTowns,
+        languages,
+        language: validLanguage ? state.reviewWorkflowAudioLanguageFilter : 'all'
     };
+}
+
+function getReviewWorkflowAudioTownSummary(filters) {
+    if (!filters.county) return '請先選擇縣市';
+    if (!filters.towns.length) return '無可選鄉鎮';
+    if (filters.selectedTowns.length === filters.towns.length) return '所有鄉鎮';
+    if (!filters.selectedTowns.length) return '未選鄉鎮';
+    if (filters.selectedTowns.length === 1) return filters.selectedTowns[0];
+    return '已選 ' + filters.selectedTowns.length + ' 個鄉鎮';
 }
 
 function getReviewWorkflowAudioProgress(row) {
@@ -3869,13 +3918,16 @@ function getReviewWorkflowAudioKeywordText(row) {
 }
 
 function getReviewWorkflowAudioVisibleRows(rows = state.reviewWorkflowQueue) {
-    const filters = getReviewWorkflowAudioFilterState();
+    const filters = getReviewWorkflowAudioFilterState(rows);
     return rows.filter(row => {
         const progress = getReviewWorkflowAudioProgress(row);
         if (progress.total <= 0) return false;
         const hasUnreviewed = progress.total > progress.assessed;
         const hasFollowup = progress.followup > 0;
         const hasUnusable = progress.unusable > 0;
+        const countyMatches = !filters.county || row?.county === filters.county;
+        const townMatches = !filters.county || filters.selectedTowns.includes(row?.town);
+        const languageMatches = filters.language === 'all' || row?.language === filters.language;
         const statusMatches = filters.status === 'all'
             || (filters.status === 'attention' && (hasUnreviewed || hasFollowup))
             || (filters.status === 'unreviewed' && hasUnreviewed)
@@ -3886,10 +3938,55 @@ function getReviewWorkflowAudioVisibleRows(rows = state.reviewWorkflowQueue) {
             || getReviewWorkflowAudioClaimState(row) === filters.claim;
         const keywordMatches = !filters.keyword
             || getReviewWorkflowAudioKeywordText(row).includes(filters.keyword);
-        return statusMatches && claimMatches && keywordMatches;
+        return countyMatches && townMatches && languageMatches && statusMatches && claimMatches && keywordMatches;
     });
 }
 
+function setReviewWorkflowAudioCountyFilter(value) {
+    const filters = getReviewWorkflowAudioFilterState();
+    state.reviewWorkflowAudioCountyFilter = filters.counties.includes(value) ? value : '';
+    state.reviewWorkflowAudioSelectedTowns = null;
+    state.reviewWorkflowAudioTownDropdownOpen = false;
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function toggleReviewWorkflowAudioTownDropdown(event) {
+    if (event) event.stopPropagation();
+    const filters = getReviewWorkflowAudioFilterState();
+    if (!filters.county || !filters.towns.length) return;
+    state.reviewWorkflowAudioTownDropdownOpen = !state.reviewWorkflowAudioTownDropdownOpen;
+    renderReviewWorkflowQueue();
+}
+
+function selectAllReviewWorkflowAudioTowns(event) {
+    if (event) event.stopPropagation();
+    const filters = getReviewWorkflowAudioFilterState();
+    if (!filters.county) return;
+    const allSelected = filters.towns.length > 0
+        && filters.selectedTowns.length === filters.towns.length
+        && filters.towns.every(town => filters.selectedTowns.includes(town));
+    state.reviewWorkflowAudioSelectedTowns = allSelected ? [] : [...filters.towns];
+    state.reviewWorkflowAudioTownDropdownOpen = true;
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function toggleReviewWorkflowAudioTownValue(town, event) {
+    if (event) event.stopPropagation();
+    const filters = getReviewWorkflowAudioFilterState();
+    if (!filters.county || !filters.towns.includes(town)) return;
+    const selected = new Set(filters.selectedTowns);
+    if (selected.has(town)) selected.delete(town);
+    else selected.add(town);
+    state.reviewWorkflowAudioSelectedTowns = filters.towns.filter(item => selected.has(item));
+    state.reviewWorkflowAudioTownDropdownOpen = true;
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
+
+function setReviewWorkflowAudioLanguageFilter(value) {
+    const filters = getReviewWorkflowAudioFilterState();
+    state.reviewWorkflowAudioLanguageFilter = value === 'all' || filters.languages.includes(value) ? value : 'all';
+    if (state.currentTab === 'review') renderReviewWorkflowQueue();
+}
 function setReviewWorkflowAudioStatusFilter(value, form) {
     const keywordInput = form?.querySelector('[data-role="audio-keyword"]');
     if (keywordInput) state.reviewWorkflowAudioKeyword = keywordInput.value.trim();
@@ -3917,6 +4014,10 @@ function clearReviewWorkflowAudioFilters() {
     state.reviewWorkflowAudioStatusFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
+    state.reviewWorkflowAudioCountyFilter = '';
+    state.reviewWorkflowAudioSelectedTowns = null;
+    state.reviewWorkflowAudioTownDropdownOpen = false;
+    state.reviewWorkflowAudioLanguageFilter = 'all';
     if (state.currentTab === 'review') renderReviewWorkflowQueue();
 }
 
@@ -3979,8 +4080,40 @@ function renderReviewWorkflowAdminFilter(visibleRows) {
         </div>
     `;
 }
+function renderReviewWorkflowAudioTownFilter(filters) {
+    const selectedSet = new Set(filters.selectedTowns);
+    const allChecked = filters.towns.length > 0
+        && filters.selectedTowns.length === filters.towns.length
+        && filters.towns.every(town => selectedSet.has(town));
+    const disabled = !filters.county || !filters.towns.length;
+    const allRow = '<label class="town-filter-option">' +
+        '<input type="checkbox" ' + (allChecked ? 'checked' : '') +
+        ' onchange="event.stopPropagation(); selectAllReviewWorkflowAudioTowns(event)">' +
+        '<span>所有鄉鎮</span>' +
+        '</label>';
+    const townRows = filters.towns.map(town =>
+        '<label class="town-filter-option">' +
+            '<input type="checkbox" ' + (selectedSet.has(town) ? 'checked' : '') +
+            ' onchange="event.stopPropagation(); toggleReviewWorkflowAudioTownValue(\'' + escapeJsString(town) + '\', event)">' +
+            '<span>' + escapeHtml(town) + '</span>' +
+        '</label>'
+    ).join('');
+    const menu = disabled
+        ? '<div class="review-workflow-audio-town-empty">請先選擇縣市</div>'
+        : allRow + townRows;
+    return '<div class="town-multi-filter review-workflow-audio-town-multi-filter" id="review-workflow-audio-town-filter">' +
+        '<button type="button" class="town-filter-button review-workflow-audio-town-button" aria-haspopup="true" aria-expanded="' +
+            (state.reviewWorkflowAudioTownDropdownOpen ? 'true' : 'false') +
+            '" onclick="toggleReviewWorkflowAudioTownDropdown(event)"' + (disabled ? ' disabled' : '') + '>' +
+            '<span>' + escapeHtml(getReviewWorkflowAudioTownSummary(filters)) + '</span>' +
+        '</button>' +
+        '<div class="town-filter-menu review-workflow-audio-town-menu ' +
+            (state.reviewWorkflowAudioTownDropdownOpen ? '' : 'hidden') +
+            '" onclick="event.stopPropagation()">' + menu + '</div>' +
+        '</div>';
+}
 function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
-    const filters = getReviewWorkflowAudioFilterState();
+    const filters = getReviewWorkflowAudioFilterState(totalRows);
     const statusOptions = [
         ['all', '全部音檔案件'],
         ['attention', '待處理（未審聽或需後續）'],
@@ -3999,31 +4132,73 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
     ].map(([value, label]) =>
         '<option value="' + value + '"' + (filters.claim === value ? ' selected' : '') + '>' + label + '</option>'
     ).join('');
+    const countyOptions = filters.counties.map(county =>
+        '<option value="' + escapeHtml(county) + '"' + (filters.county === county ? ' selected' : '') + '>' +
+        escapeHtml(county) + '</option>'
+    ).join('');
+    const languageOptions = filters.languages.map(language =>
+        '<option value="' + escapeHtml(language) + '"' + (filters.language === language ? ' selected' : '') + '>' +
+        escapeHtml(language) + '</option>'
+    ).join('');
     return `
         <form class="review-workflow-audio-filter-bar" onsubmit="event.preventDefault(); applyReviewWorkflowAudioKeywordFilter(this)">
-            <div class="review-workflow-audio-filter-main">
-                <label class="review-workflow-audio-keyword">
-                    <span>搜尋案件</span>
-                    <input id="review-workflow-audio-keyword" type="search" data-role="audio-keyword" value="${escapeHtml(state.reviewWorkflowAudioKeyword || '')}" placeholder="地名／來源 ID／音檔 ID／錄音人" autocomplete="off">
-                </label>
-                <button type="submit" class="review-workflow-audio-filter-apply">套用</button>
-                <button type="button" class="review-workflow-audio-filter-clear" onclick="clearReviewWorkflowAudioFilters()">清除</button>
+            <div class="review-workflow-audio-primary">
+                <div class="review-workflow-audio-primary-heading">
+                    <strong>主要篩選</strong>
+                    <span>依縣市、鄉鎮與語種縮小案件</span>
+                </div>
+                <div class="review-workflow-audio-primary-controls">
+                    <label>
+                        <span>縣市</span>
+                        <select id="review-workflow-audio-county-filter" aria-label="縣市" onchange="setReviewWorkflowAudioCountyFilter(this.value)">
+                            <option value=""${filters.county === '' ? ' selected' : ''}>全部縣市</option>
+                            ${countyOptions}
+                        </select>
+                    </label>
+                    <div class="review-workflow-audio-town-label">
+                        <span>鄉鎮</span>
+                        ${renderReviewWorkflowAudioTownFilter(filters)}
+                    </div>
+                    <label>
+                        <span>語種</span>
+                        <select id="review-workflow-audio-language-filter" aria-label="語種" onchange="setReviewWorkflowAudioLanguageFilter(this.value)">
+                            <option value="all"${filters.language === 'all' ? ' selected' : ''}>全部語種</option>
+                            ${languageOptions}
+                        </select>
+                    </label>
+                </div>
             </div>
-            <div class="review-workflow-audio-filter-options">
-                <label>
-                    <span>案件進度</span>
-                    <select id="review-workflow-audio-status-filter" onchange="setReviewWorkflowAudioStatusFilter(this.value, this.form)">
-                        ${statusOptions}
-                    </select>
-                </label>
-                <label>
-                    <span>領取狀態</span>
-                    <select id="review-workflow-audio-claim-filter" onchange="setReviewWorkflowAudioClaimFilter(this.value, this.form)">
-                        ${claimOptions}
-                    </select>
-                </label>
-                <span class="review-workflow-audio-filter-count">顯示 ${visibleRows.length} / ${totalRows.length} 筆音檔案件</span>
-            </div>
+            <details class="review-workflow-audio-secondary">
+                <summary>
+                    <span>其他篩選</span>
+                    <small>進度、領取狀態、關鍵字</small>
+                </summary>
+                <div class="review-workflow-audio-secondary-body">
+                    <label class="review-workflow-audio-keyword">
+                        <span>關鍵字</span>
+                        <input id="review-workflow-audio-keyword" type="search" data-role="audio-keyword" value="${escapeHtml(state.reviewWorkflowAudioKeyword || '')}" placeholder="地名／來源 ID／音檔 ID／錄音人" autocomplete="off">
+                    </label>
+                    <div class="review-workflow-audio-secondary-options">
+                        <label>
+                            <span>案件進度</span>
+                            <select id="review-workflow-audio-status-filter" onchange="setReviewWorkflowAudioStatusFilter(this.value, this.form)">
+                                ${statusOptions}
+                            </select>
+                        </label>
+                        <label>
+                            <span>領取狀態</span>
+                            <select id="review-workflow-audio-claim-filter" onchange="setReviewWorkflowAudioClaimFilter(this.value, this.form)">
+                                ${claimOptions}
+                            </select>
+                        </label>
+                    </div>
+                    <div class="review-workflow-audio-secondary-actions">
+                        <button type="submit" class="review-workflow-audio-filter-apply">套用其他篩選</button>
+                        <button type="button" class="review-workflow-audio-filter-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
+                    </div>
+                </div>
+            </details>
+            <div class="review-workflow-audio-filter-count">顯示 ${visibleRows.length} / ${totalRows.length} 筆音檔案件</div>
         </form>
     `;
 }

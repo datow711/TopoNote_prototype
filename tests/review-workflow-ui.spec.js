@@ -139,6 +139,8 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
         language: '台語',
         place_name: '石崁頭',
         source_id: 'TEST0001',
+        county: '臺北市',
+        town: '北投區',
         class_name: 'test',
         state: 'pending',
         audio_record_count: 1,
@@ -162,6 +164,8 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
         language: '台語',
         place_name: '完成案件',
         source_id: 'TEST0002',
+        county: '臺北市',
+        town: '士林區',
         class_name: 'test',
         state: 'pending',
         audio_record_count: 1,
@@ -182,9 +186,11 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
       {
         case_id: 103,
         task_id: 103,
-        language: '台語',
+        language: '客語',
         place_name: '待追問案件',
         source_id: 'TEST0003',
+        county: '新北市',
+        town: '淡水區',
         class_name: 'test',
         state: 'pending',
         audio_record_count: 1,
@@ -216,7 +222,11 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
     switchTab('review');
   });
 
-  await expect(page.locator('#review-workflow-audio-status-filter')).toBeVisible();
+  await expect(page.locator('#review-workflow-audio-county-filter')).toBeVisible();
+  await expect(page.locator('#review-workflow-audio-language-filter')).toBeVisible();
+  await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toBeDisabled();
+  await expect(page.locator('.review-workflow-audio-secondary')).not.toHaveAttribute('open', '');
+
   const filterWidth = await page.locator('.review-workflow-audio-filter-bar').evaluate(element => ({
     scrollWidth: element.scrollWidth,
     clientWidth: element.clientWidth
@@ -226,26 +236,60 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
   await expect(page.locator('.review-workflow-item')).toHaveCount(3);
 
+  await page.locator('#review-workflow-audio-county-filter').selectOption({ label: '臺北市' });
+  await expect(page.locator('.review-workflow-item')).toHaveCount(2);
+  await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toBeEnabled();
+  await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toContainText('所有鄉鎮');
+
+  await page.locator('#review-workflow-audio-town-filter .town-filter-button').click();
+  await expect(page.locator('#review-workflow-audio-town-filter .town-filter-menu')).toBeVisible();
+  await page.locator('#review-workflow-audio-town-filter .town-filter-option').filter({ hasText: '士林區' }).locator('input').uncheck();
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
+
+  await page.locator('#review-workflow-audio-county-filter').selectOption({ label: '新北市' });
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
+  await page.locator('#review-workflow-audio-language-filter').selectOption('客語');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+
+  const openSecondaryFilters = async () => {
+    const details = page.locator('.review-workflow-audio-secondary');
+    if (!(await details.getAttribute('open'))) {
+      await details.locator('summary').click();
+    }
+  };
+  await openSecondaryFilters();
+  await page.locator('.review-workflow-audio-filter-clear').click();
+  await expect(page.locator('.review-workflow-item')).toHaveCount(3);
+
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('unreviewed');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
 
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('followup');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
 
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('all');
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-claim-filter').selectOption('other');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
 
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-claim-filter').selectOption('mine');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-keyword').fill('TEST0001');
   await page.locator('.review-workflow-audio-filter-apply').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
 
+  await openSecondaryFilters();
   await page.locator('.review-workflow-audio-filter-clear').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(3);
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');

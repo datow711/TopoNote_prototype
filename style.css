@@ -4025,6 +4025,191 @@ button:disabled {
         margin-left: 0;
     }
 }
+.review-workflow-audio-filter-bar {
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.review-workflow-audio-primary {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #cfe0e7;
+    border-radius: 9px;
+    background: #f6fafc;
+}
+.review-workflow-audio-primary-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.review-workflow-audio-primary-heading strong {
+    color: #173849;
+    font-size: 1rem;
+}
+.review-workflow-audio-primary-heading span {
+    color: #60717b;
+    font-size: .9rem;
+}
+.review-workflow-audio-primary-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.review-workflow-audio-primary-controls > label,
+.review-workflow-audio-primary-controls > .review-workflow-audio-town-label,
+.review-workflow-audio-secondary-body > label {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-primary-controls select,
+.review-workflow-audio-town-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 7px 32px 7px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-audio-town-multi-filter {
+    width: 100%;
+    margin: 0;
+}
+.review-workflow-audio-town-button {
+    position: relative;
+    text-align: left;
+    cursor: pointer;
+}
+.review-workflow-audio-town-button:disabled {
+    cursor: not-allowed;
+    color: #8a98a2;
+    background: #eef2f4;
+}
+.review-workflow-audio-town-empty {
+    padding: 9px 8px;
+    color: #6a7b87;
+    font-size: .9rem;
+}
+.review-workflow-audio-secondary {
+    border: 1px solid #dfe6eb;
+    border-radius: 9px;
+    background: #fff;
+}
+.review-workflow-audio-secondary summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    color: #315467;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+.review-workflow-audio-secondary summary::-webkit-details-marker {
+    display: none;
+}
+.review-workflow-audio-secondary summary::after {
+    content: '＋';
+    color: #60717b;
+    font-size: 1.05rem;
+}
+.review-workflow-audio-secondary[open] summary {
+    border-bottom: 1px solid #dfe6eb;
+}
+.review-workflow-audio-secondary[open] summary::after {
+    content: '－';
+}
+.review-workflow-audio-secondary summary small {
+    margin-left: auto;
+    color: #7a8992;
+    font-size: .84rem;
+    font-weight: 400;
+}
+.review-workflow-audio-secondary-body {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+}
+.review-workflow-audio-secondary-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.review-workflow-audio-secondary-options label {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-secondary-options select {
+    width: 100%;
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-audio-secondary-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.review-workflow-audio-secondary-actions button {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-filter-count {
+    margin: 0 2px;
+    color: #6a7b87;
+    font-size: .9rem;
+}
+@media (max-width: 640px) {
+    .review-workflow-audio-primary-heading {
+        display: grid;
+        gap: 2px;
+    }
+    .review-workflow-audio-primary-controls,
+    .review-workflow-audio-secondary-options {
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-audio-secondary summary {
+        align-items: flex-start;
+    }
+    .review-workflow-audio-secondary summary small {
+        text-align: right;
+    }
+    .review-workflow-audio-secondary-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .review-workflow-audio-secondary-actions button {
+        width: 100%;
+    }
+}
 /* Review workbench split */
 .review-workbench-switcher {
     display: flex;
