@@ -3563,12 +3563,203 @@ button:disabled {
 .review-workflow-source-field .compare-value { min-width: 0; min-height: 2.7em; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; }
 .review-workflow-source-card > .review-player { padding: 0 12px 8px; }
 .review-workflow-fill-field-btn { display: inline-block; margin-top: 4px; }
+.review-workflow-audio-draft-panel {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin-top: 14px;
+    padding: 14px 12px 12px;
+    border: 1px solid #b9d7e2;
+    border-radius: 10px;
+    background: #f4fbfd;
+}
+.review-workflow-audio-draft-panel.is-readonly {
+    gap: 8px;
+    background: #f8fafb;
+}
+.review-workflow-audio-draft-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.review-workflow-audio-draft-header > div {
+    display: grid;
+    gap: 3px;
+}
+.review-workflow-audio-draft-header h4 {
+    margin: 0;
+    color: #173849;
+}
+.review-workflow-audio-draft-header span,
+.review-workflow-audio-draft-note {
+    color: #60717b;
+    line-height: 1.5;
+}
+.review-workflow-audio-draft-version {
+    flex: 0 0 auto;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #fff;
+    color: #526573;
+    font-size: .9rem;
+    white-space: nowrap;
+}
+.review-workflow-audio-draft-source {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+.review-workflow-audio-draft-source label {
+    color: #315467;
+    font-weight: 700;
+}
+.review-workflow-audio-draft-source select {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+}
+.review-workflow-audio-draft-source-meta {
+    min-width: 0;
+    color: #60717b;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+}
+.review-workflow-audio-draft-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.review-workflow-audio-draft-field {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-draft-field.is-multiline {
+    grid-column: 1 / -1;
+}
+.review-workflow-audio-draft-field input,
+.review-workflow-audio-draft-field textarea {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #bdccd5;
+    border-radius: 7px;
+    background: #fff;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+}
+.review-workflow-audio-draft-field textarea {
+    min-height: 72px;
+    resize: vertical;
+}
+.review-workflow-audio-draft-field input:focus,
+.review-workflow-audio-draft-field textarea:focus,
+.review-workflow-audio-draft-source select:focus {
+    outline: 2px solid #7db8d4;
+    outline-offset: 1px;
+    border-color: #2586b2;
+}
+.review-workflow-audio-draft-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: #315467;
+    font-weight: 700;
+    line-height: 1.45;
+}
+.review-workflow-audio-draft-confirm input {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: #176b8b;
+}
+.review-workflow-audio-draft-note {
+    margin: 0;
+    font-size: .9rem;
+}
+.review-workflow-audio-draft-message {
+    min-height: 1.4em;
+    color: #60717b;
+    line-height: 1.45;
+}
+.review-workflow-audio-draft-message.is-error {
+    color: #a8323e;
+    font-weight: 700;
+}
+.review-workflow-audio-draft-message.is-success {
+    color: #177245;
+    font-weight: 700;
+}
+.review-workflow-audio-draft-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+.review-workflow-audio-draft-save,
+.review-workflow-audio-source-fill-btn {
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid #176b8b;
+    border-radius: 7px;
+    background: #176b8b;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-draft-save:disabled {
+    border-color: #cbd5dc;
+    background: #e2e8ed;
+    color: #60717b;
+    cursor: not-allowed;
+}
+.review-workflow-audio-source-fill-btn {
+    min-height: 32px;
+    padding: 6px 10px;
+    border-color: #2f8062;
+    background: #e8f7ef;
+    color: #146c3b;
+}
 @media (max-width: 640px) {
     .review-workflow-source-heading { grid-template-columns: minmax(0, 1fr); align-items: start; }
     .review-workflow-source-actions { justify-content: flex-start; }
     .review-workflow-source-grid { grid-template-columns: 1fr; }
     .review-workflow-source-field { min-height: 0; border-right: 0; border-bottom: 1px solid #e1e7eb; }
     .review-workflow-source-field:last-child { border-bottom: 0; }
+}
+@media (max-width: 640px) {
+    .review-workflow-audio-draft-header {
+        display: grid;
+    }
+    .review-workflow-audio-draft-version {
+        justify-self: start;
+    }
+    .review-workflow-audio-draft-fields {
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-audio-draft-field.is-multiline {
+        grid-column: auto;
+    }
+    .review-workflow-audio-draft-actions {
+        display: grid;
+    }
+    .review-workflow-audio-draft-save {
+        width: 100%;
+    }
 }
 .review-workflow-fill-field-btn.is-selected { background: #e5f6ec; color: #146c3b; }
 .review-workflow-fill-audio-btn,

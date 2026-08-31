@@ -4350,6 +4350,66 @@ function getReviewWorkflowSourceFieldValue(source, field) {
     return field.fallbackRecordKey ? (source?.[field.fallbackRecordKey] || source?.phonetic_reading || '') : '';
 }
 
+function getReviewWorkflowAudioDraftInputId(caseId, languageKey, fieldKey) {
+    return 'review-audio-draft-' + caseId + '-' + languageKey + '-' + fieldKey;
+}
+
+function collectReviewWorkflowAudioDraftFields(caseId) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row) return {};
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    return config.fields.reduce((fields, field) => {
+        const input = document.getElementById(getReviewWorkflowAudioDraftInputId(caseId, languageKey, field.key));
+        fields[field.key] = input ? input.value.trim() : '';
+        return fields;
+    }, {});
+}
+
+function hasReviewWorkflowAudioDraftValues(fields) {
+    return Object.values(fields || {}).some(value => String(value || '').trim());
+}
+
+function getReviewWorkflowAudioDraftSourceId(panel) {
+    const value = panel?.querySelector('[data-role="audio-draft-source"]')?.value || '';
+    const sourceId = Number(value);
+    return Number.isInteger(sourceId) && sourceId > 0 ? sourceId : null;
+}
+
+function getReviewWorkflowAudioEvidenceItem(row, audioRecordId) {
+    return getReviewWorkflowAudioEvidence(row)
+        .find(item => Number(item.audio_record_id) === Number(audioRecordId)) || null;
+}
+
+function isReviewWorkflowAudioEvidenceUsable(item) {
+    const needsFollowup = item?.needs_followup === true
+        || String(item?.needs_followup || '').toLowerCase() === 'true';
+    return item?.assessment_decision === '可用' && !needsFollowup;
+}
+
+function getReviewWorkflowUsableAudioEvidence(row) {
+    return getReviewWorkflowAudioEvidence(row).filter(isReviewWorkflowAudioEvidenceUsable);
+}
+
+function hasActiveReviewWorkflowProofingClaim(row) {
+    const claimUntil = new Date(row?.claim_until || 0).getTime();
+    return Boolean(row?.claim_by)
+        && Number.isFinite(claimUntil)
+        && claimUntil > Date.now();
+}
+
+function createReviewWorkflowClientRequestId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    window.crypto?.getRandomValues?.(bytes);
+    if (!bytes.some(Boolean)) {
+        for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+}
 async function fillReviewWorkflowDraftFromAudio(caseId, audioRecordId, button) {
     const row = getReviewWorkflowRow(caseId);
     if (!row) return;
@@ -4438,6 +4498,12 @@ function canAssessReviewWorkflowAudio(row) {
     return Number.isFinite(claimUntil) && claimUntil > Date.now();
 }
 
+function canAnnotateReviewWorkflowAudio(row) {
+    if (!canAssessReviewWorkflowAudio(row)) return false;
+    if (row?.state === '已完成' || hasActiveReviewWorkflowProofingClaim(row)) return false;
+    return getReviewWorkflowUsableAudioEvidence(row).length > 0;
+}
+
 function renderLegacyReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
@@ -4467,13 +4533,16 @@ function getReviewWorkflowAudioSource(row, audioRecordId) {
         .find(source => Number(source.audio_record_id) === Number(audioRecordId)) || null;
 }
 
-function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEdit) {
+function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEdit, canAnnotate = false) {
     const value = source ? getReviewWorkflowSourceFieldValue(source, field) : '';
     const isLoading = row.audio_sources_loaded !== true && !Array.isArray(row.audio_sources);
     const displayValue = isLoading ? '\u8b80\u53d6\u4e2d\u2026' : (value || '\u672a\u586b');
+    const annotationCopyButton = canAnnotate && value
+        ? `<button class="copy-field-btn review-workflow-audio-draft-fill-field-btn" type="button" onclick="fillReviewWorkflowAudioDraftFieldFromSource(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u5e36\u5165</button>`
+        : '';
     const fillButton = canEdit && value
         ? `<button class="copy-field-btn review-workflow-fill-field-btn" type="button" onclick="fillReviewWorkflowDraftFieldFromAudio(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u586b\u5165</button>`
-        : '';
+        : annotationCopyButton;
     return `
         <div class="review-workflow-source-field ${value ? 'has-value' : ''}">
             <div class="review-workflow-source-field-label">${escapeHtml(field.label)}</div>
@@ -4533,7 +4602,7 @@ function renderLegacyReviewWorkflowAudioSourceTable(row, canEdit = false) {
     `;
 }
 
-function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
+function renderReviewWorkflowAudioSourceTable(row, canEdit = false, canAnnotate = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) {
         return '<div class="review-workflow-empty">\u6c92\u6709\u53ef\u986f\u793a\u7684\u97f3\u6a94\u3002</div>';
@@ -4543,6 +4612,7 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
     const compareFields = config.compareFields
         .map(fieldKey => config.fields.find(field => field.key === fieldKey))
         .filter(Boolean);
+    const displayFields = canAnnotate ? config.fields : compareFields;
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
     const canAssess = canAssessReviewWorkflowAudio(row);
@@ -4550,6 +4620,7 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
         <div class="review-workflow-source-list" data-review-source-table="${row.case_id}">
             ${evidence.map((item, index) => {
                 const source = sourceById.get(Number(item.audio_record_id)) || null;
+                const sourceCanAnnotate = canAnnotate && isReviewWorkflowAudioEvidenceUsable(item);
                 const recorder = item.recorder_name || '\u672a\u77e5\u9304\u97f3\u4eba';
                 const respondent = item.respondent_key || '\u5c1a\u672a\u6307\u5b9a';
                 const decision = item.assessment_decision || '\u672a\u5be9\u807d';
@@ -4566,13 +4637,14 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
                                 ${renderReviewWorkflowAudioAssessmentMeta(item)}
                             </div>
                             <div class="review-workflow-source-actions">
+                                ${sourceCanAnnotate ? `<button class="review-workflow-audio-source-fill-btn" type="button" onclick="fillReviewWorkflowAudioDraftFromSource(${row.case_id}, ${item.audio_record_id}, this)">帶入非空欄位</button>` : ''}
                                 ${decision !== '\u672a\u5be9\u807d' ? `<button class="review-workflow-history-btn" type="button" data-history-toggle onclick="toggleReviewWorkflowAudioAssessmentHistory(${row.case_id}, ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-history-${row.case_id}-${item.audio_record_id}">檢視判定紀錄</button>` : ''}
                                 ${item.audio_file_id ? `<button class="play-btn compact" type="button" onclick="fetchAndPlayAudio('${escapeJsString(item.audio_file_id)}', 'review-audio-${escapeJsString(String(item.audio_record_id))}')">\u64AD\u653e</button>` : ''}
                                 ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="openReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-${row.case_id}-${item.audio_record_id}">${decision !== '\u672a\u5be9\u807d' ? '重新判定' : '開始判定'}</button>` : ''}
                             </div>
                         </div>
                         <div class="review-workflow-source-grid">
-                            ${compareFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit)).join('')}
+                            ${displayFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit, sourceCanAnnotate)).join('')}
                         </div>
                         ${canAssess ? renderReviewWorkflowAudioAssessmentPanel(row, item) : ''}
                         ${renderReviewWorkflowAudioAssessmentHistoryPanel(row, item)}
@@ -4583,8 +4655,287 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false) {
         </div>
     `;
 }
-function renderReviewWorkflowAudioEvidence(row, canEdit = false) {
-    return renderReviewWorkflowAudioSourceTable(row, canEdit);
+
+function getReviewWorkflowAudioDraftSourceMeta(row, audioRecordId) {
+    const item = getReviewWorkflowAudioEvidenceItem(row, audioRecordId);
+    if (!item) return '尚未指定採用音檔。';
+    const source = getReviewWorkflowAudioSource(row, audioRecordId);
+    const sourceVersion = source?.version_no || source?.annotation_version_no
+        ? 'v' + (source.version_no || source.annotation_version_no)
+        : '錄音人目前標注 snapshot';
+    const assessedAt = item.assessed_at
+        ? formatReviewWorkflowAudioAssessmentTime(item.assessed_at)
+        : '時間未知';
+    return '音檔 #' + item.audio_record_id
+        + '｜錄音人：' + (item.recorder_name || '未知')
+        + '｜判定：' + (item.assessment_decision || '未審聽')
+        + '｜判定時間：' + assessedAt
+        + '｜來源版本：' + sourceVersion;
+}
+
+function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    const usableEvidence = getReviewWorkflowUsableAudioEvidence(row);
+    if (!canAnnotate) {
+        const reason = row?.state === '已完成'
+            ? '案件已完成，不能再建立音讀標注草稿。'
+            : hasActiveReviewWorkflowProofingClaim(row)
+                ? '目前已有校對員鎖定此案件，音讀標注暫停編輯。'
+                : !canAssessReviewWorkflowAudio(row)
+                    ? '請先領取音檔案件，領取後才能建立音讀標注草稿。'
+                    : '目前沒有判定為「可用」且無待追問的音檔，暫不能建立音讀標注草稿。';
+        return `
+            <section class="review-workflow-audio-draft-panel is-readonly">
+                <div class="review-workflow-audio-draft-header">
+                    <div>
+                        <h4>音讀標注草稿</h4>
+                        <span>案件層草稿，不為每個音檔建立獨立版本。</span>
+                    </div>
+                </div>
+                <p class="review-workflow-audio-draft-note">${escapeHtml(reason)}</p>
+            </section>
+        `;
+    }
+
+    const currentFields = getReviewWorkflowFields(row);
+    const selectedAudioId = usableEvidence[0]?.audio_record_id || '';
+    const sourceOptions = usableEvidence.map(item => `
+        <option value="${escapeHtml(String(item.audio_record_id))}">
+            音檔 #${escapeHtml(item.audio_record_id)}｜${escapeHtml(item.recorder_name || '未知錄音人')}｜判定：可用
+        </option>
+    `).join('');
+    const fieldInputs = config.fields.map(field => {
+        const value = String(currentFields[field.key] || '');
+        const control = field.multiline
+            ? `<textarea id="${getReviewWorkflowAudioDraftInputId(row.case_id, languageKey, field.key)}" data-role="audio-draft-field" data-field-key="${escapeHtml(field.key)}" rows="3" placeholder="${escapeHtml(field.placeholder || '')}">${escapeHtml(value)}</textarea>`
+            : `<input id="${getReviewWorkflowAudioDraftInputId(row.case_id, languageKey, field.key)}" data-role="audio-draft-field" data-field-key="${escapeHtml(field.key)}" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
+        return `
+            <label class="review-workflow-audio-draft-field ${field.multiline ? 'is-multiline' : ''}">
+                <span>${escapeHtml(field.label)}</span>
+                ${control}
+            </label>
+        `;
+    }).join('');
+
+    return `
+        <section class="review-workflow-audio-draft-panel" data-review-audio-draft-panel="${escapeHtml(String(row.case_id))}" data-case-id="${escapeHtml(String(row.case_id))}">
+            <div class="review-workflow-audio-draft-header">
+                <div>
+                    <h4>音讀標注草稿</h4>
+                    <span>先選定本次採用音檔，再填寫簡單、無疑義的音讀。</span>
+                </div>
+                <span class="review-workflow-audio-draft-version" data-role="audio-draft-current-version">目前版本：v${escapeHtml(row.current_version_no || 0)}</span>
+            </div>
+            <div class="review-workflow-audio-draft-source">
+                <label for="review-audio-draft-source-${escapeHtml(String(row.case_id))}">本次採用音檔</label>
+                <select id="review-audio-draft-source-${escapeHtml(String(row.case_id))}" data-role="audio-draft-source">
+                    ${sourceOptions}
+                </select>
+                <div class="review-workflow-audio-draft-source-meta" data-role="audio-draft-source-meta">${escapeHtml(getReviewWorkflowAudioDraftSourceMeta(row, selectedAudioId))}</div>
+            </div>
+            <div class="review-workflow-audio-draft-fields">
+                ${fieldInputs}
+            </div>
+            <label class="review-workflow-audio-draft-confirm">
+                <input type="checkbox" data-role="audio-draft-confirm">
+                <span>我已聽過採用音檔，確認音檔清楚、音讀無疑義。</span>
+            </label>
+            <p class="review-workflow-audio-draft-note">可只填部分欄位；保存時只送出非空欄位，不會清掉目前草稿的其他內容。完整性由校對員核准前檢查。</p>
+            <div class="review-workflow-audio-draft-message" data-role="audio-draft-message" aria-live="polite"></div>
+            <div class="review-workflow-audio-draft-actions">
+                <button type="button" class="review-workflow-audio-draft-save" data-action="save-audio-draft" disabled>保存標注草稿</button>
+            </div>
+        </section>
+    `;
+}
+
+function setReviewWorkflowAudioDraftMessage(panel, message, isError = false, isSuccess = false) {
+    const messageElement = panel?.querySelector('[data-role="audio-draft-message"]');
+    if (!messageElement) return;
+    messageElement.textContent = message || '';
+    messageElement.classList.toggle('is-error', Boolean(isError));
+    messageElement.classList.toggle('is-success', Boolean(isSuccess));
+}
+
+function updateReviewWorkflowAudioDraftSourceMeta(panel) {
+    const caseId = panel?.dataset.caseId;
+    const row = getReviewWorkflowRow(caseId);
+    const sourceId = getReviewWorkflowAudioDraftSourceId(panel);
+    const meta = panel?.querySelector('[data-role="audio-draft-source-meta"]');
+    if (meta && row) meta.textContent = getReviewWorkflowAudioDraftSourceMeta(row, sourceId);
+}
+
+function getReviewWorkflowAudioDraftValidation(panel) {
+    const caseId = panel?.dataset.caseId;
+    const row = getReviewWorkflowRow(caseId);
+    if (!row || !canAnnotateReviewWorkflowAudio(row)) return '目前不能編輯音讀標注草稿。';
+    if (!getReviewWorkflowAudioDraftSourceId(panel)) return '請先選擇本次採用音檔。';
+    if (!hasReviewWorkflowAudioDraftValues(collectReviewWorkflowAudioDraftFields(caseId))) {
+        return '請至少填寫一個音讀欄位。';
+    }
+    if (!panel.querySelector('[data-role="audio-draft-confirm"]')?.checked) {
+        return '請先確認音檔清楚、音讀無疑義。';
+    }
+    return '';
+}
+
+function refreshReviewWorkflowAudioAnnotationDraft(panel) {
+    if (!panel || panel.dataset.submitting === 'true') return;
+    updateReviewWorkflowAudioDraftSourceMeta(panel);
+    const validationMessage = getReviewWorkflowAudioDraftValidation(panel);
+    const saveButton = panel.querySelector('[data-action="save-audio-draft"]');
+    if (saveButton) saveButton.disabled = Boolean(validationMessage);
+    if (panel.dataset.messageLock !== 'true') {
+        setReviewWorkflowAudioDraftMessage(
+            panel,
+            validationMessage || '確認內容後按「保存標注草稿」。',
+            Boolean(validationMessage)
+        );
+    }
+}
+
+function bindReviewWorkflowAudioAnnotationDraftPanel(panel, caseId) {
+    if (!panel || panel.dataset.bound === 'true') return;
+    panel.dataset.bound = 'true';
+    panel.querySelectorAll('input, select, textarea').forEach(field => {
+        const refresh = () => {
+            delete panel.dataset.messageLock;
+            refreshReviewWorkflowAudioAnnotationDraft(panel);
+        };
+        field.addEventListener('input', refresh);
+        field.addEventListener('change', refresh);
+    });
+    panel.querySelector('[data-action="save-audio-draft"]')?.addEventListener('click', event => {
+        saveReviewWorkflowAudioAnnotationDraft(caseId, event.currentTarget);
+    });
+    refreshReviewWorkflowAudioAnnotationDraft(panel);
+}
+
+async function fillReviewWorkflowAudioDraftFromSource(caseId, audioRecordId, button) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row || !canAnnotateReviewWorkflowAudio(row)) return;
+    const panel = document.querySelector('[data-review-audio-draft-panel="' + caseId + '"]');
+    if (!panel) return;
+    const item = getReviewWorkflowAudioEvidenceItem(row, audioRecordId);
+    if (!item || !isReviewWorkflowAudioEvidenceUsable(item)) {
+        setReviewWorkflowAudioDraftMessage(panel, '只能從可用且無待追問的音檔帶入。', true);
+        return;
+    }
+    let source = getReviewWorkflowAudioSource(row, audioRecordId);
+    if (!source && !row.audio_sources_loaded) {
+        await loadReviewWorkflowAudioSourcesForRow(row, button?.closest('.review-workflow-item'), false, true);
+        source = getReviewWorkflowAudioSource(row, audioRecordId);
+    }
+    if (!source) {
+        setReviewWorkflowAudioDraftMessage(panel, '讀不到這筆音檔的錄音人標注。', true);
+        return;
+    }
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    config.fields.forEach(field => {
+        const value = getReviewWorkflowSourceFieldValue(source, field);
+        const input = document.getElementById(getReviewWorkflowAudioDraftInputId(caseId, languageKey, field.key));
+        if (input && value) input.value = value;
+    });
+    const sourceSelect = panel.querySelector('[data-role="audio-draft-source"]');
+    if (sourceSelect) sourceSelect.value = String(audioRecordId);
+    delete panel.dataset.messageLock;
+    refreshReviewWorkflowAudioAnnotationDraft(panel);
+    setReviewWorkflowAudioDraftMessage(panel, '已帶入這筆音檔的非空欄位，其他草稿內容未清除。', false, true);
+    panel.dataset.messageLock = 'true';
+}
+
+async function fillReviewWorkflowAudioDraftFieldFromSource(caseId, audioRecordId, fieldKey, button) {
+    const row = getReviewWorkflowRow(caseId);
+    if (!row || !canAnnotateReviewWorkflowAudio(row)) return;
+    const panel = document.querySelector('[data-review-audio-draft-panel="' + caseId + '"]');
+    if (!panel) return;
+    const item = getReviewWorkflowAudioEvidenceItem(row, audioRecordId);
+    if (!item || !isReviewWorkflowAudioEvidenceUsable(item)) return;
+    let source = getReviewWorkflowAudioSource(row, audioRecordId);
+    if (!source && !row.audio_sources_loaded) {
+        await loadReviewWorkflowAudioSourcesForRow(row, button?.closest('.review-workflow-item'), false, true);
+        source = getReviewWorkflowAudioSource(row, audioRecordId);
+    }
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    const field = config.fields.find(candidate => candidate.key === fieldKey);
+    const value = field && source ? getReviewWorkflowSourceFieldValue(source, field) : '';
+    const input = field
+        ? document.getElementById(getReviewWorkflowAudioDraftInputId(caseId, languageKey, field.key))
+        : null;
+    if (!value || !input) return;
+    input.value = value;
+    const sourceSelect = panel.querySelector('[data-role="audio-draft-source"]');
+    if (sourceSelect) sourceSelect.value = String(audioRecordId);
+    delete panel.dataset.messageLock;
+    refreshReviewWorkflowAudioAnnotationDraft(panel);
+    setReviewWorkflowAudioDraftMessage(panel, '已帶入『' + field.label + '』；其他欄位未變更。', false, true);
+    panel.dataset.messageLock = 'true';
+}
+
+async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const panel = button?.closest('[data-review-audio-draft-panel]')
+        || document.querySelector('[data-review-audio-draft-panel="' + caseId + '"]');
+    if (!row || !panel || !canAnnotateReviewWorkflowAudio(row)) return;
+    const fields = collectReviewWorkflowAudioDraftFields(caseId);
+    const confirmed = Boolean(panel.querySelector('[data-role="audio-draft-confirm"]')?.checked);
+    const validationMessage = getReviewWorkflowAudioDraftValidation(panel);
+    if (validationMessage) {
+        setReviewWorkflowAudioDraftMessage(panel, validationMessage, true);
+        return;
+    }
+    const controls = Array.from(panel.querySelectorAll('input, select, textarea, button'));
+    const saveButton = panel.querySelector('[data-action="save-audio-draft"]');
+    panel.dataset.submitting = 'true';
+    controls.forEach(control => { control.disabled = true; });
+    if (saveButton) saveButton.innerText = '保存中...';
+    setReviewWorkflowAudioDraftMessage(panel, '正在保存音讀標注草稿...');
+    try {
+        const result = await reviewWorkflowRpc('save_audio_annotation_draft', {
+            p_case_id: Number(caseId),
+            p_actor_account: state.userId,
+            p_fields: fields,
+            p_source_audio_record_id: getReviewWorkflowAudioDraftSourceId(panel),
+            p_audio_claim_token: row.audio_claim_token || null,
+            p_confirmed_unambiguous: confirmed,
+            p_base_version_no: Number(row.current_version_no || 0),
+            p_client_request_id: createReviewWorkflowClientRequestId()
+        });
+        const saved = Array.isArray(result) ? result[0] : result;
+        const savedFields = saved?.fields || saved?.annotation_fields || fields;
+        row.annotation_fields = savedFields;
+        row.current_version_no = saved?.version_no ?? (Number(row.current_version_no || 0) + 1);
+        row.version_kind = saved?.version_kind || 'draft';
+        row.annotation_source_type = saved?.source_type || 'audio_assessor';
+        row.annotation_created_by = saved?.source_actor || state.userId;
+        const languageKey = getReviewLanguageKey(row.language);
+        const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+        config.fields.forEach(field => {
+            const input = document.getElementById(getReviewWorkflowAudioDraftInputId(caseId, languageKey, field.key));
+            if (input) input.value = String(savedFields[field.key] || '');
+        });
+        const versionElement = panel.querySelector('[data-role="audio-draft-current-version"]');
+        if (versionElement) versionElement.textContent = '目前版本：v' + row.current_version_no;
+        setReviewWorkflowAudioDraftMessage(panel, '已保存為校對草稿，尚未回寫正式資料。', false, true);
+        panel.dataset.messageLock = 'true';
+    } catch (error) {
+        delete panel.dataset.messageLock;
+        setReviewWorkflowAudioDraftMessage(panel, '音讀標注草稿保存失敗：' + error.message, true);
+    } finally {
+        delete panel.dataset.submitting;
+        if (panel.isConnected) {
+            controls.forEach(control => { control.disabled = false; });
+            if (saveButton) saveButton.innerText = '保存標注草稿';
+            if (!panel.dataset.messageLock) refreshReviewWorkflowAudioAnnotationDraft(panel);
+        }
+    }
+}
+
+function renderReviewWorkflowAudioEvidence(row, canEdit = false, canAnnotate = false) {
+    return renderReviewWorkflowAudioSourceTable(row, canEdit, canAnnotate);
 }
 
 function renderReviewWorkflowAudioAssessmentPanel(row, item) {
@@ -4917,7 +5268,7 @@ function openReviewWorkflowAudioAssessment(taskId, language, audioRecordId, butt
     panel.querySelector('[data-role="respondent-key"]')?.focus();
 }
 
-async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit) {
+async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit, canAnnotate = false) {
     if (row.audio_sources_loaded) return getReviewWorkflowAudioSources(row);
     if (row.audio_sources_loading) return getReviewWorkflowAudioSources(row);
     row.audio_sources_loading = true;
@@ -4933,7 +5284,7 @@ async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit) {
         row.audio_sources_loaded = true;
         row.audio_sources_loading = false;
         const table = item?.querySelector('[data-review-source-table="' + row.case_id + '"]');
-        if (table) table.outerHTML = renderReviewWorkflowAudioSourceTable(row, canEdit);
+        if (table) table.outerHTML = renderReviewWorkflowAudioSourceTable(row, canEdit, canAnnotate);
     }
     return getReviewWorkflowAudioSources(row);
 }
@@ -5067,12 +5418,12 @@ function renderReviewWorkflowQueue() {
         return;
     }
     visibleRows.forEach(row => {
-        const fields = getReviewWorkflowFields(row);
         const isWritten = isReviewWorkflowWrittenRow(row);
         const canEdit = !isAudioMode && (state.userRole === 'admin' || (row.claim_by && row.claim_by === state.userId));
         const isClaimOwner = row.claim_by && row.claim_by === state.userId;
         const isAdmin = state.userRole === 'admin';
         const isAudioCase = isAudioReviewRole() && isAudioMode && !isWritten;
+        const canAnnotate = isAudioCase && canAnnotateReviewWorkflowAudio(row);
         const audioClaimActive = row.audio_claim_by
             && row.audio_claim_until
             && new Date(row.audio_claim_until).getTime() > Date.now();
@@ -5127,7 +5478,8 @@ function renderReviewWorkflowQueue() {
                     <h4>音檔判定（唯讀）</h4>
                     <p>${escapeHtml(row.audio_review_state || '未審聽')}｜音檔 ${Number(row.audio_record_count || 0)} 筆｜已判定 ${Number(row.assessed_audio_count || 0)} 筆</p>
                     <p>可用 ${Number(row.usable_audio_count || 0)} 筆</p>
-                    ${renderReviewWorkflowAudioEvidence(row, canEdit)}
+                    ${renderReviewWorkflowAudioEvidence(row, canEdit, canAnnotate)}
+                    ${isAudioCase ? renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate) : ''}
                 </section>
             </div>
             <div class="review-workflow-actions">
@@ -5179,8 +5531,11 @@ function renderReviewWorkflowQueue() {
             });
         }
         container.appendChild(item);
-        if (!isWritten && !row.audio_sources_loaded && !Array.isArray(row.audio_sources)) {
-            loadReviewWorkflowAudioSourcesForRow(row, item, canEdit);
+        const audioDraftPanel = item.querySelector('[data-review-audio-draft-panel]');
+        if (audioDraftPanel) bindReviewWorkflowAudioAnnotationDraftPanel(audioDraftPanel, row.case_id);
+        if (!isWritten && !row.audio_sources_loaded && !Array.isArray(row.audio_sources)
+            && (canEdit || canAssessReviewWorkflowAudio(row))) {
+            loadReviewWorkflowAudioSourcesForRow(row, item, canEdit, canAnnotate);
         }
     });
 }

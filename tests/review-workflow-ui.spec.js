@@ -478,6 +478,130 @@ test('audio assessor sees claimed audio workbench and sends audio claim token', 
   expect(call.body.p_claim_token).toBe('00000000-0000-0000-0000-000000000088');
   expect(call.body.p_metadata.needs_followup).toBe(false);
 });
+test('audio assessor can save a case-level annotation draft from a usable audio source', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      if (rpcName === 'save_audio_annotation_draft') {
+        return [{
+          id: 900,
+          case_id: 89,
+          version_no: 5,
+          version_kind: 'draft',
+          source_type: 'audio_assessor',
+          source_actor: 'test2@test.com',
+          fields: {
+            TaiHan1: '來源漢字',
+            TL1: '來源音讀',
+            TL2: '來源副音',
+            TL3: '又念',
+            TaiNote: '既有備註'
+          }
+        }];
+      }
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.reviewWorkbenchMode = 'audio';
+    state.userRole = 'audio_assessor';
+    state.userId = 'test2@test.com';
+    state.userName = '林聽聽';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 89,
+      task_id: 89,
+      language: '台語',
+      place_name: '草稿保存測試',
+      county: '臺北市',
+      town: '北投區',
+      class_name: '錄音標注',
+      state: '錄音標注中',
+      current_version_no: 4,
+      version_kind: 'draft',
+      annotation_fields: { TaiNote: '既有備註' },
+      audio_claim_by: 'test2@test.com',
+      audio_claim_token: '00000000-0000-0000-0000-000000000089',
+      audio_claim_until: '2999-01-01T00:00:00Z',
+      claim_by: null,
+      claim_until: null,
+      audio_record_count: 2,
+      assessed_audio_count: 2,
+      usable_audio_count: 2,
+      audio_review_state: '已判定',
+      audio_evidence: [
+        {
+          audio_record_id: 891,
+          audio_file_id: 'drive-891',
+          recorder_name: '錄音人甲',
+          assessment_decision: '可用',
+          needs_followup: false,
+          assessed_at: '2026-08-30T01:02:03Z'
+        },
+        {
+          audio_record_id: 892,
+          audio_file_id: 'drive-892',
+          recorder_name: '錄音人乙',
+          assessment_decision: '可用',
+          needs_followup: false,
+          assessed_at: '2026-08-30T02:02:03Z'
+        }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: [
+        {
+          audio_record_id: 891,
+          annotations: { taihan: '來源漢字', tl1: '來源音讀', tl2: '來源副音' }
+        },
+        {
+          audio_record_id: 892,
+          annotations: { taihan: '另一筆漢字', tl1: '另一筆音讀' }
+        }
+      ]
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  const panel = page.locator('[data-review-audio-draft-panel="89"]');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.review-workflow-audio-draft-field')).toHaveCount(5);
+  await expect(page.locator('.review-workflow-audio-source-fill-btn')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-approve-btn, .review-workflow-return-btn, .review-workflow-draft-btn')).toHaveCount(0);
+
+  await page.locator('.review-workflow-audio-source-fill-btn').first().click();
+  await expect(page.locator('#review-audio-draft-89-tai-TaiHan1')).toHaveValue('來源漢字');
+  await expect(page.locator('#review-audio-draft-89-tai-TaiNote')).toHaveValue('既有備註');
+  await panel.locator('#review-audio-draft-89-tai-TL3').fill('又念');
+  await panel.locator('[data-role="audio-draft-confirm"]').check();
+  await expect(panel.locator('[data-action="save-audio-draft"]')).toBeEnabled();
+  await panel.locator('[data-action="save-audio-draft"]').click();
+  await page.waitForFunction(() => window.__workflowCalls.some(call => call.rpcName === 'save_audio_annotation_draft'));
+
+  const result = await page.evaluate(() => window.__workflowCalls.find(call => call.rpcName === 'save_audio_annotation_draft'));
+  expect(result.body.p_case_id).toBe(89);
+  expect(result.body.p_source_audio_record_id).toBe(891);
+  expect(result.body.p_audio_claim_token).toBe('00000000-0000-0000-0000-000000000089');
+  expect(result.body.p_base_version_no).toBe(4);
+  expect(result.body.p_confirmed_unambiguous).toBe(true);
+  expect(result.body.p_fields).toEqual({
+    TaiHan1: '來源漢字',
+    TL1: '來源音讀',
+    TL2: '來源副音',
+    TL3: '又念',
+    TaiNote: '既有備註'
+  });
+  expect(result.body.p_client_request_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  await expect(panel.locator('[data-role="audio-draft-current-version"]')).toHaveText('目前版本：v5');
+  await expect(panel.locator('[data-role="audio-draft-message"]')).toHaveText('已保存為校對草稿，尚未回寫正式資料。');
+
+  const panelWidth = await panel.evaluate(element => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+  expect(panelWidth.scrollWidth).toBeLessThanOrEqual(panelWidth.clientWidth);
+});
+
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
