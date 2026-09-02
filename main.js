@@ -1060,11 +1060,29 @@ async function supabaseAuthRequest(path, body, accessToken = '') {
     }
     return payload;
 }
-async function signInWithSupabaseAuth(email, password) {
-    const session = await supabaseAuthRequest('token?grant_type=password', {
-        email,
-        password
+async function supabaseIdentifierLoginRequest(identifier, password) {
+    const response = await fetch(CONFIG.SUPABASE_AUTH_IDENTIFIER_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ identifier, password })
     });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || 'Identifier Auth request failed (' + response.status + ')');
+    }
+    return payload;
+}
+async function signInWithSupabaseAuth(identifier, password) {
+    const session = await supabaseIdentifierLoginRequest(identifier, password);
     if (!session.access_token || !session.refresh_token) {
         throw new Error('Supabase Auth did not return a session');
     }
@@ -1134,9 +1152,9 @@ async function login() {
         button: document.getElementById('login-btn'),
         loadingText: '驗證登入中...',
         resetText: '進入我的任務',
-        missingMessage: '請輸入 email',
+        missingMessage: '請輸入 Email 或使用者名稱',
         passwordMessage: '請輸入 Supabase Auth 登入密碼',
-        failedMessage: '一般調查員 email 或密碼錯誤'
+        failedMessage: '一般調查員登入資訊錯誤'
     });
 }
 async function loginAdmin() {
@@ -1146,21 +1164,24 @@ async function loginAdmin() {
         button: document.getElementById('admin-login-btn'),
         loadingText: '驗證管理登入中...',
         resetText: '進入管理模式',
-        missingMessage: '請輸入 email',
+        missingMessage: '請輸入 Email 或使用者名稱',
         passwordMessage: '請輸入管理者 Supabase Auth 登入密碼',
-        failedMessage: '管理者 email 或密碼錯誤'
+        failedMessage: '管理者登入資訊錯誤'
     });
 }
 
-function getLoginEmail() {
+function getLoginIdentifier() {
     return document.getElementById('email').value.trim();
+}
+function getLoginEmail() {
+    return getLoginIdentifier();
 }
 
 async function performSupabaseAuthLogin({ passwordElementId, expectedRole, button,
     loadingText, resetText, missingMessage, passwordMessage, failedMessage }) {
-    const email = getLoginEmail();
+    const identifier = getLoginIdentifier();
     const password = document.getElementById(passwordElementId)?.value || '';
-    if (!email) return alert(missingMessage);
+    if (!identifier) return alert(missingMessage);
     if (!password) return alert(passwordMessage);
     const status = document.getElementById('login-status');
     status.innerText = '';
@@ -1169,8 +1190,8 @@ async function performSupabaseAuthLogin({ passwordElementId, expectedRole, butto
     button.innerText = loadingText;
     button.disabled = true;
     try {
-        await signInWithSupabaseAuth(email, password);
-        const user = normalizeAuthenticatedUser(await fetchAuthenticatedInvestigator(), email);
+        await signInWithSupabaseAuth(identifier, password);
+        const user = normalizeAuthenticatedUser(await fetchAuthenticatedInvestigator(), identifier);
         const roleMatches = expectedRole === 'nonadmin'
             ? user.role !== 'admin'
             : user.role === expectedRole;

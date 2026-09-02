@@ -1144,3 +1144,293 @@ function notifyFeedbackChat_(feedback) {
 }
 
 function doOptions(e) { return ContentService.createTextOutput("OK"); }
+var SUPABASE_AUTH_MIGRATION_PASSWORD_PROPERTY = 'SUPABASE_AUTH_MIGRATION_PASSWORD';
+var SUPABASE_AUTH_MIGRATION_CONFIRM_PROPERTY = 'SUPABASE_AUTH_MIGRATION_CONFIRM';
+var SUPABASE_AUTH_MIGRATION_EMAIL_MAP_PROPERTY = 'SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON';
+var SUPABASE_AUTH_MIGRATION_CONFIRM_VALUE = 'I_UNDERSTAND_SHARED_PASSWORD';
+var SUPABASE_AUTH_ADMIN_PAGE_SIZE_ = 1000;
+
+function previewAuthUserMigration() {
+  return runAuthUserMigration_(true);
+}
+
+function migrateInvestigatorsToSupabaseAuth() {
+  return runAuthUserMigration_(false);
+}
+
+function runAuthUserMigration_(dryRun) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    throw new Error('Auth migration is already running.');
+  }
+
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var password = props.getProperty(SUPABASE_AUTH_MIGRATION_PASSWORD_PROPERTY) || '';
+    if (!dryRun) {
+      if (password.length < 8 || password.length > 1024) {
+        throw new Error('Set SUPABASE_AUTH_MIGRATION_PASSWORD (8-1024 characters) first.');
+      }
+      if (props.getProperty(SUPABASE_AUTH_MIGRATION_CONFIRM_PROPERTY) !== SUPABASE_AUTH_MIGRATION_CONFIRM_VALUE) {
+        throw new Error('Set SUPABASE_AUTH_MIGRATION_CONFIRM to the exact confirmation value first.');
+      }
+    }
+
+    var rows = fetchActiveInvestigatorsForAuthMigration_();
+    var authUsers = fetchAllSupabaseAuthUsers_();
+    var result = {
+      dryRun: dryRun,
+      total: rows.length,
+      ready: 0,
+      wouldCreate: 0,
+      wouldReset: 0,
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      rows: []
+    };
+    var authById = {};
+    var authByEmail = {};
+    var dbAuthOwner = {};
+    var emailOwner = {};
+    var emailMap = getAuthMigrationEmailMap_();
+
+    authUsers.forEach(function(user) {
+      if (user && user.id) authById[String(user.id)] = user;
+      var authEmail = normalizeEmail_(user && user.email);
+      if (authEmail) authByEmail[authEmail] = user;
+    });
+    rows.forEach(function(row) {
+      var linkedId = String(row.auth_user_id || '').trim();
+      if (linkedId && !dbAuthOwner[linkedId]) dbAuthOwner[linkedId] = String(row.id);
+    });
+
+    rows.forEach(function(row) {
+      var account = String(row.account || '').trim();
+      var targetEmail = resolveAuthMigrationEmail_(row, emailMap);
+      var item = {
+        id: String(row.id || ''),
+        account: account,
+        authEmail: targetEmail,
+        status: 'pending'
+      };
+
+      if (!validAuthMigrationEmail_(targetEmail)) {
+        item.status = 'skipped';
+        item.reason = 'invalid_auth_email_needs_mapping';
+        result.skipped++;
+        result.rows.push(item);
+        return;
+      }
+      if (emailOwner[targetEmail] && emailOwner[targetEmail] !== String(row.id)) {
+        item.status = 'failed';
+        item.reason = 'duplicate_auth_email_mapping';
+        result.failed++;
+        result.rows.push(item);
+        return;
+      }
+      emailOwner[targetEmail] = String(row.id);
+
+      var linkedId = String(row.auth_user_id || '').trim();
+      if (linkedId && dbAuthOwner[linkedId] !== String(row.id)) {
+        item.status = 'failed';
+        item.reason = 'auth_user_id_already_linked';
+        result.failed++;
+        result.rows.push(item);
+        return;
+      }
+
+      try {
+        var authUser = linkedId ? authById[linkedId] : null;
+        if (linkedId && !authUser) {
+          item.status = 'failed';
+          item.reason = 'linked_auth_user_not_found';
+          result.failed++;
+          result.rows.push(item);
+          return;
+        }
+        if (!authUser) authUser = authByEmail[targetEmail] || null;
+        if (authUser && normalizeEmail_(authUser.email) !== targetEmail) {
+          item.status = 'failed';
+          item.reason = 'auth_email_does_not_match_mapping';
+          result.failed++;
+          result.rows.push(item);
+          return;
+        }
+        if (authUser && dbAuthOwner[String(authUser.id)] && dbAuthOwner[String(authUser.id)] !== String(row.id)) {
+          item.status = 'failed';
+          item.reason = 'auth_user_already_linked_to_another_investigator';
+          result.failed++;
+          result.rows.push(item);
+          return;
+        }
+
+        result.ready++;
+        if (authUser) {
+          result.wouldReset++;
+          item.action = dryRun ? 'would_reset_password_and_link' : 'reset_password_and_link';
+        } else {
+          result.wouldCreate++;
+          item.action = dryRun ? 'would_create_and_link' : 'create_and_link';
+        }
+
+        if (!dryRun) {
+          if (!authUser) {
+            authUser = callSupabaseAuthAdmin_('post', '/auth/v1/admin/users', {
+              email: targetEmail,
+              password: password,
+              email_confirm: true,
+              user_metadata: {
+                full_name: String(row.user_name || row.name || ''),
+                account: account
+              }
+            });
+            if (!authUser || !authUser.id) throw new Error('Auth user creation returned no id.');
+            authById[String(authUser.id)] = authUser;
+            authByEmail[targetEmail] = authUser;
+            dbAuthOwner[String(authUser.id)] = String(row.id);
+          } else {
+            callSupabaseAuthAdmin_('put', '/auth/v1/admin/users/' + encodeURIComponent(String(authUser.id)), {
+              password: password
+            });
+          }
+          updateInvestigatorAuthLink_(row.id, authUser.id, targetEmail);
+          result.completed++;
+          item.status = 'completed';
+          item.authUserId = String(authUser.id);
+        } else {
+          item.status = 'ready';
+        }
+      } catch (error) {
+        item.status = 'failed';
+        item.reason = String(error && error.message || 'migration_failed');
+        result.failed++;
+      }
+      result.rows.push(item);
+    });
+
+    Logger.log(JSON.stringify(result));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getAuthMigrationEmailMap_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(SUPABASE_AUTH_MIGRATION_EMAIL_MAP_PROPERTY) || '';
+  if (!raw.trim()) return {};
+  var mapping;
+  try {
+    mapping = JSON.parse(raw);
+  } catch (_error) {
+    throw new Error('SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON is not valid JSON.');
+  }
+  if (!mapping || Array.isArray(mapping) || typeof mapping !== 'object') {
+    throw new Error('SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON must be an object.');
+  }
+  return mapping;
+}
+
+function resolveAuthMigrationEmail_(row, mapping) {
+  var rowId = String(row.id || '');
+  var account = String(row.account || '');
+  return normalizeEmail_(
+    mapping[rowId] ||
+    mapping[account] ||
+    row.auth_login_email ||
+    row.email
+  );
+}
+
+function validAuthMigrationEmail_(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+}
+
+function fetchActiveInvestigatorsForAuthMigration_() {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  var url = config.url +
+    '/rest/v1/investigators?select=id,account,user_name,name,role,email,auth_login_email,auth_user_id,is_active' +
+    '&is_active=eq.true&order=id&limit=1000';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: 'Bearer ' + config.serviceRoleKey
+    },
+    muteHttpExceptions: true
+  });
+  var status = response.getResponseCode();
+  if (status < 200 || status >= 300) {
+    throw new Error('Investigator roster read failed (' + status + ').');
+  }
+  return JSON.parse(response.getContentText() || '[]');
+}
+
+function fetchAllSupabaseAuthUsers_() {
+  var users = [];
+  var page = 1;
+  var pageSize = SUPABASE_AUTH_ADMIN_PAGE_SIZE_;
+  while (page <= 100) {
+    var payload = callSupabaseAuthAdmin_(
+      'get',
+      '/auth/v1/admin/users?page=' + page + '&per_page=' + pageSize
+    );
+    var pageUsers = payload && Array.isArray(payload.users) ? payload.users : [];
+    users = users.concat(pageUsers);
+    if (pageUsers.length < pageSize) return users;
+    page++;
+  }
+  throw new Error('Auth user pagination exceeded the safety limit.');
+}
+
+function callSupabaseAuthAdmin_(method, path, payload) {
+  var config = getSupabaseConfig_();
+  if (!config.serviceRoleKey) throw new Error('Missing script property: SUPABASE_SERVICE_ROLE_KEY');
+  var options = {
+    method: method,
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: 'Bearer ' + config.serviceRoleKey
+    },
+    muteHttpExceptions: true
+  };
+  if (payload !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload);
+  }
+  var response = UrlFetchApp.fetch(config.url + path, options);
+  var status = response.getResponseCode();
+  var text = response.getContentText() || '';
+  if (status < 200 || status >= 300) {
+    throw new Error('Supabase Auth admin request failed (' + status + ').');
+  }
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function updateInvestigatorAuthLink_(investigatorId, authUserId, authEmail) {
+  var config = getSupabaseConfig_();
+  var url = config.url + '/rest/v1/investigators?id=eq.' + encodeURIComponent(String(investigatorId));
+  var response = UrlFetchApp.fetch(url, {
+    method: 'patch',
+    contentType: 'application/json',
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: 'Bearer ' + config.serviceRoleKey,
+      Prefer: 'return=minimal'
+    },
+    payload: JSON.stringify({
+      auth_user_id: authUserId,
+      auth_login_email: authEmail
+    }),
+    muteHttpExceptions: true
+  });
+  var status = response.getResponseCode();
+  if (status < 200 || status >= 300) {
+    throw new Error('Investigator Auth link update failed (' + status + ').');
+  }
+}

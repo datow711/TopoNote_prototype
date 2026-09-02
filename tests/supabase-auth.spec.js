@@ -7,7 +7,7 @@ const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
 test('investigator login uses Supabase Auth and resolves the database profile', async ({ page }) => {
   let authRequest = null;
   let profileRequest = null;
-  await page.route('**/auth/v1/token*', async route => {
+  await page.route('**/functions/v1/auth-login', async route => {
     authRequest = {
       url: route.request().url(),
       body: JSON.parse(route.request().postData() || '{}')
@@ -49,8 +49,8 @@ test('investigator login uses Supabase Auth and resolves the database profile', 
     await window.login();
   });
 
-  expect(authRequest.url).toContain('grant_type=password');
-  expect(authRequest.body).toEqual({ email: 'test2@test.com', password: 'test-password' });
+  expect(authRequest.url).toContain('/functions/v1/auth-login');
+  expect(authRequest.body).toEqual({ identifier: 'test2@test.com', password: 'test-password' });
   expect(profileRequest.body).toEqual({});
   expect(profileRequest.headers.authorization).toBe('Bearer test-access-token');
   await expect.poll(() => page.evaluate(() => window.__enteredUser)).toMatchObject({
@@ -63,5 +63,50 @@ test('investigator login uses Supabase Auth and resolves the database profile', 
   ))).toMatchObject({
     access_token: 'test-access-token',
     refresh_token: 'test-refresh-token'
+  });
+});
+test('investigator login accepts the stable account identifier', async ({ page }) => {
+  let authRequest = null;
+  await page.route('**/functions/v1/auth-login', async route => {
+    authRequest = {
+      body: JSON.parse(route.request().postData() || '{}')
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+        expires_in: 3600,
+        token_type: 'bearer'
+      })
+    });
+  });
+  await page.route('**/rest/v1/rpc/get_authenticated_investigator', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        user_id: '00000000-0000-0000-0000-000000000003',
+        account: 'liz462',
+        role: 'user',
+        name: 'Test Investigator',
+        email: 'liz462@mail.naer.edu.tw',
+        phone: ''
+      }])
+    });
+  });
+  await page.goto(appUrl);
+  await page.evaluate(async () => {
+    window.enterApp = async user => { window.__enteredUser = user; };
+    document.getElementById('email').value = 'liz462';
+    document.getElementById('auth-password').value = 'test-password';
+    await window.login();
+  });
+
+  expect(authRequest.body).toEqual({ identifier: 'liz462', password: 'test-password' });
+  await expect.poll(() => page.evaluate(() => window.__enteredUser)).toMatchObject({
+    account: 'liz462',
+    role: 'user'
   });
 });
