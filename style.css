@@ -3743,6 +3743,8 @@ button:disabled {
 }
 .review-workflow-audio-draft-history-entry-header > strong { color: #203f4e; }
 .review-workflow-audio-draft-history-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.review-workflow-audio-draft-history-entry-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.review-workflow-history-apply-btn { min-height: 32px; padding: 5px 9px; border: 1px solid #9dc4d0; border-radius: 6px; background: #f2fbfd; color: #176b8b; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
 .review-workflow-audio-draft-history-tag {
     display: inline-flex;
     align-items: center;

@@ -704,6 +704,111 @@ test('audio assessor can inspect current draft and all versions without an audio
   expect(panelWidth.scrollWidth).toBeLessThanOrEqual(panelWidth.clientWidth);
 });
 
+test('proofreader can compare and load a previous annotation version', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      if (rpcName === 'get_audio_annotation_draft_history') {
+        return [
+          {
+            id: 303,
+            case_id: 93,
+            version_no: 3,
+            version_kind: 'draft',
+            fields: { TaiHan1: '目前漢字', TL1: 'tse3' },
+            created_by: 'proof@example.com',
+            source_type: 'app',
+            source_actor: 'proof@example.com',
+            created_at: '2026-09-01T03:00:00Z',
+            changed_fields: ['TaiHan1', 'TL1'],
+            is_current: true
+          },
+          {
+            id: 302,
+            case_id: 93,
+            version_no: 2,
+            version_kind: 'draft',
+            fields: { TaiHan1: '前一版漢字', TL1: 'tse2' },
+            created_by: 'test2@test.com',
+            source_type: 'audio_assessor',
+            source_actor: 'test2@test.com',
+            created_at: '2026-08-31T03:00:00Z',
+            source_audio_record_id: 902,
+            changed_fields: ['TaiHan1', 'TL1'],
+            is_current: false
+          },
+          {
+            id: 301,
+            case_id: 93,
+            version_no: 1,
+            version_kind: 'legacy',
+            fields: { TaiHan1: '既有資料' },
+            created_by: 'legacy',
+            source_type: 'app',
+            source_actor: 'legacy',
+            created_at: '2026-08-30T03:00:00Z',
+            changed_fields: [],
+            is_current: false
+          }
+        ];
+      }
+      return [];
+    };
+    state.userRole = 'proofreader';
+    state.userId = 'proof@example.com';
+    state.userName = 'Proofreader';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 93,
+      task_id: 93,
+      language: '台語',
+      place_name: '校對版本比較',
+      class_name: '錄音標注',
+      state: '待校對',
+      assigned_to: 'proof@example.com',
+      claim_by: 'proof@example.com',
+      claim_until: '2999-01-01T00:00:00Z',
+      current_version_no: 3,
+      version_kind: 'draft',
+      annotation_fields: { TaiHan1: '目前漢字', TL1: 'tse3' },
+      annotation_created_by: 'proof@example.com',
+      annotation_source_type: 'app',
+      annotation_created_at: '2026-09-01T03:00:00Z',
+      audio_record_count: 0,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_evidence: [],
+      audio_sources_loaded: true,
+      audio_sources: []
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  const item = page.locator('.review-workflow-item');
+  const historyToggle = item.locator('[data-role="annotation-history-toggle"]');
+  await historyToggle.click();
+  const historyPanel = item.locator('[data-role="annotation-version-history"]');
+  await expect(historyPanel).toBeVisible();
+  await expect(historyPanel.locator('.review-workflow-audio-draft-history-entry')).toHaveCount(3);
+  await expect(historyPanel.locator('.review-workflow-audio-draft-history-entry').first()).toContainText('v3');
+  await expect(historyPanel.locator('.review-workflow-audio-draft-history-entry').nth(1)).toContainText('前一版漢字');
+  await expect(historyPanel.locator('.review-workflow-history-apply-btn')).toHaveCount(3);
+
+  await historyPanel.locator('.review-workflow-history-apply-btn').nth(1).click();
+  await expect(item.locator('#review-workflow-93-tai-TaiHan1')).toHaveValue('前一版漢字');
+  await expect(item.locator('#review-workflow-93-tai-TL1')).toHaveValue('tse2');
+  await expect(historyPanel.locator('[data-role="annotation-history-message"]')).toContainText('載入 v2');
+  const calls = await page.evaluate(() => window.__workflowCalls);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].rpcName).toBe('get_audio_annotation_draft_history');
+  expect(calls[0].body.p_case_id).toBe(93);
+  expect(calls[0].body.p_actor_account).toBeUndefined();
+});
+
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
