@@ -2460,6 +2460,15 @@ button:disabled {
 }
 
 .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 30, 43, 0.34);
+}
+
 .email-bootstrap-hint {
     display: block;
     margin: 6px 4px 0;
@@ -2473,6 +2482,14 @@ button:disabled {
 }
 
 .auth-bootstrap-password-note {
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: #f8fbfd;
+    color: var(--ink);
+    line-height: 1.6;
+}
+
 .auth-bootstrap-dialog-status {
     min-height: 20px;
     margin: 12px 0 0;
@@ -2482,19 +2499,6 @@ button:disabled {
 
 .auth-bootstrap-dialog-status.is-error {
     color: var(--danger);
-    padding: 12px;
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-    background: #f8fbfd;
-    color: var(--ink);
-    line-height: 1.6;
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: grid;
-    place-items: center;
-    padding: 18px;
-    background: rgba(0, 30, 43, 0.34);
 }
 
 .dialog-panel {
