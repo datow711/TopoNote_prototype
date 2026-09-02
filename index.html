@@ -23,6 +23,8 @@
         <input type="password" id="auth-password" placeholder="登入密碼（Supabase Auth）" autocomplete="current-password">
         <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
         <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
+        <button class="btn-secondary" onclick="startEmailBootstrapLogin()" id="email-bootstrap-btn">首次使用 Email 登入</button>
+        <small class="email-bootstrap-hint">首次使用請輸入 Email／使用者名稱，系統會寄一次性登入連結；完成確認後，下一次必須使用密碼。</small>
         <div id="admin-login-fields" class="hidden">
             <input type="password" id="password" placeholder="管理者 Supabase Auth 密碼" autocomplete="current-password">
             <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>

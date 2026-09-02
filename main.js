@@ -121,6 +121,8 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const SUPABASE_AUTH_SESSION_KEY = 'toponote_supabase_auth_session';
 const SUPABASE_AUTH_REFRESH_SKEW_MS = 60 * 1000;
 const USER_LABEL_SELECT = 'id,account,role,is_active,name,email,phone';
+const EMAIL_BOOTSTRAP_PENDING_KEY = 'toponote_email_bootstrap_pending';
+const EMAIL_BOOTSTRAP_SESSION_KEY = 'toponote_email_bootstrap_session';
 const USER_PROFILE_SELECT = [
     USER_LABEL_SELECT,
     'languages',
@@ -952,8 +954,45 @@ function getSavedSession() {
     }
 }
 
+function consumeSupabaseAuthCallback() {
+    const rawHash = String(window.location.hash || '').replace(/^#/, '');
+    if (!rawHash) return null;
+
+    const params = new URLSearchParams(rawHash);
+    const errorDescription = params.get('error_description') || params.get('error');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (!accessToken || !refreshToken) {
+        if (!errorDescription) return null;
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        return { error: errorDescription };
+    }
+
+    const session = saveSupabaseAuthSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: Number(params.get('expires_in') || 3600),
+        expires_at: Number(params.get('expires_at') || 0),
+        token_type: params.get('token_type') || 'bearer'
+    });
+    const isEmailBootstrap = params.get('type') === 'magiclink'
+        || Boolean(localStorage.getItem(EMAIL_BOOTSTRAP_PENDING_KEY));
+    if (isEmailBootstrap) sessionStorage.setItem(EMAIL_BOOTSTRAP_SESSION_KEY, '1');
+    localStorage.removeItem(EMAIL_BOOTSTRAP_PENDING_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    return { session, isEmailBootstrap };
+}
 async function restoreSession() {
-    const authSession = getSavedSupabaseAuthSession();
+    const authCallback = consumeSupabaseAuthCallback();
+    if (authCallback?.error) {
+        const callbackStatus = document.getElementById('login-status');
+        callbackStatus.innerText = 'Email login link expired; please request a new one-time login link.';
+        callbackStatus.style.color = 'red';
+        return;
+    }
+    const authSession = authCallback?.session || getSavedSupabaseAuthSession();
+    const emailBootstrapSession = Boolean(authCallback?.isEmailBootstrap
+        || sessionStorage.getItem(EMAIL_BOOTSTRAP_SESSION_KEY));
     const session = getSavedSession();
     if (!authSession && !session) return;
 
@@ -970,6 +1009,10 @@ async function restoreSession() {
         if (!accessToken) throw new Error('Supabase Auth session is missing');
         const freshSession = await fetchAuthenticatedInvestigator();
         await enterApp(freshSession, { persist: false });
+        if (emailBootstrapSession) {
+            sessionStorage.removeItem(EMAIL_BOOTSTRAP_SESSION_KEY);
+            await maybeShowPasswordOnboardingDialog();
+        }
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
         clearSession();
@@ -1089,6 +1132,56 @@ async function signInWithSupabaseAuth(identifier, password) {
     return saveSupabaseAuthSession(session);
 }
 let authRefreshPromise = null;
+async function requestEmailBootstrapLogin(identifier) {
+    const response = await fetch(CONFIG.SUPABASE_AUTH_EMAIL_BOOTSTRAP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier })
+    });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || 'Email 登入申請失敗 (' + response.status + ')');
+    }
+    return payload;
+}
+
+async function startEmailBootstrapLogin() {
+    const identifier = getLoginIdentifier();
+    const button = document.getElementById('email-bootstrap-btn');
+    const status = document.getElementById('login-status');
+    if (!identifier) return alert('請輸入 Email 或使用者名稱');
+    if (button) {
+        button.disabled = true;
+        button.innerText = '寄送登入連結中...';
+    }
+    status.innerText = '';
+    try {
+        await requestEmailBootstrapLogin(identifier);
+        localStorage.setItem(EMAIL_BOOTSTRAP_PENDING_KEY, JSON.stringify({
+            identifier,
+            requestedAt: Date.now()
+        }));
+        status.innerText = '若此帳號符合首次導入條件，登入連結已寄出；請到信箱點擊連結。';
+        status.style.color = '#2c3e50';
+    } catch (error) {
+        console.error('申請 Email 首次登入失敗:', error);
+        status.innerText = '❌ 目前無法寄出 Email 登入連結，請稍後再試。';
+        status.style.color = 'red';
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerText = '首次使用 Email 登入';
+        }
+    }
+}
+
 async function refreshSupabaseAuthSession() {
     if (authRefreshPromise) return authRefreshPromise;
     const current = getSavedSupabaseAuthSession();
@@ -1124,6 +1217,67 @@ async function fetchAuthenticatedInvestigator() {
     }
     return users[0];
 }
+async function getPasswordOnboardingStatus() {
+    const rows = await reviewWorkflowRpc('get_password_onboarding_status', {});
+    if (!Array.isArray(rows) || rows.length === 0) {
+        throw new Error('password onboarding status is unavailable');
+    }
+    return rows[0];
+}
+async function maybeShowPasswordOnboardingDialog() {
+    const status = await getPasswordOnboardingStatus();
+    if (status.password_login_required === true) {
+        throw new Error('email bootstrap login is no longer available');
+    }
+    if (document.getElementById('password-onboarding-dialog')) return;
+
+    const dialog = document.createElement('div');
+    dialog.id = 'password-onboarding-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel auth-bootstrap-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="password-onboarding-title">
+            <h3 id="password-onboarding-title">請記下共用登入密碼</h3>
+            <p>你剛完成首次 Email 驗證登入。從下一次新的登入工作階段開始，必須輸入自己的 Email／使用者名稱與管理員提供的共用密碼。</p>
+            <div class="auth-bootstrap-password-note">
+                請現在向管理員取得並記下共用密碼。為避免密碼在畫面或瀏覽器紀錄中外洩，此視窗不顯示密碼。
+            </div>
+            <p>記下密碼後，請按下確認。確認前請不要關閉這個視窗。</p>
+            <div class="auth-bootstrap-dialog-status" id="password-onboarding-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-primary" type="button" id="password-onboarding-confirm-btn" onclick="acknowledgePasswordOnboarding()">我已記下密碼，確認</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+}
+
+async function acknowledgePasswordOnboarding() {
+    const button = document.getElementById('password-onboarding-confirm-btn');
+    const status = document.getElementById('password-onboarding-status');
+    if (button) {
+        button.disabled = true;
+        button.innerText = '保存確認中...';
+    }
+    if (status) {
+        status.innerText = '';
+        status.classList.remove('is-error');
+    }
+    try {
+        await reviewWorkflowRpc('acknowledge_password_onboarding', {});
+        document.getElementById('password-onboarding-dialog')?.remove();
+    } catch (error) {
+        console.error('保存密碼導入確認失敗:', error);
+        if (status) {
+            status.innerText = '確認沒有保存成功，請保持此視窗開啟後再試一次。';
+            status.classList.add('is-error');
+        }
+        if (button) {
+            button.disabled = false;
+            button.innerText = '我已記下密碼，確認';
+        }
+    }
+}
+
 async function signOutSupabaseAuth(sessionOverride = null) {
     const session = sessionOverride || getSavedSupabaseAuthSession();
     clearSupabaseAuthSession();

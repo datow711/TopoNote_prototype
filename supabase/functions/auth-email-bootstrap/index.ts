@@ -1,0 +1,122 @@
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+const serviceKey = getKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY')
+const publicKey = getKey('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY')
+const redirectUrl = (Deno.env.get('SUPABASE_AUTH_EMAIL_REDIRECT_URL') || '').trim()
+
+if (!supabaseUrl || !serviceKey || !publicKey) {
+  throw new Error('Supabase function environment is incomplete')
+}
+
+const admin = createClient(supabaseUrl, serviceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
+const publicClient = createClient(supabaseUrl, publicKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Cache-Control': 'no-store',
+}
+
+function getKey(jsonName: string, legacyName: string): string {
+  const raw = Deno.env.get(jsonName)
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed.default) return String(parsed.default)
+    } catch (_error) {
+      // Fall back to the legacy environment variable.
+    }
+  }
+  return Deno.env.get(legacyName) || ''
+}
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
+function validEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function quotePostgrestValue(value: string): string {
+  const escaped = value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/[*%,_]/g, (character) => '\\' + character)
+  return '"' + escaped + '"'
+}
+
+async function findInvestigator(identifier: string) {
+  const filter = quotePostgrestValue(identifier)
+  const { data, error } = await admin
+    .from('investigators')
+    .select('id,account,email,auth_login_email,auth_user_id,is_active,password_onboarding_acknowledged_at')
+    .eq('is_active', true)
+    .or(
+      'account.ilike.' + filter +
+      ',email.ilike.' + filter +
+      ',auth_login_email.ilike.' + filter
+    )
+    .limit(2)
+
+  if (error) throw error
+  return data && data.length === 1 ? data[0] : null
+}
+
+async function sendBootstrapEmail(email: string) {
+  const options = {
+    shouldCreateUser: false,
+    ...(redirectUrl ? { emailRedirectTo: redirectUrl } : {}),
+  }
+  return publicClient.auth.signInWithOtp({ email, options })
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'method not allowed' }, 405)
+  }
+
+  try {
+    const body = await request.json()
+    const identifier = String(body?.identifier || '').trim()
+    if (!identifier || identifier.length > 320) {
+      return jsonResponse({ ok: true })
+    }
+
+    const investigator = await findInvestigator(identifier)
+    const loginEmail = String(
+      investigator?.auth_login_email || investigator?.email || ''
+    ).trim().toLowerCase()
+
+    // Keep this response deliberately generic so the endpoint does not reveal
+    // which identifiers exist or whether onboarding has already completed.
+    if (
+      !investigator ||
+      !investigator.auth_user_id ||
+      investigator.password_onboarding_acknowledged_at ||
+      !validEmail(loginEmail)
+    ) {
+      return jsonResponse({ ok: true })
+    }
+
+    const { error } = await sendBootstrapEmail(loginEmail)
+    if (error) return jsonResponse({ error: 'email service unavailable' }, 500)
+
+    return jsonResponse({ ok: true })
+  } catch (_error) {
+    return jsonResponse({ error: 'email bootstrap service unavailable' }, 500)
+  }
+})
