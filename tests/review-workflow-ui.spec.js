@@ -583,6 +583,7 @@ test('audio assessor can save a case-level annotation draft from a usable audio 
 
   const result = await page.evaluate(() => window.__workflowCalls.find(call => call.rpcName === 'save_audio_annotation_draft'));
   expect(result.body.p_case_id).toBe(89);
+  expect(result.body.p_actor_account).toBeUndefined();
   expect(result.body.p_source_audio_record_id).toBe(891);
   expect(result.body.p_audio_claim_token).toBe('00000000-0000-0000-0000-000000000089');
   expect(result.body.p_base_version_no).toBe(4);
@@ -693,7 +694,7 @@ test('audio assessor can inspect current draft and all versions without an audio
   const call = await page.evaluate(() => window.__workflowCalls[0]);
   expect(call.rpcName).toBe('get_audio_annotation_draft_history');
   expect(call.body.p_case_id).toBe(90);
-  expect(call.body.p_actor_account).toBe('test2@test.com');
+  expect(call.body.p_actor_account).toBeUndefined();
 
   await historyToggle.click();
   await historyToggle.click();

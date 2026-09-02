@@ -20,10 +20,11 @@
 
     <div id="login-section" class="card">
         <input type="email" id="email" placeholder="Email">
+        <input type="password" id="auth-password" placeholder="登入密碼（Supabase Auth）" autocomplete="current-password">
         <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
         <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
         <div id="admin-login-fields" class="hidden">
-            <input type="password" id="password" placeholder="管理者密碼">
+            <input type="password" id="password" placeholder="管理者 Supabase Auth 密碼" autocomplete="current-password">
             <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>
         </div>
         <div id="login-status" style="text-align: center; margin-top: 10px; color: red;"></div>

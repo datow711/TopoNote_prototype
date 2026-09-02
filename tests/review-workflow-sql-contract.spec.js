@@ -54,6 +54,10 @@ test('audio annotation draft history is read-only and exposes ownership metadata
   expect(audioDraftHistoryMigration).toContain(
     'create or replace function public.get_audio_annotation_draft_history('
   );
+  expect(audioDraftHistoryMigration).toContain('create or replace function private.get_authenticated_investigator()');
+  expect(audioDraftHistoryMigration).toContain('auth.uid()');
+  expect(audioDraftHistoryMigration).toContain('confirmed Auth email required');
+  expect(audioDraftHistoryMigration).toContain('security invoker');
   expect(audioDraftHistoryMigration).toContain('source_audio_record_id integer');
   expect(audioDraftHistoryMigration).toContain('changed_fields text[]');
   expect(audioDraftHistoryMigration).toContain('is_current boolean');
@@ -65,10 +69,23 @@ test('audio annotation draft history is read-only and exposes ownership metadata
   expect(audioDraftHistoryMigration).toContain('revoke all on function public.get_audio_annotation_draft_history');
   expect(audioDraftHistoryMigration).toContain('grant execute on function public.get_audio_annotation_draft_history');
   expect(audioDraftHistoryMigration).toContain('security definer');
+  expect(audioDraftHistoryMigration).toContain('to authenticated;');
+  expect(audioDraftHistoryMigration).not.toContain('grant execute on function public.get_audio_annotation_draft_history(bigint, text)');
+  expect(audioDraftHistoryMigration).not.toContain('p_actor_account');
   expect(audioDraftHistoryMigration).not.toMatch(/insert into public\.(annotation_versions|proofing_events)/i);
   expect(audioDraftHistoryMigration).not.toMatch(/update public\.(annotation_versions|proofing_events)/i);
 });
 
+test('audio source and draft write entry points require Auth-bound wrappers', async () => {
+  expect(audioDraftHistoryMigration).toContain('create or replace function public.get_review_workflow_audio_sources(');
+  expect(audioDraftHistoryMigration).toContain('create or replace function public.save_audio_annotation_draft(');
+  expect(audioDraftHistoryMigration).toContain('private.get_review_workflow_audio_sources_authenticated');
+  expect(audioDraftHistoryMigration).toContain('private.save_audio_annotation_draft_authenticated');
+  expect(audioDraftHistoryMigration).toContain('revoke all on function public.save_audio_annotation_draft(');
+  expect(audioDraftHistoryMigration).toContain('grant execute on function public.save_audio_annotation_draft(');
+  expect(audioDraftHistoryMigration).toContain('grant execute on function public.get_review_workflow_audio_sources(bigint)');
+  expect(audioDraftHistoryMigration).not.toMatch(/grant execute on function public\.(save_audio_annotation_draft|get_review_workflow_audio_sources)\([^)]*text[^)]*\)\s+to\s+(anon|authenticated)/i);
+});
 test('audio assessment history is read-only and assessment writes are append-only', async () => {
   expect(assessmentMigration).toContain('insert into public.audio_assessments(');
   expect(assessmentMigration).not.toMatch(/update public\.audio_assessments\s+set/i);

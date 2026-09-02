@@ -118,6 +118,8 @@ let tutorialState = null;
 
 const SESSION_KEY = 'toponote_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SUPABASE_AUTH_SESSION_KEY = 'toponote_supabase_auth_session';
+const SUPABASE_AUTH_REFRESH_SKEW_MS = 60 * 1000;
 const USER_LABEL_SELECT = 'id,account,role,is_active,name,email,phone';
 const USER_PROFILE_SELECT = [
     USER_LABEL_SELECT,
@@ -951,20 +953,27 @@ function getSavedSession() {
 }
 
 async function restoreSession() {
+    const authSession = getSavedSupabaseAuthSession();
     const session = getSavedSession();
-    if (!session) return;
+    if (!authSession && !session) return;
 
     const status = document.getElementById('login-status');
     status.innerText = '正在恢復登入狀態...';
     status.style.color = '#2c3e50';
 
     try {
-        const account = session.account || session.user_name;
-        const freshSession = await fetchSessionUser(account, session.role);
-        await enterApp({ ...session, ...freshSession }, { persist: false });
+        if (!authSession) {
+            clearSession();
+            throw new Error('請使用 Supabase Auth 重新登入');
+        }
+        const accessToken = await getSupabaseAuthAccessToken();
+        if (!accessToken) throw new Error('Supabase Auth session is missing');
+        const freshSession = await fetchAuthenticatedInvestigator();
+        await enterApp(freshSession, { persist: false });
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
         clearSession();
+        clearSupabaseAuthSession();
         status.innerText = '登入狀態已失效，請重新登入。';
         status.style.color = 'red';
     }
@@ -999,6 +1008,114 @@ async function fetchSessionUser(account, role) {
     };
 }
 
+function getSavedSupabaseAuthSession() {
+    try {
+        const raw = localStorage.getItem(SUPABASE_AUTH_SESSION_KEY);
+        if (!raw) return null;
+        const session = JSON.parse(raw);
+        if (!session || !session.access_token || !session.refresh_token) {
+            clearSupabaseAuthSession();
+            return null;
+        }
+        return session;
+    } catch (error) {
+        clearSupabaseAuthSession();
+        return null;
+    }
+}
+function saveSupabaseAuthSession(session) {
+    const expiresAt = Number(session.expires_at)
+        || Math.floor(Date.now() / 1000) + Number(session.expires_in || 3600);
+    const savedSession = {
+        ...session,
+        expires_at: expiresAt
+    };
+    localStorage.setItem(SUPABASE_AUTH_SESSION_KEY, JSON.stringify(savedSession));
+    return savedSession;
+}
+function clearSupabaseAuthSession() {
+    localStorage.removeItem(SUPABASE_AUTH_SESSION_KEY);
+}
+async function supabaseAuthRequest(path, body, accessToken = '') {
+    const headers = {
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body || {})
+    });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || `Supabase Auth request failed (${response.status})`);
+    }
+    return payload;
+}
+async function signInWithSupabaseAuth(email, password) {
+    const session = await supabaseAuthRequest('token?grant_type=password', {
+        email,
+        password
+    });
+    if (!session.access_token || !session.refresh_token) {
+        throw new Error('Supabase Auth did not return a session');
+    }
+    return saveSupabaseAuthSession(session);
+}
+let authRefreshPromise = null;
+async function refreshSupabaseAuthSession() {
+    if (authRefreshPromise) return authRefreshPromise;
+    const current = getSavedSupabaseAuthSession();
+    if (!current?.refresh_token) return null;
+    authRefreshPromise = supabaseAuthRequest('token?grant_type=refresh_token', {
+        refresh_token: current.refresh_token
+    }).then(refreshed => saveSupabaseAuthSession({
+        ...current,
+        ...refreshed,
+        refresh_token: refreshed.refresh_token || current.refresh_token
+    })).catch(error => {
+        clearSupabaseAuthSession();
+        throw error;
+    }).finally(() => {
+        authRefreshPromise = null;
+    });
+    return authRefreshPromise;
+}
+async function getSupabaseAuthAccessToken() {
+    const session = getSavedSupabaseAuthSession();
+    if (!session) return null;
+    const expiresAt = Number(session.expires_at || 0) * 1000;
+    if (expiresAt && Date.now() + SUPABASE_AUTH_REFRESH_SKEW_MS < expiresAt) {
+        return session.access_token;
+    }
+    const refreshed = await refreshSupabaseAuthSession();
+    return refreshed?.access_token || null;
+}
+async function fetchAuthenticatedInvestigator() {
+    const users = await reviewWorkflowRpc('get_authenticated_investigator', {});
+    if (!Array.isArray(users) || users.length === 0) {
+        throw new Error('Auth account is not linked to an active investigator');
+    }
+    return users[0];
+}
+async function signOutSupabaseAuth(sessionOverride = null) {
+    const session = sessionOverride || getSavedSupabaseAuthSession();
+    clearSupabaseAuthSession();
+    if (!session?.access_token) return;
+    try {
+        await supabaseAuthRequest('logout', {}, session.access_token);
+    } catch (error) {
+        console.warn('Supabase Auth 登出請求失敗，已清除本機工作階段:', error);
+    }
+}
 function clearSession() {
     localStorage.removeItem(SESSION_KEY);
 }
@@ -1011,30 +1128,26 @@ function toggleAdminLogin() {
 }
 
 async function login() {
-    await performLogin({
-        rpcName: 'login_investigator',
-        body: { p_email: getLoginEmail() },
+    await performSupabaseAuthLogin({
+        passwordElementId: 'auth-password',
         expectedRole: 'nonadmin',
         button: document.getElementById('login-btn'),
-        loadingText: '載入任務中...',
+        loadingText: '驗證登入中...',
         resetText: '進入我的任務',
         missingMessage: '請輸入 email',
-        failedMessage: '找不到可登入的一般調查員帳號'
+        passwordMessage: '請輸入 Supabase Auth 登入密碼',
+        failedMessage: '一般調查員 email 或密碼錯誤'
     });
 }
-
 async function loginAdmin() {
-    const password = document.getElementById('password').value;
-    if (!password) return alert('請輸入管理者密碼');
-
-    await performLogin({
-        rpcName: 'login_admin',
-        body: { p_email: getLoginEmail(), p_password: password },
+    await performSupabaseAuthLogin({
+        passwordElementId: 'password',
         expectedRole: 'admin',
         button: document.getElementById('admin-login-btn'),
-        loadingText: '載入管理模式中...',
+        loadingText: '驗證管理登入中...',
         resetText: '進入管理模式',
         missingMessage: '請輸入 email',
+        passwordMessage: '請輸入管理者 Supabase Auth 登入密碼',
         failedMessage: '管理者 email 或密碼錯誤'
     });
 }
@@ -1043,6 +1156,40 @@ function getLoginEmail() {
     return document.getElementById('email').value.trim();
 }
 
+async function performSupabaseAuthLogin({ passwordElementId, expectedRole, button,
+    loadingText, resetText, missingMessage, passwordMessage, failedMessage }) {
+    const email = getLoginEmail();
+    const password = document.getElementById(passwordElementId)?.value || '';
+    if (!email) return alert(missingMessage);
+    if (!password) return alert(passwordMessage);
+    const status = document.getElementById('login-status');
+    status.innerText = '';
+    clearSession();
+    clearSupabaseAuthSession();
+    button.innerText = loadingText;
+    button.disabled = true;
+    try {
+        await signInWithSupabaseAuth(email, password);
+        const user = normalizeAuthenticatedUser(await fetchAuthenticatedInvestigator(), email);
+        const roleMatches = expectedRole === 'nonadmin'
+            ? user.role !== 'admin'
+            : user.role === expectedRole;
+        if (expectedRole && !roleMatches) {
+            throw new Error(`role mismatch: expected ${expectedRole}, got ${user.role || 'empty'}`);
+        }
+        await enterApp(user);
+    } catch (error) {
+        console.error('Supabase Auth 登入發生錯誤:', error);
+        clearSession();
+        clearSupabaseAuthSession();
+        const message = error.message === 'Auth account is not linked to an active investigator'
+            ? '此 Auth 帳號尚未連結啟用中的調查員帳號'
+            : failedMessage;
+        status.innerText = `❌ ${message}`;
+        button.innerText = resetText;
+        button.disabled = false;
+    }
+}
 async function performLogin({ rpcName, body, expectedRole, button, loadingText, resetText, missingMessage, failedMessage }) {
     const email = getLoginEmail();
     if (!email) return alert(missingMessage);
@@ -1131,6 +1278,8 @@ async function enterApp(user, options = {}) {
 function logout() {
     closePlaceMapView();
     hideSelectedMapCard();
+    const authSession = getSavedSupabaseAuthSession();
+    void signOutSupabaseAuth(authSession);
     clearSession();
     state.userId = '';
     state.userDbId = '';
@@ -3759,11 +3908,12 @@ function applyFilters() {
 }
 
 async function reviewWorkflowRpc(rpcName, body) {
+    const accessToken = await getSupabaseAuthAccessToken();
     const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
         method: 'POST',
         headers: {
             'apikey': CONFIG.SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${accessToken || CONFIG.SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body || {})
@@ -4417,7 +4567,7 @@ async function fillReviewWorkflowDraftFromAudio(caseId, audioRecordId, button) {
     if (button) { button.disabled = true; button.innerText = '\u5e36\u5165\u4e2d...'; }
     try {
         const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
-            p_case_id: Number(caseId), p_actor_account: state.userId
+            p_case_id: Number(caseId)
         });
         const source = (Array.isArray(sources) ? sources : [])
             .find(item => Number(item.audio_record_id) === Number(audioRecordId));
@@ -4837,7 +4987,6 @@ async function loadReviewWorkflowAudioDraftHistory(caseId, panel, button) {
     try {
         const result = await reviewWorkflowRpc('get_audio_annotation_draft_history', {
             p_case_id: Number(caseId),
-            p_actor_account: state.userId
         });
         const history = Array.isArray(result)
             ? result
@@ -5109,7 +5258,6 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
     try {
         const result = await reviewWorkflowRpc('save_audio_annotation_draft', {
             p_case_id: Number(caseId),
-            p_actor_account: state.userId,
             p_fields: fields,
             p_source_audio_record_id: getReviewWorkflowAudioDraftSourceId(panel),
             p_audio_claim_token: row.audio_claim_token || null,
@@ -5509,7 +5657,7 @@ async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit, canAnnot
     row.audio_sources_loading = true;
     try {
         const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
-            p_case_id: Number(row.case_id), p_actor_account: state.userId
+            p_case_id: Number(row.case_id)
         });
         row.audio_sources = Array.isArray(sources) ? sources : [];
     } catch (error) {
