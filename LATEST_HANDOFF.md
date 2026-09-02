@@ -1,8 +1,8 @@
 # TopoNote App 最新開發交接
 
-更新時間：2026-08-20（Asia/Taipei）
+更新時間：2026-09-02（Asia/Taipei）
 
-這份文件依 2026-08-20 工作區、Git 歷史、現有驗收文件、本次正式 live readback 與回歸測試更新。它優先於 2026-05 至 2026-07 的舊 NEXT_HANDOFF 文件；正式環境狀態以本次 readback 與 deployment 證據為準。
+這份文件依 2026-09-02 工作區、Git 歷史、現有驗收文件、正式 live readback 與回歸測試更新。它優先於 2026-05 至 2026-07 的舊 NEXT_HANDOFF 文件；正式環境狀態以本次 readback 與 deployment 證據為準。
 
 ## 一句話架構
 
@@ -110,8 +110,8 @@ Root GAS 需要的 Script Properties 至少包括：
 
 ## 目前前端功能
 
-- 調查員 email 登入、管理員 email＋密碼登入。
-- 24 小時 localStorage session restore。
+- 調查員與管理員均使用 Supabase Auth email／密碼登入；登入後以 Auth 身分解析 `investigators` profile。
+- Supabase Auth access／refresh session restore；舊版 pseudo-session 不再作為正式登入身分。
 - 任務清單／其他地名／管理員審查／使用者管理 tabs。
 - 縣市、複選鄉鎮、地名分類、台語／客語分類、客語區、錄音狀態與文字搜尋。
 - 台語與客語分語種指派、解除指派、批次選取。
@@ -121,6 +121,8 @@ Root GAS 需要的 Script Properties 至少包括：
 - 原上傳者可只修改音檔文字內容，不需重傳音檔。
 - 管理員可將既有音檔連結到其他地名，也可軟解除錯誤連結。
 - 管理員逐語種審查、比較各錄音內容並填入最終審定欄位。
+- 審聽員可在有效音檔 claim 下建立案件層音讀標注草稿；沒有 claim 時仍可唯讀查看目前草稿與版本歷史。
+- 校對工作台可查看全部草稿版本，並將歷史版本載入目前校對欄位後另存新版本；核准仍只採用目前版本。
 - 調查員公告、未讀狀態及管理員定向公告。
 - 管理員使用者資料修改、啟停、刪除與改密碼。
 - 管理員錄音上傳報告：可切換依台北日期或依上傳者彙整，最新在上；上傳者以姓名為主、email 為副，可展開查看地名明細；共用音檔連結不重複計數，軟解除的原始上傳仍保留於歷史報告。
@@ -156,7 +158,9 @@ third_phase_places ──► final_tasks
 
 - Project ref：`sikconjhtomqdkicbjal`
 - 前端透過 `config.js` 的公開 anon key 直接使用 PostgREST。
-- 這不是 Supabase Auth session 架構，而是自訂 `investigators`＋login RPC＋前端 localStorage session。
+- 前端使用 Supabase Auth access／refresh token；資料庫透過 `auth.uid()` 對應已確認 email 與啟用中的 `investigators`。
+- `investigators.auth_user_id` 可保存明確連結；尚未明確連結的新測試帳號可先以完全相同且已確認的 email fallback 解析。
+- 音檔來源、審聽草稿保存與草稿歷史已有 authenticated-only public wrapper；private schema 內的必要 helper 才使用 SECURITY DEFINER。
 
 重要 tables：
 
@@ -187,6 +191,15 @@ third_phase_places ──► final_tasks
 本地 `db/` 有 27 個增量 SQL，但沒有完整初始 schema dump。不要假設從這些 migration 可百分之百重建線上資料庫；重要變更前要先 readback 線上 object definitions、grants、RLS 與 policies。
 
 ## 近期變更（舊 handoff 尚未完整涵蓋）
+
+### 2026-09-02 Supabase Auth 與草稿審查工作台
+
+- `db/20260902_audio_annotation_draft_history.sql` 已建立 Auth identity、authenticated-only RPC wrapper、音檔草稿歷史讀取與 `investigators.auth_user_id`。
+- 本次 live migration 已以 `audio_annotation_draft_history_supabase_auth` 套用，remote migration version 為 `20260902062653`；本地 migration 檔仍保留可追溯定義。
+- `get_authenticated_investigator`、音檔來源、音讀草稿保存與草稿歷史的匿名 execute 為 false，authenticated execute 依 wrapper 契約開放。
+- `test2@test.com` 仍是 `investigators` 中啟用的 `audio_assessor`，但本次 live readback 顯示 `auth.users` 尚無此帳號；建立並確認 Auth 使用者後才能做真實登入 smoke test。
+- 前置 `20260828_audio_assessment_history` 已先完成 live readback，與本次 Auth／UI 改動分開處理。
+- 本地 `main` 已完成 Supabase Auth 登入串接、審聽員 draft history 與校對版本歷史 UI；完整 Playwright 回歸以單一 worker 執行為 87/87，尚未 push 或發布靜態前端。
 
 ### 2026-07-15 地名補充資訊
 
@@ -266,13 +279,20 @@ third_phase_places ──► final_tasks
 2026-08-10 已確認：
 
 - 目前 npm／Chromium 環境可用。
-- `npm run test:ui -- --reporter=line`：59/59 tests 通過。
+- `npm run test:ui -- --reporter=line --workers=1`：87/87 tests 通過。
 
 不要把本地 npm cache、Playwright browser cache 或 `node_modules` commit 進 repo。
 
-### 4. 架構文件落後於程式碼
+### 4. Supabase Auth 測試帳號尚未建立
 
-`docs/architecture-inventory.md`、`docs/current-operation-flow.md` 與 `docs/architecture-goal-status.md` 很有價值，但多停在 2026-06，尚未完整納入公告、音檔軟解除連結與 2026-08 審查流程 MVP。以實際程式、最新 migration、驗收報告和 live readback 為準。
+- `test2@test.com` 尚未出現在 live `auth.users`。
+- 需要在 Supabase Dashboard 建立此 email 的 Auth 使用者並設定測試密碼；若 email confirmations 開啟，需使用「Auto Confirm User」或完成確認。
+- 建立後不需手動修改 `investigators.auth_user_id`，目前會以已確認 email fallback 對應；正式營運前仍建議建立明確 `auth_user_id` link。
+- 前端目前只在本地 commit，發布前需先由使用者手動 push／部署，再做真實登入、領取案件、保存草稿與歷史 readback。
+
+### 5. 架構文件落後於程式碼
+
+`docs/architecture-inventory.md`、`docs/current-operation-flow.md` 與 `docs/architecture-goal-status.md` 很有價值，但多停在 2026-06，尚未完整納入公告、音檔軟解除連結、2026-08 審查流程 MVP、Supabase Auth 與草稿版本歷史。以實際程式、最新 migration、驗收報告和 live readback 為準。
 
 ## 不可誤刪／不可任意改動
 
