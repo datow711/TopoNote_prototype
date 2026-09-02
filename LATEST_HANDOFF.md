@@ -160,7 +160,7 @@ third_phase_places ──► final_tasks
 - 前端透過 `config.js` 的公開 anon key 直接使用 PostgREST。
 - 前端使用 Supabase Auth access／refresh token；資料庫透過 `auth.uid()` 對應已確認 email 與啟用中的 `investigators`。
 - `investigators.auth_user_id` 可保存明確連結；尚未明確連結的新測試帳號可先以完全相同且已確認的 email fallback 解析。
-- 音檔來源、審聽草稿保存與草稿歷史已有 authenticated-only public wrapper；private schema 內的必要 helper 才使用 SECURITY DEFINER。
+- 審查 workflow 的工作清單、claim、音檔判定、草稿、歷史、校對與核准 endpoint 均透過 Auth-bound public wrapper；private schema 內的必要 helper 才使用 SECURITY DEFINER。
 
 重要 tables：
 
@@ -184,22 +184,23 @@ third_phase_places ──► final_tasks
 
 重要 RPC：
 
-- 瀏覽器仍會呼叫：`login_investigator`、`login_admin`、`assign_task_language`、`unassign_task_language`、`approve_task_language`、`revoke_task_language_review`。
+- 瀏覽器一般任務／相容流程仍會呼叫：`assign_task_language`、`unassign_task_language`、`approve_task_language`、`revoke_task_language_review`；審查 workflow 已改用 Auth-bound wrappers。
 - Root GAS／service role：`set_investigator_active`、`delete_investigator_user`、`update_investigator_profile`、`change_admin_password`、`soft_unlink_audio_record`、公告 RPC。
 - Places GAS／service role：`sync_sheet_users`、`mark_reviews_sheet_synced` 等同步 RPC。
 
-本地 `db/` 有 27 個增量 SQL，但沒有完整初始 schema dump。不要假設從這些 migration 可百分之百重建線上資料庫；重要變更前要先 readback 線上 object definitions、grants、RLS 與 policies。
+本地 `db/` 目前有 54 個增量 SQL，但沒有完整初始 schema dump。不要假設從這些 migration 可百分之百重建線上資料庫；重要變更前要先 readback 線上 object definitions、grants、RLS 與 policies。
 
 ## 近期變更（舊 handoff 尚未完整涵蓋）
 
 ### 2026-09-02 Supabase Auth 與草稿審查工作台
 
-- `db/20260902_audio_annotation_draft_history.sql` 已建立 Auth identity、authenticated-only RPC wrapper、音檔草稿歷史讀取與 `investigators.auth_user_id`。
-- 本次 live migration 已以 `audio_annotation_draft_history_supabase_auth` 套用，remote migration version 為 `20260902062653`；本地 migration 檔仍保留可追溯定義。
-- `get_authenticated_investigator`、音檔來源、音讀草稿保存與草稿歷史的匿名 execute 為 false，authenticated execute 依 wrapper 契約開放。
+- `db/20260902_audio_annotation_draft_history.sql` 建立 Auth identity、音檔草稿歷史與第一批 authenticated-only wrapper；`db/20260902_review_workflow_auth_wrappers.sql` 再把整個 review workflow 的 queue、claim、判定、校對與核准入口改為 Auth-bound wrapper。
+- 本次 live 已套用 `audio_annotation_draft_history_supabase_auth`（remote version `20260902062653`）、`review_workflow_auth_wrappers` 與 `review_workflow_auth_wrapper_grants`；本地 migration 檔保留可追溯定義。
+- 新 public wrappers 均為 `security invoker`，匿名 execute 為 false、authenticated execute 為 true；private helpers 的 schema usage 與 execute 也已收斂為 authenticated。
 - `test2@test.com` 仍是 `investigators` 中啟用的 `audio_assessor`，但本次 live readback 顯示 `auth.users` 尚無此帳號；建立並確認 Auth 使用者後才能做真實登入 smoke test。
 - 前置 `20260828_audio_assessment_history` 已先完成 live readback，與本次 Auth／UI 改動分開處理。
-- 本地 `main` 已完成 Supabase Auth 登入串接、審聽員 draft history 與校對版本歷史 UI；完整 Playwright 回歸以單一 worker 執行為 87/87，尚未 push 或發布靜態前端。
+- 舊的含 `p_actor_account`／`p_assessor_account` review RPC 已撤銷 `anon`／`authenticated` execute，前端送出前會移除 caller-provided actor。
+- 本地 `main` 已完成 Supabase Auth 登入、審聽員 draft history、校對版本歷史 UI 與全 review workflow wrapper；完整 Playwright 回歸以單一 worker 執行為 90/90，尚未 push 或發布靜態前端。
 
 ### 2026-07-15 地名補充資訊
 
@@ -279,7 +280,7 @@ third_phase_places ──► final_tasks
 2026-08-10 已確認：
 
 - 目前 npm／Chromium 環境可用。
-- `npm run test:ui -- --reporter=line --workers=1`：87/87 tests 通過。
+- `npx.cmd playwright test --workers=1 --reporter=line`：90/90 tests 通過。
 
 不要把本地 npm cache、Playwright browser cache 或 `node_modules` commit 進 repo。
 

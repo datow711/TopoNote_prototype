@@ -20,6 +20,16 @@ const audioDraftHistoryMigration = fs.readFileSync(
   path.join(__dirname, '..', 'db', '20260902_audio_annotation_draft_history.sql'),
   'utf8'
 );
+const authWrapperMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260902_review_workflow_auth_wrappers.sql'),
+  'utf8'
+);
+
+
+const authWrapperGrantMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260902_review_workflow_auth_wrapper_grants.sql'),
+  'utf8'
+);
 
 test('audio assessor annotation drafts have isolated permissions and concurrency guards', async () => {
   expect(audioDraftMigration).toContain(
@@ -104,4 +114,51 @@ test('audio assessment history is read-only and assessment writes are append-onl
   expect(historyMigration).toContain('security definer');
   expect(historyMigration).toContain('and coalesce(v_case.assigned_to, \'\') <> p_actor_account');
   expect(historyMigration).toContain('and coalesce(v_case.claim_by, \'\') <> p_actor_account');
+});
+test('all review workflow API entry points are Auth-bound', async () => {
+  const authenticatedRpcNames = [
+    'get_review_workflow_queue_authenticated',
+    'get_audio_review_claims_authenticated',
+    'get_audio_assessment_history_authenticated',
+    'claim_review_case_authenticated',
+    'release_review_case_authenticated',
+    'assign_review_case_authenticated',
+    'save_annotation_version_authenticated',
+    'save_proofing_draft_authenticated',
+    'claim_audio_review_case_authenticated',
+    'release_audio_review_case_authenticated',
+    'submit_audio_assessment_authenticated',
+    'return_review_case_authenticated',
+    'approve_review_case_authenticated'
+  ];
+  authenticatedRpcNames.forEach(rpcName => {
+    expect(authWrapperMigration).toContain(`create or replace function public.${rpcName}(`);
+    expect(authWrapperMigration).toContain(`grant execute on function public.${rpcName}`);
+  });
+  expect(authWrapperMigration).toContain('private.get_authenticated_investigator()');
+  expect(authWrapperMigration).toContain('security invoker');
+  expect(authWrapperMigration).toContain('revoke all on function public.get_review_workflow_queue(text)');
+  expect(authWrapperMigration).toContain('revoke all on function public.submit_audio_assessment(integer, text, integer, text, text, text, jsonb, uuid)');
+  expect(authWrapperMigration).not.toMatch(/grant execute on function public\.(get_review_workflow_queue|claim_review_case|submit_audio_assessment)\([^)]*(actor_account|assessor_account)/);
+});
+test('private Auth helpers have explicit least-privilege grants', async () => {
+  const privateHelperNames = [
+    'get_review_workflow_queue_authenticated',
+    'get_audio_review_claims_authenticated',
+    'get_audio_assessment_history_authenticated',
+    'claim_review_case_authenticated',
+    'release_review_case_authenticated',
+    'assign_review_case_authenticated',
+    'save_annotation_version_authenticated',
+    'save_proofing_draft_authenticated',
+    'claim_audio_review_case_authenticated',
+    'release_audio_review_case_authenticated',
+    'submit_audio_assessment_authenticated',
+    'return_review_case_authenticated',
+    'approve_review_case_authenticated'
+  ];
+  privateHelperNames.forEach(name => {
+    expect(authWrapperGrantMigration).toContain(`revoke all on function private.${name}`);
+    expect(authWrapperGrantMigration).toContain(`grant execute on function private.${name}`);
+  });
 });

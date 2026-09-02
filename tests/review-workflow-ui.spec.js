@@ -1144,3 +1144,31 @@ test('ordinary investigator cannot enter the proofing workbench', async ({ page 
   expect(state.currentTab).toBe('assigned');
   expect(state.alerts[0]).toContain('沒有校對權限');
 });
+test('review workflow RPCs remove caller identity before using Auth-bound endpoints', async ({ page }) => {
+  await page.goto(appUrl);
+  const requests = await page.evaluate(() => [
+    getReviewWorkflowRpcRequest('get_review_workflow_queue', {
+      p_actor_account: 'spoof@example.com'
+    }),
+    getReviewWorkflowRpcRequest('submit_audio_assessment', {
+      p_task_id: 1,
+      p_assessor_account: 'spoof@example.com',
+      p_claim_token: 'token'
+    }),
+    getReviewWorkflowRpcRequest('get_review_workflow_audio_sources', {
+      p_case_id: 1
+    })
+  ]);
+  expect(requests[0]).toEqual({
+    rpcName: 'get_review_workflow_queue_authenticated',
+    body: {}
+  });
+  expect(requests[1]).toEqual({
+    rpcName: 'submit_audio_assessment_authenticated',
+    body: { p_task_id: 1, p_claim_token: 'token' }
+  });
+  expect(requests[2]).toEqual({
+    rpcName: 'get_review_workflow_audio_sources',
+    body: { p_case_id: 1 }
+  });
+});

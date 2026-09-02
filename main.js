@@ -3907,16 +3907,42 @@ function applyFilters() {
     renderPlaceList(sorted);
 }
 
+const AUTHENTICATED_REVIEW_RPC_NAMES = Object.freeze({
+    get_review_workflow_queue: 'get_review_workflow_queue_authenticated',
+    get_audio_review_claims: 'get_audio_review_claims_authenticated',
+    get_audio_assessment_history: 'get_audio_assessment_history_authenticated',
+    claim_review_case: 'claim_review_case_authenticated',
+    release_review_case: 'release_review_case_authenticated',
+    assign_review_case: 'assign_review_case_authenticated',
+    save_annotation_version: 'save_annotation_version_authenticated',
+    save_proofing_draft: 'save_proofing_draft_authenticated',
+    claim_audio_review_case: 'claim_audio_review_case_authenticated',
+    release_audio_review_case: 'release_audio_review_case_authenticated',
+    submit_audio_assessment: 'submit_audio_assessment_authenticated',
+    return_review_case: 'return_review_case_authenticated',
+    approve_review_case: 'approve_review_case_authenticated'
+});
+
+function getReviewWorkflowRpcRequest(rpcName, body) {
+    const authenticatedRpcName = AUTHENTICATED_REVIEW_RPC_NAMES[rpcName];
+    if (!authenticatedRpcName) return { rpcName, body: body || {} };
+    const sanitizedBody = { ...(body || {}) };
+    delete sanitizedBody.p_actor_account;
+    delete sanitizedBody.p_assessor_account;
+    return { rpcName: authenticatedRpcName, body: sanitizedBody };
+}
+
 async function reviewWorkflowRpc(rpcName, body) {
+    const request = getReviewWorkflowRpcRequest(rpcName, body);
     const accessToken = await getSupabaseAuthAccessToken();
-    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${request.rpcName}`, {
         method: 'POST',
         headers: {
             'apikey': CONFIG.SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${accessToken || CONFIG.SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body || {})
+        body: JSON.stringify(request.body || {})
     });
     if (!response.ok) throw new Error(await response.text());
     const text = await response.text();
