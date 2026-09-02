@@ -100,3 +100,33 @@ test('magic link callback shows mandatory password onboarding dialog and acknowl
   await expect(page.locator('#password-onboarding-dialog')).toHaveCount(0);
   expect(acknowledgementBody).toEqual({});
 });
+
+test('stale magic link is rejected before app entry after acknowledgement', async ({ page }) => {
+  let authenticatedRpcCalled = false;
+  await page.route('**/rest/v1/rpc/get_password_onboarding_status', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ password_login_required: true, acknowledged_at: '2026-09-02T00:00:00Z' }])
+    });
+  });
+  await page.route('**/rest/v1/rpc/get_authenticated_investigator', async route => {
+    authenticatedRpcCalled = true;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([])
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(async () => {
+    window.enterApp = async () => { window.__enteredApp = true; };
+    window.location.hash = '#access_token=access-token&refresh_token=refresh-token&expires_in=3600&type=magiclink';
+    await window.restoreSession();
+  });
+
+  expect(authenticatedRpcCalled).toBe(false);
+  expect(await page.evaluate(() => Boolean(window.__enteredApp))).toBe(false);
+  await expect(page.locator('#login-status')).toContainText('登入狀態已失效');
+});

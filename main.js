@@ -1007,11 +1007,17 @@ async function restoreSession() {
         }
         const accessToken = await getSupabaseAuthAccessToken();
         if (!accessToken) throw new Error('Supabase Auth session is missing');
+        const onboardingStatus = emailBootstrapSession
+            ? await getPasswordOnboardingStatus()
+            : null;
+        if (onboardingStatus?.password_login_required === true) {
+            throw new Error('email bootstrap login is no longer available');
+        }
         const freshSession = await fetchAuthenticatedInvestigator();
         await enterApp(freshSession, { persist: false });
         if (emailBootstrapSession) {
             sessionStorage.removeItem(EMAIL_BOOTSTRAP_SESSION_KEY);
-            await maybeShowPasswordOnboardingDialog();
+            await maybeShowPasswordOnboardingDialog(onboardingStatus);
         }
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
@@ -1224,8 +1230,8 @@ async function getPasswordOnboardingStatus() {
     }
     return rows[0];
 }
-async function maybeShowPasswordOnboardingDialog() {
-    const status = await getPasswordOnboardingStatus();
+async function maybeShowPasswordOnboardingDialog(statusOverride = null) {
+    const status = statusOverride || await getPasswordOnboardingStatus();
     if (status.password_login_required === true) {
         throw new Error('email bootstrap login is no longer available');
     }
