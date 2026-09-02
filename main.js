@@ -4673,10 +4673,218 @@ function getReviewWorkflowAudioDraftSourceMeta(row, audioRecordId) {
         + '｜來源版本：' + sourceVersion;
 }
 
+function getReviewWorkflowDraftVersionKindLabel(versionKind) {
+    const key = String(versionKind || '').trim().toLowerCase();
+    if (key === 'draft') return '草稿';
+    if (key === 'legacy') return '既有資料';
+    if (key === 'final') return '定稿';
+    return key ? key : '未標示';
+}
+
+function getReviewWorkflowDraftSourceTypeLabel(sourceType) {
+    const key = String(sourceType || '').trim().toLowerCase();
+    if (key === 'audio_assessor') return '審聽員音讀草稿';
+    if (key === 'satellite') return '衛星書面草稿';
+    if (key === 'app') return '原標注草稿';
+    if (key === 'admin') return '管理員建立';
+    return key ? key : '未標示來源';
+}
+
+function getReviewWorkflowDraftCreatorLabel(account) {
+    const normalizedAccount = String(account || '').trim();
+    if (!normalizedAccount) return '尚無資料';
+    return getUserDisplayName(normalizedAccount) || normalizedAccount;
+}
+
+function renderReviewWorkflowAudioDraftCurrentMeta(row) {
+    const creatorAccount = row?.annotation_created_by || row?.annotation_source_actor || '';
+    const creatorLabel = getReviewWorkflowDraftCreatorLabel(creatorAccount);
+    const creatorTitle = creatorAccount ? '帳號：' + creatorAccount : '';
+    const createdAt = formatReviewWorkflowAudioAssessmentTime(row?.annotation_created_at);
+    const sourceType = getReviewWorkflowDraftSourceTypeLabel(row?.annotation_source_type);
+    return `
+        <div class="review-workflow-audio-draft-meta" data-role="audio-draft-current-meta">
+            <span><strong>建立者</strong>：<span title="${escapeHtml(creatorTitle)}">${escapeHtml(creatorLabel)}</span>${creatorAccount ? `（${escapeHtml(creatorAccount)}）` : ''}</span>
+            <span><strong>建立時間</strong>：${escapeHtml(createdAt)}</span>
+            <span><strong>來源</strong>：${escapeHtml(sourceType)}</span>
+        </div>
+    `;
+}
+
+function renderReviewWorkflowAudioDraftSnapshot(fields, config, className = '') {
+    const normalizedFields = getReviewWorkflowFields({ annotation_fields: fields });
+    const snapshotClass = ['review-workflow-audio-draft-snapshot', className].filter(Boolean).join(' ');
+    return `
+        <div class="${snapshotClass}">
+            ${config.fields.map(field => {
+                const value = String(normalizedFields[field.key] || '').trim();
+                return `
+                    <div class="review-workflow-audio-draft-snapshot-field ${value ? 'has-value' : ''}">
+                        <span>${escapeHtml(field.label)}</span>
+                        <strong>${value ? escapeHtml(value) : '尚未填寫'}</strong>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function getReviewWorkflowDraftChangedFields(value) {
+    if (Array.isArray(value)) return value.filter(Boolean).map(item => String(item));
+    if (typeof value === 'string' && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) return parsed.filter(Boolean).map(item => String(item));
+        } catch (error) {
+            return value.split(',').map(item => item.trim()).filter(Boolean);
+        }
+    }
+    return [];
+}
+
+function isReviewWorkflowCurrentVersion(entry, row) {
+    return entry?.is_current === true
+        || String(entry?.is_current || '').toLowerCase() === 'true'
+        || (Number(entry?.version_no) === Number(row?.current_version_no)
+            && Number(row?.current_version_no || 0) > 0);
+}
+
+function isReviewWorkflowOwnVersion(entry) {
+    return isCurrentUserIdentifier(entry?.created_by)
+        || isCurrentUserIdentifier(entry?.source_actor);
+}
+
+function renderReviewWorkflowAudioDraftHistoryRows(row, rows) {
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    if (!rows.length) {
+        return '<li class="review-workflow-audio-draft-history-empty">目前尚無可顯示的標注版本。</li>';
+    }
+    return rows.map(entry => {
+        const creatorAccount = entry.created_by || entry.source_actor || '';
+        const creatorLabel = getReviewWorkflowDraftCreatorLabel(creatorAccount);
+        const creatorTitle = creatorAccount ? '帳號：' + creatorAccount : '';
+        const current = isReviewWorkflowCurrentVersion(entry, row);
+        const own = isReviewWorkflowOwnVersion(entry);
+        const changedFields = getReviewWorkflowDraftChangedFields(entry.changed_fields);
+        const sourceAudioId = Number(entry.source_audio_record_id);
+        const sourceAudioLabel = Number.isInteger(sourceAudioId) && sourceAudioId > 0
+            ? '音檔 #' + sourceAudioId
+            : '非音檔來源';
+        const tags = [
+            current ? '<span class="review-workflow-audio-draft-history-tag is-current">目前版本</span>' : '',
+            own ? '<span class="review-workflow-audio-draft-history-tag is-own">我的版本</span>' : ''
+        ].filter(Boolean).join('');
+        return `
+            <li class="review-workflow-audio-draft-history-entry ${current ? 'is-current' : ''} ${own ? 'is-own' : ''}">
+                <div class="review-workflow-audio-draft-history-entry-header">
+                    <strong>v${escapeHtml(entry.version_no || '')}｜${escapeHtml(getReviewWorkflowDraftVersionKindLabel(entry.version_kind))}</strong>
+                    <div class="review-workflow-audio-draft-history-tags">${tags}</div>
+                </div>
+                <dl class="review-workflow-audio-draft-history-meta">
+                    <div><dt>建立者</dt><dd title="${escapeHtml(creatorTitle)}">${escapeHtml(creatorLabel)}${creatorAccount ? `（${escapeHtml(creatorAccount)}）` : ''}</dd></div>
+                    <div><dt>建立時間</dt><dd>${escapeHtml(formatReviewWorkflowAudioAssessmentTime(entry.created_at))}</dd></div>
+                    <div><dt>來源</dt><dd>${escapeHtml(getReviewWorkflowDraftSourceTypeLabel(entry.source_type))}｜${escapeHtml(sourceAudioLabel)}</dd></div>
+                    <div><dt>本次變更</dt><dd>${changedFields.length ? escapeHtml(changedFields.join('、')) : '未記錄'}</dd></div>
+                </dl>
+                ${renderReviewWorkflowAudioDraftSnapshot(entry.fields, config, 'is-history')}
+            </li>
+        `;
+    }).join('');
+}
+
+function renderReviewWorkflowAudioDraftHistoryPanel(row) {
+    const caseId = escapeHtml(String(row.case_id));
+    return `
+        <div class="review-workflow-audio-draft-history-toolbar">
+            <button type="button" class="review-workflow-history-btn" data-role="audio-draft-history-toggle"
+                onclick="toggleReviewWorkflowAudioDraftHistory(${row.case_id}, this)"
+                aria-expanded="false" aria-controls="review-workflow-audio-draft-history-${caseId}">檢視標注版本歷史</button>
+            <span>可辨認每一版建立者、時間與來源音檔。</span>
+        </div>
+        <section class="review-workflow-audio-draft-history hidden" id="review-workflow-audio-draft-history-${caseId}"
+            data-role="audio-draft-history" aria-label="標注版本歷史">
+            <div class="review-workflow-audio-draft-history-header">
+                <strong>標注版本歷史</strong>
+                <span>歷史版本僅供查看，不會直接覆蓋目前草稿。</span>
+            </div>
+            <div class="review-workflow-audio-draft-history-message" data-role="audio-draft-history-message" aria-live="polite">展開後載入版本歷史。</div>
+            <ol class="review-workflow-audio-draft-history-list" data-role="audio-draft-history-list"></ol>
+        </section>
+    `;
+}
+
+async function loadReviewWorkflowAudioDraftHistory(caseId, panel, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const message = panel?.querySelector('[data-role="audio-draft-history-message"]');
+    const list = panel?.querySelector('[data-role="audio-draft-history-list"]');
+    if (!row || !panel || !message || !list || panel.dataset.historyLoading === 'true') return;
+    if (Array.isArray(row.audio_annotation_history)) {
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(row, row.audio_annotation_history);
+        message.textContent = `共 ${row.audio_annotation_history.length} 個版本。`;
+        message.classList.remove('is-error');
+        panel.dataset.historyLoaded = 'true';
+        return;
+    }
+    panel.dataset.historyLoading = 'true';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '載入中...';
+    }
+    message.textContent = '正在讀取標注版本歷史...';
+    message.classList.remove('is-error');
+    list.innerHTML = '';
+    try {
+        const result = await reviewWorkflowRpc('get_audio_annotation_draft_history', {
+            p_case_id: Number(caseId),
+            p_actor_account: state.userId
+        });
+        const history = Array.isArray(result)
+            ? result
+            : Array.isArray(result?.data) ? result.data : [];
+        row.audio_annotation_history = history;
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(row, history);
+        message.textContent = `共 ${history.length} 個版本。`;
+        panel.dataset.historyLoaded = 'true';
+    } catch (error) {
+        message.textContent = '標注版本歷史讀取失敗：' + error.message;
+        message.classList.add('is-error');
+    } finally {
+        delete panel.dataset.historyLoading;
+        if (button) {
+            button.disabled = false;
+            button.textContent = panel.classList.contains('hidden') ? '檢視標注版本歷史' : '收合版本歷史';
+        }
+    }
+}
+
+async function toggleReviewWorkflowAudioDraftHistory(caseId, button) {
+    if (!isReviewWorkflowRole()) return;
+    const panel = button?.closest('[data-review-audio-draft-panel], .review-workflow-audio-draft-panel');
+    const historyPanel = panel?.querySelector('[data-role="audio-draft-history"]');
+    if (!historyPanel) return;
+    const isOpen = !historyPanel.classList.contains('hidden');
+    if (isOpen) {
+        historyPanel.classList.add('hidden');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = '檢視標注版本歷史';
+        return;
+    }
+    historyPanel.classList.remove('hidden');
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = '收合版本歷史';
+    await loadReviewWorkflowAudioDraftHistory(caseId, historyPanel, button);
+}
+
 function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
     const languageKey = getReviewLanguageKey(row.language);
     const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
     const usableEvidence = getReviewWorkflowUsableAudioEvidence(row);
+    const currentFields = getReviewWorkflowFields(row);
+    const hasCurrentFields = hasReviewWorkflowAudioDraftValues(currentFields);
+    const currentSnapshot = renderReviewWorkflowAudioDraftSnapshot(currentFields, config, 'is-current');
+    const currentMeta = renderReviewWorkflowAudioDraftCurrentMeta(row);
+    const historyPanel = renderReviewWorkflowAudioDraftHistoryPanel(row);
     if (!canAnnotate) {
         const reason = row?.state === '已完成'
             ? '案件已完成，不能再建立音讀標注草稿。'
@@ -4692,13 +4900,18 @@ function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
                         <h4>音讀標注草稿</h4>
                         <span>案件層草稿，不為每個音檔建立獨立版本。</span>
                     </div>
+                    <span class="review-workflow-audio-draft-version">目前版本：v${escapeHtml(row.current_version_no || 0)}</span>
                 </div>
+                ${currentMeta}
+                <div class="review-workflow-audio-draft-current">
+                    <strong>目前草稿內容</strong>
+                    ${hasCurrentFields ? currentSnapshot : '<div class="review-workflow-empty">目前尚無標注草稿內容。</div>'}
+                </div>
+                ${historyPanel}
                 <p class="review-workflow-audio-draft-note">${escapeHtml(reason)}</p>
             </section>
         `;
     }
-
-    const currentFields = getReviewWorkflowFields(row);
     const selectedAudioId = usableEvidence[0]?.audio_record_id || '';
     const sourceOptions = usableEvidence.map(item => `
         <option value="${escapeHtml(String(item.audio_record_id))}">
@@ -4910,7 +5123,10 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
         row.current_version_no = saved?.version_no ?? (Number(row.current_version_no || 0) + 1);
         row.version_kind = saved?.version_kind || 'draft';
         row.annotation_source_type = saved?.source_type || 'audio_assessor';
-        row.annotation_created_by = saved?.source_actor || state.userId;
+        row.annotation_source_actor = saved?.source_actor || state.userId;
+        row.annotation_created_by = saved?.source_actor || saved?.created_by || state.userId;
+        row.annotation_created_at = saved?.created_at || row.annotation_created_at || '';
+        row.annotation_source_stamp = saved?.source_stamp || row.annotation_source_stamp || '';
         const languageKey = getReviewLanguageKey(row.language);
         const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
         config.fields.forEach(field => {
@@ -4919,6 +5135,25 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
         });
         const versionElement = panel.querySelector('[data-role="audio-draft-current-version"]');
         if (versionElement) versionElement.textContent = '目前版本：v' + row.current_version_no;
+        const metaElement = panel.querySelector('[data-role="audio-draft-current-meta"]');
+        if (metaElement) metaElement.outerHTML = renderReviewWorkflowAudioDraftCurrentMeta(row);
+        delete row.audio_annotation_history;
+        const historyPanel = panel.querySelector('[data-role="audio-draft-history"]');
+        if (historyPanel) {
+            delete historyPanel.dataset.historyLoaded;
+            const historyMessage = historyPanel.querySelector('[data-role="audio-draft-history-message"]');
+            const historyList = historyPanel.querySelector('[data-role="audio-draft-history-list"]');
+            if (historyMessage) historyMessage.textContent = '草稿已更新，正在重新整理版本歷史...';
+            if (historyMessage) historyMessage.classList.remove('is-error');
+            if (historyList) historyList.innerHTML = '';
+            if (!historyPanel.classList.contains('hidden')) {
+                await loadReviewWorkflowAudioDraftHistory(
+                    caseId,
+                    historyPanel,
+                    panel.querySelector('[data-role="audio-draft-history-toggle"]')
+                );
+            }
+        }
         setReviewWorkflowAudioDraftMessage(panel, '已保存為校對草稿，尚未回寫正式資料。', false, true);
         panel.dataset.messageLock = 'true';
     } catch (error) {

@@ -602,6 +602,107 @@ test('audio assessor can save a case-level annotation draft from a usable audio 
   expect(panelWidth.scrollWidth).toBeLessThanOrEqual(panelWidth.clientWidth);
 });
 
+test('audio assessor can inspect current draft and all versions without an audio claim', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      if (rpcName === 'get_audio_annotation_draft_history') {
+        return [
+          {
+            id: 201, case_id: 90, version_no: 3, version_kind: 'draft',
+            fields: { TaiHan1: '目前漢字', TL1: 'tse2', TaiNote: '目前備註' },
+            created_by: 'una.cheng113@gmail.com', source_type: 'audio_assessor',
+            source_actor: 'una.cheng113@gmail.com', created_at: '2026-09-01T01:02:03Z',
+            source_audio_record_id: 902, changed_fields: ['TaiHan1', 'TL1'], is_current: true
+          },
+          {
+            id: 200, case_id: 90, version_no: 2, version_kind: 'draft',
+            fields: { TaiHan1: '共同漢字', TL1: 'tse1' },
+            created_by: 'other@example.com', source_type: 'audio_assessor',
+            source_actor: 'other@example.com', created_at: '2026-08-31T01:02:03Z',
+            source_audio_record_id: 901, changed_fields: ['TaiHan1', 'TL1'], is_current: false
+          },
+          {
+            id: 199, case_id: 90, version_no: 1, version_kind: 'draft',
+            fields: { TaiHan1: '我的漢字', TL1: 'tse0' },
+            created_by: 'test2@test.com', source_type: 'audio_assessor',
+            source_actor: 'test2@test.com', created_at: '2026-08-30T01:02:03Z',
+            source_audio_record_id: 900, changed_fields: ['TaiHan1'], is_current: false
+          }
+        ];
+      }
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.reviewWorkbenchMode = 'audio';
+    state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioFlagFilter = 'all';
+    state.reviewWorkflowAudioClaimFilter = 'all';
+    state.reviewWorkflowAudioKeyword = '';
+    state.userRole = 'audio_assessor';
+    state.userId = 'test2@test.com';
+    state.userName = '林聽聽';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 90, task_id: 90, language: '台語', place_name: '草稿歷史檢視',
+      county: '臺北市', town: '北投區', class_name: '錄音標注', state: '錄音標注中',
+      current_version_no: 3, version_kind: 'draft',
+      annotation_fields: { TaiHan1: '目前漢字', TL1: 'tse2', TaiNote: '目前備註' },
+      annotation_created_by: 'una.cheng113@gmail.com',
+      annotation_source_actor: 'una.cheng113@gmail.com',
+      annotation_source_type: 'audio_assessor',
+      annotation_created_at: '2026-09-01T01:02:03Z',
+      audio_claim_by: null, audio_claim_token: null, audio_claim_until: null,
+      audio_record_count: 1, assessed_audio_count: 1, usable_audio_count: 1,
+      audio_review_state: '已判定',
+      audio_evidence: [{
+        audio_record_id: 902, audio_file_id: 'drive-902', recorder_name: '錄音人甲',
+        assessment_decision: '可用', needs_followup: false, assessed_at: '2026-09-01T01:00:00Z'
+      }],
+      audio_sources_loaded: true,
+      audio_sources: [{ audio_record_id: 902, annotations: { taihan: '來源漢字', tl1: '來源音讀' } }]
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  const panel = page.locator('.review-workflow-audio-draft-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('目前草稿內容');
+  await expect(panel.locator('.review-workflow-audio-draft-snapshot.is-current')).toContainText('目前漢字');
+  await expect(panel.locator('[data-role="audio-draft-current-meta"]')).toContainText('una.cheng113@gmail.com');
+  await expect(panel.locator('[data-role="audio-draft-current-meta"]')).toContainText('2026');
+  await expect(panel.locator('input, textarea, select')).toHaveCount(0);
+  await expect(panel.locator('[data-action="save-audio-draft"]')).toHaveCount(0);
+
+  const historyToggle = panel.locator('[data-role="audio-draft-history-toggle"]');
+  await historyToggle.click();
+  await expect(panel.locator('[data-role="audio-draft-history"]')).toBeVisible();
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry')).toHaveCount(3);
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry.is-current')).toHaveCount(1);
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry.is-own')).toHaveCount(1);
+  await expect(panel.locator('.review-workflow-audio-draft-history-tag.is-own')).toHaveCount(1);
+  await expect(panel.locator('.review-workflow-audio-draft-history-tag.is-current')).toHaveCount(1);
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry').first()).toContainText('v3');
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry.is-own')).toContainText('我的漢字');
+  await page.waitForFunction(() => window.__workflowCalls.length === 1);
+  const call = await page.evaluate(() => window.__workflowCalls[0]);
+  expect(call.rpcName).toBe('get_audio_annotation_draft_history');
+  expect(call.body.p_case_id).toBe(90);
+  expect(call.body.p_actor_account).toBe('test2@test.com');
+
+  await historyToggle.click();
+  await historyToggle.click();
+  await expect(panel.locator('.review-workflow-audio-draft-history-entry')).toHaveCount(3);
+  expect(await page.evaluate(() => window.__workflowCalls.length)).toBe(1);
+  const panelWidth = await panel.evaluate(element => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+  expect(panelWidth.scrollWidth).toBeLessThanOrEqual(panelWidth.clientWidth);
+});
+
 test('proofreader sees editable draft and workflow actions', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);

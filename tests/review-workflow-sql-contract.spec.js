@@ -16,6 +16,11 @@ const audioDraftMigration = fs.readFileSync(
   'utf8'
 );
 
+const audioDraftHistoryMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260902_audio_annotation_draft_history.sql'),
+  'utf8'
+);
+
 test('audio assessor annotation drafts have isolated permissions and concurrency guards', async () => {
   expect(audioDraftMigration).toContain(
     'create or replace function public.save_audio_annotation_draft('
@@ -43,6 +48,25 @@ test('audio assessor annotation drafts have isolated permissions and concurrency
   expect(audioDraftMigration).toContain('revoke all on function public.save_audio_annotation_draft');
   expect(audioDraftMigration).toContain("v_role not in ('admin', 'proofreader', 'audio_assessor')");
   expect(audioDraftMigration).toContain('active audio claim required');
+});
+
+test('audio annotation draft history is read-only and exposes ownership metadata', async () => {
+  expect(audioDraftHistoryMigration).toContain(
+    'create or replace function public.get_audio_annotation_draft_history('
+  );
+  expect(audioDraftHistoryMigration).toContain('source_audio_record_id integer');
+  expect(audioDraftHistoryMigration).toContain('changed_fields text[]');
+  expect(audioDraftHistoryMigration).toContain('is_current boolean');
+  expect(audioDraftHistoryMigration).toContain("v_role not in ('admin', 'proofreader', 'audio_assessor')");
+  expect(audioDraftHistoryMigration).toContain('audio case visibility required');
+  expect(audioDraftHistoryMigration).toContain('assigned or claimed proofing case required');
+  expect(audioDraftHistoryMigration).toContain('left join lateral');
+  expect(audioDraftHistoryMigration).toContain("pe.action = 'audio_annotation_draft'");
+  expect(audioDraftHistoryMigration).toContain('revoke all on function public.get_audio_annotation_draft_history');
+  expect(audioDraftHistoryMigration).toContain('grant execute on function public.get_audio_annotation_draft_history');
+  expect(audioDraftHistoryMigration).toContain('security definer');
+  expect(audioDraftHistoryMigration).not.toMatch(/insert into public\.(annotation_versions|proofing_events)/i);
+  expect(audioDraftHistoryMigration).not.toMatch(/update public\.(annotation_versions|proofing_events)/i);
 });
 
 test('audio assessment history is read-only and assessment writes are append-only', async () => {
