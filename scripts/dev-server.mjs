@@ -22,8 +22,13 @@ function resolveRequestPath(urlPath) {
   const safeSegments = requestedPath
     .split('/')
     .filter(segment => segment && segment !== '.' && segment !== '..');
-  const filePath = resolve(root, ...safeSegments);
-  return filePath.startsWith(root + sep) || filePath === root ? filePath : null;
+  let filePath = resolve(root, ...safeSegments);
+  if (filePath === root) {
+    filePath = resolve(root, 'index.html');
+  } else if (filePath.startsWith(root + sep) && existsSync(filePath) && statSync(filePath).isDirectory()) {
+    filePath = resolve(filePath, 'index.html');
+  }
+  return filePath.startsWith(root + sep) ? filePath : null;
 }
 
 const server = createServer((req, res) => {
