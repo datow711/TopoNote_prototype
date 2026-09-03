@@ -86,7 +86,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.claim_review_case(p_case_id, v_user.account) into v_result;
+  select * into v_result from public.claim_review_case(p_case_id, v_user.account);
   return v_result;
 end;
 $function$;
@@ -105,7 +105,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.release_review_case(p_case_id, v_user.account, p_claim_token) into v_result;
+  select * into v_result from public.release_review_case(p_case_id, v_user.account, p_claim_token);
   return v_result;
 end;
 $function$;
@@ -124,7 +124,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.assign_review_case(p_case_id, p_assignee, v_user.account) into v_result;
+  select * into v_result from public.assign_review_case(p_case_id, p_assignee, v_user.account);
   return v_result;
 end;
 $function$;
@@ -144,9 +144,9 @@ declare
   v_result public.annotation_versions;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.save_annotation_version(
+  select * into v_result from public.save_annotation_version(
     p_case_id, v_user.account, p_fields, p_claim_token
-  ) into v_result;
+  );
   return v_result;
 end;
 $function$;
@@ -165,7 +165,7 @@ declare
   v_result public.proofing_events;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.save_proofing_draft(
+  select * into v_result from public.save_proofing_draft(
     p_case_id, v_user.account, coalesce(p_payload, '{}'::jsonb)
   ) into v_result;
   return v_result;
@@ -185,7 +185,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.claim_audio_review_case(p_case_id, v_user.account) into v_result;
+  select * into v_result from public.claim_audio_review_case(p_case_id, v_user.account);
   return v_result;
 end;
 $function$;
@@ -204,7 +204,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.release_audio_review_case(
+  select * into v_result from public.release_audio_review_case(
     p_case_id, v_user.account, p_claim_token
   ) into v_result;
   return v_result;
@@ -230,7 +230,7 @@ declare
   v_result public.audio_assessments;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.submit_audio_assessment(
+  select * into v_result from public.submit_audio_assessment(
     p_task_id, p_language, p_audio_record_id, v_user.account,
     p_respondent_key, p_decision, p_metadata, p_claim_token
   ) into v_result;
@@ -256,7 +256,7 @@ declare
   v_result public.annotation_cases;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.return_review_case(
+  select * into v_result from public.return_review_case(
     p_case_id, v_user.account, p_claim_token, p_return_annotation,
     p_return_audio, coalesce(p_annotation_reason, ''),
     coalesce(p_audio_reason, '')
@@ -279,7 +279,7 @@ declare
   v_result public.writeback_jobs;
 begin
   select * into v_user from private.get_authenticated_investigator();
-  select public.approve_review_case(
+  select * into v_result from public.approve_review_case(
     p_case_id, v_user.account, p_claim_token
   ) into v_result;
   return v_result;
