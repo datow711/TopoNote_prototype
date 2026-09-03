@@ -1174,7 +1174,7 @@ async function startEmailBootstrapLogin() {
             identifier,
             requestedAt: Date.now()
         }));
-        status.innerText = '若此帳號符合首次導入條件，登入連結已寄出；請到信箱點擊連結。';
+        status.innerText = '登入連結已寄出。請到信箱收信並點擊連結；若沒有看到，請檢查垃圾信件匣。';
         status.style.color = '#2c3e50';
     } catch (error) {
         console.error('申請 Email 首次登入失敗:', error);
@@ -1183,7 +1183,7 @@ async function startEmailBootstrapLogin() {
     } finally {
         if (button) {
             button.disabled = false;
-            button.innerText = '首次使用 Email 登入';
+            button.innerText = '取得密碼信';
         }
     }
 }
@@ -1313,7 +1313,7 @@ async function login() {
         loadingText: '驗證登入中...',
         resetText: '進入我的任務',
         missingMessage: '請輸入 Email 或使用者名稱',
-        passwordMessage: '請輸入 Supabase Auth 登入密碼',
+        passwordMessage: '請輸入登入密碼',
         failedMessage: '一般調查員登入資訊錯誤'
     });
 }
@@ -1325,7 +1325,7 @@ async function loginAdmin() {
         loadingText: '驗證管理登入中...',
         resetText: '進入管理模式',
         missingMessage: '請輸入 Email 或使用者名稱',
-        passwordMessage: '請輸入管理者 Supabase Auth 登入密碼',
+        passwordMessage: '請輸入管理者登入密碼',
         failedMessage: '管理者登入資訊錯誤'
     });
 }
@@ -1337,12 +1337,45 @@ function getLoginEmail() {
     return getLoginIdentifier();
 }
 
+function closeMissingPasswordDialog() {
+    document.getElementById("missing-password-dialog")?.remove();
+}
+
+function showMissingPasswordDialog() {
+    if (document.getElementById("missing-password-dialog")) return;
+    const dialog = document.createElement("div");
+    dialog.id = "missing-password-dialog";
+    dialog.className = "dialog-backdrop";
+    dialog.innerHTML = `
+        <div class="dialog-panel auth-bootstrap-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="missing-password-title">
+            <h3 id="missing-password-title">需要密碼登入</h3>
+            <p>系統已轉換為需要密碼登入，若尚未設定，請點選下方「取得密碼信」按鈕。</p>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" data-action="close">稍後再說</button>
+                <button class="btn-primary" type="button" data-action="get-email">取得密碼信</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector("[data-action=close]")?.addEventListener("click", closeMissingPasswordDialog);
+    dialog.querySelector("[data-action=get-email]")?.addEventListener("click", async () => {
+        closeMissingPasswordDialog();
+        await startEmailBootstrapLogin();
+    });
+}
 async function performSupabaseAuthLogin({ passwordElementId, expectedRole, button,
     loadingText, resetText, missingMessage, passwordMessage, failedMessage }) {
     const identifier = getLoginIdentifier();
     const password = document.getElementById(passwordElementId)?.value || '';
     if (!identifier) return alert(missingMessage);
-    if (!password) return alert(passwordMessage);
+    if (!password) {
+        if (passwordElementId === 'auth-password') {
+            showMissingPasswordDialog();
+        } else {
+            alert(passwordMessage);
+        }
+        return;
+    }
     const status = document.getElementById('login-status');
     status.innerText = '';
     clearSession();

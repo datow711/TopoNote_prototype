@@ -26,6 +26,30 @@ test('email bootstrap contract is server-gated and uses a real Auth email flow',
   expect(edgeFunction).toContain('return jsonResponse({ ok: true })');
 });
 
+test("missing password shows guidance dialog and can start email bootstrap", async ({ page }) => {
+  let requestBody = null;
+  await page.route("**/functions/v1/auth-email-bootstrap", async route => {
+    requestBody = JSON.parse(route.request().postData() || "{}");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true })
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.evaluate(async () => {
+    document.getElementById("email").value = "liz462";
+    await window.login();
+  });
+
+  await expect(page.locator("#missing-password-dialog")).toBeVisible();
+  await expect(page.locator("#missing-password-dialog")).toContainText("系統已轉換為需要密碼登入，若尚未設定，請點選下方「取得密碼信」按鈕。");
+  await expect(page.locator("#missing-password-dialog [data-action=get-email]")).toHaveText("取得密碼信");
+  await page.locator("#missing-password-dialog [data-action=get-email]").click();
+
+  expect(requestBody).toEqual({ identifier: "liz462" });
+});
 test('email bootstrap request sends only the identifier and does not create a session locally', async ({ page }) => {
   let requestBody = null;
   await page.route('**/functions/v1/auth-email-bootstrap', async route => {

@@ -185,7 +185,10 @@
             <h2 id="preview-login-title">第一次登入？請先到信箱收信</h2>
             <label class="preview-label" for="preview-identifier">Email 或使用者名稱</label>
             <input id="preview-identifier" type="text" value="test2@test.com" autocomplete="off">
-            <button class="btn-secondary" type="button" id="preview-send-btn">首次登入：寄送 Email 連結</button>
+            <label class="preview-label" for="preview-password">登入密碼</label>
+            <input id="preview-password" type="password" placeholder="登入密碼" autocomplete="off">
+            <button class="btn-primary" type="button" id="preview-login-btn">進入我的任務</button>
+            <button class="btn-secondary" type="button" id="preview-send-btn">取得密碼信</button>
 
             <div class="preview-status" id="preview-status" role="status" hidden>
                 <strong>登入連結已寄出</strong>
@@ -200,6 +203,16 @@
         </section>
     </main>
 
+    <div class="preview-dialog" id="missing-password-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="missing-password-preview-title" hidden>
+        <div class="preview-dialog-panel">
+            <h2 id="missing-password-preview-title">需要密碼登入</h2>
+            <p>系統已轉換為需要密碼登入，若尚未設定，請點選下方「取得密碼信」按鈕。</p>
+            <div class="preview-dialog-actions">
+                <button class="btn-secondary" type="button" id="preview-missing-close-btn">稍後再說</button>
+                <button class="btn-primary" type="button" id="preview-missing-email-btn">取得密碼信</button>
+            </div>
+        </div>
+    </div>
     <div class="preview-dialog" id="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-dialog-title" hidden>
         <div class="preview-dialog-panel">
             <h2 id="preview-dialog-title">請記下共用登入密碼</h2>
@@ -217,12 +230,33 @@
 
     <script>
         const identifierInput = document.getElementById('preview-identifier');
+        const passwordInput = document.getElementById('preview-password');
+        const loginButton = document.getElementById('preview-login-btn');
+        const missingPasswordDialog = document.getElementById('missing-password-preview-dialog');
+        const missingPasswordCloseButton = document.getElementById('preview-missing-close-btn');
+        const missingPasswordEmailButton = document.getElementById('preview-missing-email-btn');
         const sendButton = document.getElementById('preview-send-btn');
         const status = document.getElementById('preview-status');
         const nextStep = document.getElementById('preview-next-step');
         const linkButton = document.getElementById('preview-link-btn');
         const dialog = document.getElementById('preview-dialog');
         const confirmButton = document.getElementById('preview-confirm-btn');
+
+        loginButton.addEventListener('click', () => {
+            if (!passwordInput.value.trim()) {
+                missingPasswordDialog.hidden = false;
+                missingPasswordCloseButton.focus();
+            }
+        });
+
+        missingPasswordCloseButton.addEventListener('click', () => {
+            missingPasswordDialog.hidden = true;
+        });
+
+        missingPasswordEmailButton.addEventListener('click', () => {
+            missingPasswordDialog.hidden = true;
+            sendButton.focus();
+        });
 
         sendButton.addEventListener('click', () => {
             if (!identifierInput.value.trim()) {
@@ -231,7 +265,7 @@
             }
             status.hidden = false;
             nextStep.hidden = false;
-            sendButton.textContent = '重新寄送 Email 連結';
+            sendButton.textContent = '重新取得密碼信';
         });
 
         linkButton.addEventListener('click', () => {
