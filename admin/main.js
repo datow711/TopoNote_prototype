@@ -118,7 +118,11 @@ let tutorialState = null;
 
 const SESSION_KEY = 'toponote_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SUPABASE_AUTH_SESSION_KEY = 'toponote_supabase_auth_session';
+const SUPABASE_AUTH_REFRESH_SKEW_MS = 60 * 1000;
 const USER_LABEL_SELECT = 'id,account,role,is_active,name,email,phone';
+const EMAIL_BOOTSTRAP_PENDING_KEY = 'toponote_email_bootstrap_pending';
+const EMAIL_BOOTSTRAP_SESSION_KEY = 'toponote_email_bootstrap_session';
 const USER_PROFILE_SELECT = [
     USER_LABEL_SELECT,
     'languages',
@@ -950,21 +954,75 @@ function getSavedSession() {
     }
 }
 
+function consumeSupabaseAuthCallback() {
+    const rawHash = String(window.location.hash || '').replace(/^#/, '');
+    if (!rawHash) return null;
+
+    const params = new URLSearchParams(rawHash);
+    const errorDescription = params.get('error_description') || params.get('error');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (!accessToken || !refreshToken) {
+        if (!errorDescription) return null;
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        return { error: errorDescription };
+    }
+
+    const session = saveSupabaseAuthSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: Number(params.get('expires_in') || 3600),
+        expires_at: Number(params.get('expires_at') || 0),
+        token_type: params.get('token_type') || 'bearer'
+    });
+    const isEmailBootstrap = params.get('type') === 'magiclink'
+        || Boolean(localStorage.getItem(EMAIL_BOOTSTRAP_PENDING_KEY));
+    if (isEmailBootstrap) sessionStorage.setItem(EMAIL_BOOTSTRAP_SESSION_KEY, '1');
+    localStorage.removeItem(EMAIL_BOOTSTRAP_PENDING_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    return { session, isEmailBootstrap };
+}
 async function restoreSession() {
+    const authCallback = consumeSupabaseAuthCallback();
+    if (authCallback?.error) {
+        const callbackStatus = document.getElementById('login-status');
+        callbackStatus.innerText = 'Email login link expired; please request a new one-time login link.';
+        callbackStatus.style.color = 'red';
+        return;
+    }
+    const authSession = authCallback?.session || getSavedSupabaseAuthSession();
+    const emailBootstrapSession = Boolean(authCallback?.isEmailBootstrap
+        || sessionStorage.getItem(EMAIL_BOOTSTRAP_SESSION_KEY));
     const session = getSavedSession();
-    if (!session) return;
+    if (!authSession && !session) return;
 
     const status = document.getElementById('login-status');
     status.innerText = '正在恢復登入狀態...';
     status.style.color = '#2c3e50';
 
     try {
-        const account = session.account || session.user_name;
-        const freshSession = await fetchSessionUser(account, session.role);
-        await enterApp({ ...session, ...freshSession }, { persist: false });
+        if (!authSession) {
+            clearSession();
+            throw new Error('請使用 Supabase Auth 重新登入');
+        }
+        const accessToken = await getSupabaseAuthAccessToken();
+        if (!accessToken) throw new Error('Supabase Auth session is missing');
+        const onboardingStatus = emailBootstrapSession
+            ? await getPasswordOnboardingStatus()
+            : null;
+        if (onboardingStatus?.password_login_required === true) {
+            throw new Error('email bootstrap login is no longer available');
+        }
+        const freshSession = await fetchAuthenticatedInvestigator();
+        await enterApp(freshSession, { persist: false });
+        if (emailBootstrapSession) {
+            sessionStorage.removeItem(EMAIL_BOOTSTRAP_SESSION_KEY);
+            await maybeShowPasswordOnboardingDialog(onboardingStatus);
+        }
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
         clearSession();
+        clearSupabaseAuthSession();
         status.innerText = '登入狀態已失效，請重新登入。';
         status.style.color = 'red';
     }
@@ -999,6 +1057,243 @@ async function fetchSessionUser(account, role) {
     };
 }
 
+function getSavedSupabaseAuthSession() {
+    try {
+        const raw = localStorage.getItem(SUPABASE_AUTH_SESSION_KEY);
+        if (!raw) return null;
+        const session = JSON.parse(raw);
+        if (!session || !session.access_token || !session.refresh_token) {
+            clearSupabaseAuthSession();
+            return null;
+        }
+        return session;
+    } catch (error) {
+        clearSupabaseAuthSession();
+        return null;
+    }
+}
+function saveSupabaseAuthSession(session) {
+    const expiresAt = Number(session.expires_at)
+        || Math.floor(Date.now() / 1000) + Number(session.expires_in || 3600);
+    const savedSession = {
+        ...session,
+        expires_at: expiresAt
+    };
+    localStorage.setItem(SUPABASE_AUTH_SESSION_KEY, JSON.stringify(savedSession));
+    return savedSession;
+}
+function clearSupabaseAuthSession() {
+    localStorage.removeItem(SUPABASE_AUTH_SESSION_KEY);
+}
+async function supabaseAuthRequest(path, body, accessToken = '') {
+    const headers = {
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body || {})
+    });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || `Supabase Auth request failed (${response.status})`);
+    }
+    return payload;
+}
+async function supabaseIdentifierLoginRequest(identifier, password) {
+    const response = await fetch(CONFIG.SUPABASE_AUTH_IDENTIFIER_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ identifier, password })
+    });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || 'Identifier Auth request failed (' + response.status + ')');
+    }
+    return payload;
+}
+async function signInWithSupabaseAuth(identifier, password) {
+    const session = await supabaseIdentifierLoginRequest(identifier, password);
+    if (!session.access_token || !session.refresh_token) {
+        throw new Error('Supabase Auth did not return a session');
+    }
+    return saveSupabaseAuthSession(session);
+}
+let authRefreshPromise = null;
+async function requestEmailBootstrapLogin(identifier) {
+    const response = await fetch(CONFIG.SUPABASE_AUTH_EMAIL_BOOTSTRAP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier })
+    });
+    const responseText = await response.text();
+    let payload = {};
+    try {
+        payload = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        payload = { message: responseText };
+    }
+    if (!response.ok) {
+        throw new Error(payload.error_description || payload.msg || payload.message
+            || 'Email 登入申請失敗 (' + response.status + ')');
+    }
+    return payload;
+}
+
+async function startEmailBootstrapLogin() {
+    const identifier = getLoginIdentifier();
+    const button = document.getElementById('email-bootstrap-btn');
+    const status = document.getElementById('login-status');
+    if (!identifier) return alert('請輸入 Email 或使用者名稱');
+    if (button) {
+        button.disabled = true;
+        button.innerText = '寄送登入連結中...';
+    }
+    status.innerText = '';
+    try {
+        await requestEmailBootstrapLogin(identifier);
+        localStorage.setItem(EMAIL_BOOTSTRAP_PENDING_KEY, JSON.stringify({
+            identifier,
+            requestedAt: Date.now()
+        }));
+        status.innerText = '登入連結已寄出。請到信箱收信並點擊連結；若沒有看到，請檢查垃圾信件匣。';
+        status.style.color = '#2c3e50';
+    } catch (error) {
+        console.error('申請 Email 首次登入失敗:', error);
+        status.innerText = '❌ 目前無法寄出 Email 登入連結，請稍後再試。';
+        status.style.color = 'red';
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerText = '取得密碼信';
+        }
+    }
+}
+
+async function refreshSupabaseAuthSession() {
+    if (authRefreshPromise) return authRefreshPromise;
+    const current = getSavedSupabaseAuthSession();
+    if (!current?.refresh_token) return null;
+    authRefreshPromise = supabaseAuthRequest('token?grant_type=refresh_token', {
+        refresh_token: current.refresh_token
+    }).then(refreshed => saveSupabaseAuthSession({
+        ...current,
+        ...refreshed,
+        refresh_token: refreshed.refresh_token || current.refresh_token
+    })).catch(error => {
+        clearSupabaseAuthSession();
+        throw error;
+    }).finally(() => {
+        authRefreshPromise = null;
+    });
+    return authRefreshPromise;
+}
+async function getSupabaseAuthAccessToken() {
+    const session = getSavedSupabaseAuthSession();
+    if (!session) return null;
+    const expiresAt = Number(session.expires_at || 0) * 1000;
+    if (expiresAt && Date.now() + SUPABASE_AUTH_REFRESH_SKEW_MS < expiresAt) {
+        return session.access_token;
+    }
+    const refreshed = await refreshSupabaseAuthSession();
+    return refreshed?.access_token || null;
+}
+async function fetchAuthenticatedInvestigator() {
+    const users = await reviewWorkflowRpc('get_authenticated_investigator', {});
+    if (!Array.isArray(users) || users.length === 0) {
+        throw new Error('Auth account is not linked to an active investigator');
+    }
+    return users[0];
+}
+async function getPasswordOnboardingStatus() {
+    const rows = await reviewWorkflowRpc('get_password_onboarding_status', {});
+    if (!Array.isArray(rows) || rows.length === 0) {
+        throw new Error('password onboarding status is unavailable');
+    }
+    return rows[0];
+}
+async function maybeShowPasswordOnboardingDialog(statusOverride = null) {
+    const status = statusOverride || await getPasswordOnboardingStatus();
+    if (status.password_login_required === true) {
+        throw new Error('email bootstrap login is no longer available');
+    }
+    if (document.getElementById('password-onboarding-dialog')) return;
+
+    const dialog = document.createElement('div');
+    dialog.id = 'password-onboarding-dialog';
+    dialog.className = 'dialog-backdrop';
+    dialog.innerHTML = `
+        <div class="dialog-panel auth-bootstrap-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="password-onboarding-title">
+            <h3 id="password-onboarding-title">請記下共用登入密碼</h3>
+            <p>你剛完成首次 Email 驗證登入。從下一次新的登入工作階段開始，必須輸入自己的 Email／使用者名稱與管理員提供的共用密碼。</p>
+            <div class="auth-bootstrap-password-note">
+                請現在向管理員取得並記下共用密碼。為避免密碼在畫面或瀏覽器紀錄中外洩，此視窗不顯示密碼。
+            </div>
+            <p>記下密碼後，請按下確認。確認前請不要關閉這個視窗。</p>
+            <div class="auth-bootstrap-dialog-status" id="password-onboarding-status" aria-live="polite"></div>
+            <div class="dialog-actions">
+                <button class="btn-primary" type="button" id="password-onboarding-confirm-btn" onclick="acknowledgePasswordOnboarding()">我已記下密碼，確認</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+}
+
+async function acknowledgePasswordOnboarding() {
+    const button = document.getElementById('password-onboarding-confirm-btn');
+    const status = document.getElementById('password-onboarding-status');
+    if (button) {
+        button.disabled = true;
+        button.innerText = '保存確認中...';
+    }
+    if (status) {
+        status.innerText = '';
+        status.classList.remove('is-error');
+    }
+    try {
+        await reviewWorkflowRpc('acknowledge_password_onboarding', {});
+        document.getElementById('password-onboarding-dialog')?.remove();
+    } catch (error) {
+        console.error('保存密碼導入確認失敗:', error);
+        if (status) {
+            status.innerText = '確認沒有保存成功，請保持此視窗開啟後再試一次。';
+            status.classList.add('is-error');
+        }
+        if (button) {
+            button.disabled = false;
+            button.innerText = '我已記下密碼，確認';
+        }
+    }
+}
+
+async function signOutSupabaseAuth(sessionOverride = null) {
+    const session = sessionOverride || getSavedSupabaseAuthSession();
+    clearSupabaseAuthSession();
+    if (!session?.access_token) return;
+    try {
+        await supabaseAuthRequest('logout', {}, session.access_token);
+    } catch (error) {
+        console.warn('Supabase Auth 登出請求失敗，已清除本機工作階段:', error);
+    }
+}
 function clearSession() {
     localStorage.removeItem(SESSION_KEY);
 }
@@ -1006,43 +1301,119 @@ function clearSession() {
 // ==========================================
 // 🌟 核心修改 1：登入與 Supabase 資料極速載入
 // ==========================================
+function isAdminPortalPath() {
+    return /\/admin(?:\/|$)/.test(window.location.pathname);
+}
+
+function isAdminPortalRoleAllowed(user) {
+    return !isAdminPortalPath() || user?.role === 'admin' || user?.role === 'audio_assessor';
+}
+
 function toggleAdminLogin() {
     document.getElementById('admin-login-fields').classList.toggle('hidden');
 }
 
 async function login() {
-    await performLogin({
-        rpcName: 'login_investigator',
-        body: { p_email: getLoginEmail() },
+    await performSupabaseAuthLogin({
+        passwordElementId: 'auth-password',
         expectedRole: 'nonadmin',
         button: document.getElementById('login-btn'),
-        loadingText: '載入任務中...',
+        loadingText: '驗證登入中...',
         resetText: '進入我的任務',
-        missingMessage: '請輸入 email',
-        failedMessage: '找不到可登入的一般調查員帳號'
+        missingMessage: '請輸入 Email 或使用者名稱',
+        passwordMessage: '請輸入登入密碼',
+        failedMessage: '一般調查員登入資訊錯誤'
     });
 }
-
 async function loginAdmin() {
-    const password = document.getElementById('password').value;
-    if (!password) return alert('請輸入管理者密碼');
-
-    await performLogin({
-        rpcName: 'login_admin',
-        body: { p_email: getLoginEmail(), p_password: password },
+    await performSupabaseAuthLogin({
+        passwordElementId: 'password',
         expectedRole: 'admin',
         button: document.getElementById('admin-login-btn'),
-        loadingText: '載入管理模式中...',
+        loadingText: '驗證管理登入中...',
         resetText: '進入管理模式',
-        missingMessage: '請輸入 email',
-        failedMessage: '管理者 email 或密碼錯誤'
+        missingMessage: '請輸入 Email 或使用者名稱',
+        passwordMessage: '請輸入管理者登入密碼',
+        failedMessage: '管理者登入資訊錯誤'
     });
 }
 
-function getLoginEmail() {
+function getLoginIdentifier() {
     return document.getElementById('email').value.trim();
 }
+function getLoginEmail() {
+    return getLoginIdentifier();
+}
 
+function closeMissingPasswordDialog() {
+    document.getElementById("missing-password-dialog")?.remove();
+}
+
+function showMissingPasswordDialog() {
+    if (document.getElementById("missing-password-dialog")) return;
+    const dialog = document.createElement("div");
+    dialog.id = "missing-password-dialog";
+    dialog.className = "dialog-backdrop";
+    dialog.innerHTML = `
+        <div class="dialog-panel auth-bootstrap-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="missing-password-title">
+            <h3 id="missing-password-title">需要密碼登入</h3>
+            <p>系統已轉換為需要密碼登入，若尚未設定，請點選下方「取得密碼信」按鈕。</p>
+            <div class="dialog-actions">
+                <button class="btn-secondary" type="button" data-action="close">稍後再說</button>
+                <button class="btn-primary" type="button" data-action="get-email">取得密碼信</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector("[data-action=close]")?.addEventListener("click", closeMissingPasswordDialog);
+    dialog.querySelector("[data-action=get-email]")?.addEventListener("click", async () => {
+        closeMissingPasswordDialog();
+        await startEmailBootstrapLogin();
+    });
+}
+async function performSupabaseAuthLogin({ passwordElementId, expectedRole, button,
+    loadingText, resetText, missingMessage, passwordMessage, failedMessage }) {
+    const identifier = getLoginIdentifier();
+    const password = document.getElementById(passwordElementId)?.value || '';
+    if (!identifier) return alert(missingMessage);
+    if (!password) {
+        if (passwordElementId === 'auth-password') {
+            showMissingPasswordDialog();
+        } else {
+            alert(passwordMessage);
+        }
+        return;
+    }
+    const status = document.getElementById('login-status');
+    status.innerText = '';
+    clearSession();
+    clearSupabaseAuthSession();
+    button.innerText = loadingText;
+    button.disabled = true;
+    try {
+        await signInWithSupabaseAuth(identifier, password);
+        const user = normalizeAuthenticatedUser(await fetchAuthenticatedInvestigator(), identifier);
+        const roleMatches = expectedRole === 'nonadmin'
+            ? (isAdminPortalPath() ? user.role === 'audio_assessor' : user.role !== 'admin')
+            : user.role === expectedRole;
+        if (expectedRole && !roleMatches) {
+            throw new Error(`role mismatch: expected ${expectedRole}, got ${user.role || 'empty'}`);
+        }
+        await enterApp(user);
+    } catch (error) {
+        console.error('Supabase Auth 登入發生錯誤:', error);
+        clearSession();
+        clearSupabaseAuthSession();
+        const message = error.message === 'admin portal role is not allowed'
+            ? '此入口僅供審聽員與管理員使用'
+            : error.message === 'Auth account is not linked to an active investigator'
+                ? '此 Auth 帳號尚未連結啟用中的調查員帳號'
+                : failedMessage;
+        status.innerText = `❌ ${message}`;
+        button.innerText = resetText;
+        button.disabled = false;
+    }
+}
 async function performLogin({ rpcName, body, expectedRole, button, loadingText, resetText, missingMessage, failedMessage }) {
     const email = getLoginEmail();
     if (!email) return alert(missingMessage);
@@ -1107,6 +1478,9 @@ function normalizeAuthenticatedUser(user, email) {
 async function enterApp(user, options = {}) {
     const persist = options.persist !== false;
     const normalizedUser = normalizeAuthenticatedUser(user, user.email || getLoginEmail());
+    if (!isAdminPortalRoleAllowed(normalizedUser)) {
+        throw new Error('admin portal role is not allowed');
+    }
 
     state.userDbId = normalizedUser.user_id;
     state.userId = normalizedUser.account;
@@ -1131,6 +1505,8 @@ async function enterApp(user, options = {}) {
 function logout() {
     closePlaceMapView();
     hideSelectedMapCard();
+    const authSession = getSavedSupabaseAuthSession();
+    void signOutSupabaseAuth(authSession);
     clearSession();
     state.userId = '';
     state.userDbId = '';
@@ -3758,15 +4134,42 @@ function applyFilters() {
     renderPlaceList(sorted);
 }
 
+const AUTHENTICATED_REVIEW_RPC_NAMES = Object.freeze({
+    get_review_workflow_queue: 'get_review_workflow_queue_authenticated',
+    get_audio_review_claims: 'get_audio_review_claims_authenticated',
+    get_audio_assessment_history: 'get_audio_assessment_history_authenticated',
+    claim_review_case: 'claim_review_case_authenticated',
+    release_review_case: 'release_review_case_authenticated',
+    assign_review_case: 'assign_review_case_authenticated',
+    save_annotation_version: 'save_annotation_version_authenticated',
+    save_proofing_draft: 'save_proofing_draft_authenticated',
+    claim_audio_review_case: 'claim_audio_review_case_authenticated',
+    release_audio_review_case: 'release_audio_review_case_authenticated',
+    submit_audio_assessment: 'submit_audio_assessment_authenticated',
+    return_review_case: 'return_review_case_authenticated',
+    approve_review_case: 'approve_review_case_authenticated'
+});
+
+function getReviewWorkflowRpcRequest(rpcName, body) {
+    const authenticatedRpcName = AUTHENTICATED_REVIEW_RPC_NAMES[rpcName];
+    if (!authenticatedRpcName) return { rpcName, body: body || {} };
+    const sanitizedBody = { ...(body || {}) };
+    delete sanitizedBody.p_actor_account;
+    delete sanitizedBody.p_assessor_account;
+    return { rpcName: authenticatedRpcName, body: sanitizedBody };
+}
+
 async function reviewWorkflowRpc(rpcName, body) {
-    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+    const request = getReviewWorkflowRpcRequest(rpcName, body);
+    const accessToken = await getSupabaseAuthAccessToken();
+    const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/rpc/${request.rpcName}`, {
         method: 'POST',
         headers: {
             'apikey': CONFIG.SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${accessToken || CONFIG.SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body || {})
+        body: JSON.stringify(request.body || {})
     });
     if (!response.ok) throw new Error(await response.text());
     const text = await response.text();
@@ -4417,7 +4820,7 @@ async function fillReviewWorkflowDraftFromAudio(caseId, audioRecordId, button) {
     if (button) { button.disabled = true; button.innerText = '\u5e36\u5165\u4e2d...'; }
     try {
         const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
-            p_case_id: Number(caseId), p_actor_account: state.userId
+            p_case_id: Number(caseId)
         });
         const source = (Array.isArray(sources) ? sources : [])
             .find(item => Number(item.audio_record_id) === Number(audioRecordId));
@@ -4673,10 +5076,352 @@ function getReviewWorkflowAudioDraftSourceMeta(row, audioRecordId) {
         + '｜來源版本：' + sourceVersion;
 }
 
+function getReviewWorkflowDraftVersionKindLabel(versionKind) {
+    const key = String(versionKind || '').trim().toLowerCase();
+    if (key === 'draft') return '草稿';
+    if (key === 'legacy') return '既有資料';
+    if (key === 'final') return '定稿';
+    return key ? key : '未標示';
+}
+
+function getReviewWorkflowDraftSourceTypeLabel(sourceType) {
+    const key = String(sourceType || '').trim().toLowerCase();
+    if (key === 'audio_assessor') return '審聽員音讀草稿';
+    if (key === 'satellite') return '衛星書面草稿';
+    if (key === 'app') return '原標注草稿';
+    if (key === 'admin') return '管理員建立';
+    return key ? key : '未標示來源';
+}
+
+function getReviewWorkflowDraftCreatorLabel(account) {
+    const normalizedAccount = String(account || '').trim();
+    if (!normalizedAccount) return '尚無資料';
+    return getUserDisplayName(normalizedAccount) || normalizedAccount;
+}
+
+function renderReviewWorkflowAudioDraftCurrentMeta(row) {
+    const creatorAccount = row?.annotation_created_by || row?.annotation_source_actor || '';
+    const creatorLabel = getReviewWorkflowDraftCreatorLabel(creatorAccount);
+    const creatorTitle = creatorAccount ? '帳號：' + creatorAccount : '';
+    const createdAt = formatReviewWorkflowAudioAssessmentTime(row?.annotation_created_at);
+    const sourceType = getReviewWorkflowDraftSourceTypeLabel(row?.annotation_source_type);
+    return `
+        <div class="review-workflow-audio-draft-meta" data-role="audio-draft-current-meta">
+            <span><strong>建立者</strong>：<span title="${escapeHtml(creatorTitle)}">${escapeHtml(creatorLabel)}</span>${creatorAccount ? `（${escapeHtml(creatorAccount)}）` : ''}</span>
+            <span><strong>建立時間</strong>：${escapeHtml(createdAt)}</span>
+            <span><strong>來源</strong>：${escapeHtml(sourceType)}</span>
+        </div>
+    `;
+}
+
+function renderReviewWorkflowAudioDraftSnapshot(fields, config, className = '') {
+    const normalizedFields = getReviewWorkflowFields({ annotation_fields: fields });
+    const snapshotClass = ['review-workflow-audio-draft-snapshot', className].filter(Boolean).join(' ');
+    return `
+        <div class="${snapshotClass}">
+            ${config.fields.map(field => {
+                const value = String(normalizedFields[field.key] || '').trim();
+                return `
+                    <div class="review-workflow-audio-draft-snapshot-field ${value ? 'has-value' : ''}">
+                        <span>${escapeHtml(field.label)}</span>
+                        <strong>${value ? escapeHtml(value) : '尚未填寫'}</strong>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function getReviewWorkflowDraftChangedFields(value) {
+    if (Array.isArray(value)) return value.filter(Boolean).map(item => String(item));
+    if (typeof value === 'string' && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) return parsed.filter(Boolean).map(item => String(item));
+        } catch (error) {
+            return value.split(',').map(item => item.trim()).filter(Boolean);
+        }
+    }
+    return [];
+}
+
+function isReviewWorkflowCurrentVersion(entry, row) {
+    return entry?.is_current === true
+        || String(entry?.is_current || '').toLowerCase() === 'true'
+        || (Number(entry?.version_no) === Number(row?.current_version_no)
+            && Number(row?.current_version_no || 0) > 0);
+}
+
+function isReviewWorkflowOwnVersion(entry) {
+    return isCurrentUserIdentifier(entry?.created_by)
+        || isCurrentUserIdentifier(entry?.source_actor);
+}
+
+function renderReviewWorkflowAudioDraftHistoryRows(row, rows, canApply = false) {
+    const languageKey = getReviewLanguageKey(row.language);
+    const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
+    if (!rows.length) {
+        return '<li class="review-workflow-audio-draft-history-empty">目前尚無可顯示的標注版本。</li>';
+    }
+    return rows.map(entry => {
+        const creatorAccount = entry.created_by || entry.source_actor || '';
+        const creatorLabel = getReviewWorkflowDraftCreatorLabel(creatorAccount);
+        const creatorTitle = creatorAccount ? '帳號：' + creatorAccount : '';
+        const current = isReviewWorkflowCurrentVersion(entry, row);
+        const own = isReviewWorkflowOwnVersion(entry);
+        const changedFields = getReviewWorkflowDraftChangedFields(entry.changed_fields);
+        const sourceAudioId = Number(entry.source_audio_record_id);
+        const sourceAudioLabel = Number.isInteger(sourceAudioId) && sourceAudioId > 0
+            ? '音檔 #' + sourceAudioId
+            : '非音檔來源';
+        const versionNumber = Number(entry.version_no);
+        const tags = [
+            current ? '<span class="review-workflow-audio-draft-history-tag is-current">目前版本</span>' : '',
+            own ? '<span class="review-workflow-audio-draft-history-tag is-own">我的版本</span>' : ''
+        ].filter(Boolean).join('');
+        return `
+            <li class="review-workflow-audio-draft-history-entry ${current ? 'is-current' : ''} ${own ? 'is-own' : ''}">
+                <div class="review-workflow-audio-draft-history-entry-header">
+                    <strong>v${escapeHtml(entry.version_no || '')}｜${escapeHtml(getReviewWorkflowDraftVersionKindLabel(entry.version_kind))}</strong>
+                    <div class="review-workflow-audio-draft-history-tags">${tags}</div>
+                </div>
+                <dl class="review-workflow-audio-draft-history-meta">
+                    <div><dt>建立者</dt><dd title="${escapeHtml(creatorTitle)}">${escapeHtml(creatorLabel)}${creatorAccount ? `（${escapeHtml(creatorAccount)}）` : ''}</dd></div>
+                    <div><dt>建立時間</dt><dd>${escapeHtml(formatReviewWorkflowAudioAssessmentTime(entry.created_at))}</dd></div>
+                    <div><dt>來源</dt><dd>${escapeHtml(getReviewWorkflowDraftSourceTypeLabel(entry.source_type))}｜${escapeHtml(sourceAudioLabel)}</dd></div>
+                    <div><dt>本次變更</dt><dd>${changedFields.length ? escapeHtml(changedFields.join('、')) : '未記錄'}</dd></div>
+                </dl>
+                ${renderReviewWorkflowAudioDraftSnapshot(entry.fields, config, 'is-history')}
+                ${canApply && Number.isInteger(versionNumber) && versionNumber > 0 ? `
+                    <div class="review-workflow-audio-draft-history-entry-actions">
+                        <button type="button" class="review-workflow-history-apply-btn"
+                            onclick="applyReviewWorkflowAnnotationVersion(${row.case_id}, ${versionNumber}, this)">載入此版本到校對欄位</button>
+                    </div>
+                ` : ''}
+            </li>
+        `;
+    }).join('');
+}
+
+function renderReviewWorkflowAudioDraftHistoryPanel(row) {
+    const caseId = escapeHtml(String(row.case_id));
+    return `
+        <div class="review-workflow-audio-draft-history-toolbar">
+            <button type="button" class="review-workflow-history-btn" data-role="audio-draft-history-toggle"
+                onclick="toggleReviewWorkflowAudioDraftHistory(${row.case_id}, this)"
+                aria-expanded="false" aria-controls="review-workflow-audio-draft-history-${caseId}">檢視標注版本歷史</button>
+            <span>可辨認每一版建立者、時間與來源音檔。</span>
+        </div>
+        <section class="review-workflow-audio-draft-history hidden" id="review-workflow-audio-draft-history-${caseId}"
+            data-role="audio-draft-history" aria-label="標注版本歷史">
+            <div class="review-workflow-audio-draft-history-header">
+                <strong>標注版本歷史</strong>
+                <span>歷史版本僅供查看，不會直接覆蓋目前草稿。</span>
+            </div>
+            <div class="review-workflow-audio-draft-history-message" data-role="audio-draft-history-message" aria-live="polite">展開後載入版本歷史。</div>
+            <ol class="review-workflow-audio-draft-history-list" data-role="audio-draft-history-list"></ol>
+        </section>
+    `;
+}
+
+async function loadReviewWorkflowAudioDraftHistory(caseId, panel, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const message = panel?.querySelector('[data-role="audio-draft-history-message"]');
+    const list = panel?.querySelector('[data-role="audio-draft-history-list"]');
+    if (!row || !panel || !message || !list || panel.dataset.historyLoading === 'true') return;
+    if (Array.isArray(row.audio_annotation_history)) {
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(row, row.audio_annotation_history);
+        message.textContent = `共 ${row.audio_annotation_history.length} 個版本。`;
+        message.classList.remove('is-error');
+        panel.dataset.historyLoaded = 'true';
+        return;
+    }
+    panel.dataset.historyLoading = 'true';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '載入中...';
+    }
+    message.textContent = '正在讀取標注版本歷史...';
+    message.classList.remove('is-error');
+    list.innerHTML = '';
+    try {
+        const result = await reviewWorkflowRpc('get_audio_annotation_draft_history', {
+            p_case_id: Number(caseId),
+        });
+        const history = Array.isArray(result)
+            ? result
+            : Array.isArray(result?.data) ? result.data : [];
+        row.audio_annotation_history = history;
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(row, history);
+        message.textContent = `共 ${history.length} 個版本。`;
+        panel.dataset.historyLoaded = 'true';
+    } catch (error) {
+        message.textContent = '標注版本歷史讀取失敗：' + error.message;
+        message.classList.add('is-error');
+    } finally {
+        delete panel.dataset.historyLoading;
+        if (button) {
+            button.disabled = false;
+            button.textContent = panel.classList.contains('hidden') ? '檢視標注版本歷史' : '收合版本歷史';
+        }
+    }
+}
+
+async function toggleReviewWorkflowAudioDraftHistory(caseId, button) {
+    if (!isReviewWorkflowRole()) return;
+    const panel = button?.closest('[data-review-audio-draft-panel], .review-workflow-audio-draft-panel');
+    const historyPanel = panel?.querySelector('[data-role="audio-draft-history"]');
+    if (!historyPanel) return;
+    const isOpen = !historyPanel.classList.contains('hidden');
+    if (isOpen) {
+        historyPanel.classList.add('hidden');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = '檢視標注版本歷史';
+        return;
+    }
+    historyPanel.classList.remove('hidden');
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = '收合版本歷史';
+    await loadReviewWorkflowAudioDraftHistory(caseId, historyPanel, button);
+}
+
+function renderReviewWorkflowAnnotationHistoryPanel(row, canApply = false) {
+    const caseId = escapeHtml(String(row.case_id));
+    return `
+        <div class="review-workflow-audio-draft-history-toolbar review-workflow-annotation-history-toolbar">
+            <button type="button" class="review-workflow-history-btn" data-role="annotation-history-toggle"
+                onclick="toggleReviewWorkflowAnnotationHistory(${row.case_id}, this)"
+                aria-expanded="false" aria-controls="review-workflow-annotation-history-${caseId}">檢視全部草稿版本</button>
+            <span>可比較每一版建立者、時間、來源與內容；歷史版本不會被覆蓋。</span>
+        </div>
+        <section class="review-workflow-audio-draft-history hidden" id="review-workflow-annotation-history-${caseId}"
+            data-role="annotation-version-history" data-can-apply="${canApply ? 'true' : 'false'}" aria-label="全部草稿版本">
+            <div class="review-workflow-audio-draft-history-header">
+                <strong>全部草稿版本</strong>
+                <span>核准時使用目前版本；若要採用舊版，請先載入後保存成新的校對草稿。</span>
+            </div>
+            <div class="review-workflow-audio-draft-history-message" data-role="annotation-history-message" aria-live="polite">展開後載入版本歷史。</div>
+            <ol class="review-workflow-audio-draft-history-list" data-role="annotation-history-list"></ol>
+        </section>
+    `;
+}
+
+function setReviewWorkflowAnnotationHistoryMessage(panel, message, isError = false) {
+    const messageElement = panel?.querySelector('[data-role="annotation-history-message"]');
+    if (!messageElement) return;
+    messageElement.textContent = message || '';
+    messageElement.classList.toggle('is-error', Boolean(isError));
+}
+
+async function loadReviewWorkflowAnnotationVersionHistory(caseId, panel, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const message = panel?.querySelector('[data-role="annotation-history-message"]');
+    const list = panel?.querySelector('[data-role="annotation-history-list"]');
+    if (!row || !panel || !message || !list || panel.dataset.historyLoading === 'true') return;
+    if (Array.isArray(row.annotation_version_history)) {
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(
+            row,
+            row.annotation_version_history,
+            panel.dataset.canApply === 'true'
+        );
+        message.textContent = `共 ${row.annotation_version_history.length} 個版本。`;
+        message.classList.remove('is-error');
+        panel.dataset.historyLoaded = 'true';
+        return;
+    }
+    panel.dataset.historyLoading = 'true';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '載入中...';
+    }
+    message.textContent = '正在讀取全部草稿版本...';
+    message.classList.remove('is-error');
+    list.innerHTML = '';
+    try {
+        const result = await reviewWorkflowRpc('get_audio_annotation_draft_history', {
+            p_case_id: Number(caseId)
+        });
+        const history = Array.isArray(result)
+            ? result
+            : Array.isArray(result?.data) ? result.data : [];
+        row.annotation_version_history = history;
+        list.innerHTML = renderReviewWorkflowAudioDraftHistoryRows(
+            row,
+            history,
+            panel.dataset.canApply === 'true'
+        );
+        message.textContent = `共 ${history.length} 個版本。`;
+        panel.dataset.historyLoaded = 'true';
+    } catch (error) {
+        message.textContent = '草稿版本歷史讀取失敗：' + error.message;
+        message.classList.add('is-error');
+    } finally {
+        delete panel.dataset.historyLoading;
+        if (button) {
+            button.disabled = false;
+            button.textContent = panel.classList.contains('hidden') ? '檢視全部草稿版本' : '收合全部草稿版本';
+        }
+    }
+}
+
+async function toggleReviewWorkflowAnnotationHistory(caseId, button) {
+    if (!isReviewWorkflowRole()) return;
+    const workbenchItem = button?.closest('.review-workflow-item');
+    const historyPanel = workbenchItem?.querySelector('[data-role="annotation-version-history"]');
+    if (!historyPanel) return;
+    const isOpen = !historyPanel.classList.contains('hidden');
+    if (isOpen) {
+        historyPanel.classList.add('hidden');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = '檢視全部草稿版本';
+        return;
+    }
+    historyPanel.classList.remove('hidden');
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = '收合全部草稿版本';
+    await loadReviewWorkflowAnnotationVersionHistory(caseId, historyPanel, button);
+}
+
+function applyReviewWorkflowAnnotationVersion(caseId, versionNo, button) {
+    const row = getReviewWorkflowRow(caseId);
+    const history = Array.isArray(row?.annotation_version_history)
+        ? row.annotation_version_history
+        : [];
+    const entry = history.find(candidate => Number(candidate.version_no) === Number(versionNo));
+    if (!row || !entry) {
+        setReviewWorkflowAnnotationHistoryMessage(
+            button?.closest('[data-role="annotation-version-history"]'),
+            '找不到要載入的草稿版本。',
+            true
+        );
+        return;
+    }
+    const canEdit = state.userRole === 'admin'
+        || (row.claim_by && isCurrentUserIdentifier(row.claim_by));
+    if (!canEdit) {
+        setReviewWorkflowAnnotationHistoryMessage(
+            button?.closest('[data-role="annotation-version-history"]'),
+            '請先領取案件，才能把歷史版本載入校對欄位。',
+            true
+        );
+        return;
+    }
+    setReviewWorkflowDraftFields(caseId, getReviewWorkflowFields({ annotation_fields: entry.fields }));
+    setReviewWorkflowAnnotationHistoryMessage(
+        button?.closest('[data-role="annotation-version-history"]'),
+        `已載入 v${versionNo}；請檢查後按「存校對草稿」，才會建立新的目前版本。`
+    );
+}
+
 function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
     const languageKey = getReviewLanguageKey(row.language);
     const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
     const usableEvidence = getReviewWorkflowUsableAudioEvidence(row);
+    const currentFields = getReviewWorkflowFields(row);
+    const hasCurrentFields = hasReviewWorkflowAudioDraftValues(currentFields);
+    const currentSnapshot = renderReviewWorkflowAudioDraftSnapshot(currentFields, config, 'is-current');
+    const currentMeta = renderReviewWorkflowAudioDraftCurrentMeta(row);
+    const historyPanel = renderReviewWorkflowAudioDraftHistoryPanel(row);
     if (!canAnnotate) {
         const reason = row?.state === '已完成'
             ? '案件已完成，不能再建立音讀標注草稿。'
@@ -4692,13 +5437,18 @@ function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
                         <h4>音讀標注草稿</h4>
                         <span>案件層草稿，不為每個音檔建立獨立版本。</span>
                     </div>
+                    <span class="review-workflow-audio-draft-version">目前版本：v${escapeHtml(row.current_version_no || 0)}</span>
                 </div>
+                ${currentMeta}
+                <div class="review-workflow-audio-draft-current">
+                    <strong>目前草稿內容</strong>
+                    ${hasCurrentFields ? currentSnapshot : '<div class="review-workflow-empty">目前尚無標注草稿內容。</div>'}
+                </div>
+                ${historyPanel}
                 <p class="review-workflow-audio-draft-note">${escapeHtml(reason)}</p>
             </section>
         `;
     }
-
-    const currentFields = getReviewWorkflowFields(row);
     const selectedAudioId = usableEvidence[0]?.audio_record_id || '';
     const sourceOptions = usableEvidence.map(item => `
         <option value="${escapeHtml(String(item.audio_record_id))}">
@@ -4896,7 +5646,6 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
     try {
         const result = await reviewWorkflowRpc('save_audio_annotation_draft', {
             p_case_id: Number(caseId),
-            p_actor_account: state.userId,
             p_fields: fields,
             p_source_audio_record_id: getReviewWorkflowAudioDraftSourceId(panel),
             p_audio_claim_token: row.audio_claim_token || null,
@@ -4910,7 +5659,10 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
         row.current_version_no = saved?.version_no ?? (Number(row.current_version_no || 0) + 1);
         row.version_kind = saved?.version_kind || 'draft';
         row.annotation_source_type = saved?.source_type || 'audio_assessor';
-        row.annotation_created_by = saved?.source_actor || state.userId;
+        row.annotation_source_actor = saved?.source_actor || state.userId;
+        row.annotation_created_by = saved?.source_actor || saved?.created_by || state.userId;
+        row.annotation_created_at = saved?.created_at || row.annotation_created_at || '';
+        row.annotation_source_stamp = saved?.source_stamp || row.annotation_source_stamp || '';
         const languageKey = getReviewLanguageKey(row.language);
         const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
         config.fields.forEach(field => {
@@ -4919,6 +5671,25 @@ async function saveReviewWorkflowAudioAnnotationDraft(caseId, button) {
         });
         const versionElement = panel.querySelector('[data-role="audio-draft-current-version"]');
         if (versionElement) versionElement.textContent = '目前版本：v' + row.current_version_no;
+        const metaElement = panel.querySelector('[data-role="audio-draft-current-meta"]');
+        if (metaElement) metaElement.outerHTML = renderReviewWorkflowAudioDraftCurrentMeta(row);
+        delete row.audio_annotation_history;
+        const historyPanel = panel.querySelector('[data-role="audio-draft-history"]');
+        if (historyPanel) {
+            delete historyPanel.dataset.historyLoaded;
+            const historyMessage = historyPanel.querySelector('[data-role="audio-draft-history-message"]');
+            const historyList = historyPanel.querySelector('[data-role="audio-draft-history-list"]');
+            if (historyMessage) historyMessage.textContent = '草稿已更新，正在重新整理版本歷史...';
+            if (historyMessage) historyMessage.classList.remove('is-error');
+            if (historyList) historyList.innerHTML = '';
+            if (!historyPanel.classList.contains('hidden')) {
+                await loadReviewWorkflowAudioDraftHistory(
+                    caseId,
+                    historyPanel,
+                    panel.querySelector('[data-role="audio-draft-history-toggle"]')
+                );
+            }
+        }
         setReviewWorkflowAudioDraftMessage(panel, '已保存為校對草稿，尚未回寫正式資料。', false, true);
         panel.dataset.messageLock = 'true';
     } catch (error) {
@@ -5274,7 +6045,7 @@ async function loadReviewWorkflowAudioSourcesForRow(row, item, canEdit, canAnnot
     row.audio_sources_loading = true;
     try {
         const sources = await reviewWorkflowRpc('get_review_workflow_audio_sources', {
-            p_case_id: Number(row.case_id), p_actor_account: state.userId
+            p_case_id: Number(row.case_id)
         });
         row.audio_sources = Array.isArray(sources) ? sources : [];
     } catch (error) {
@@ -5472,7 +6243,8 @@ function renderReviewWorkflowQueue() {
                 <section class="review-workflow-panel">
                     <h4>標注版本（校對員唯讀）</h4>
                     ${renderReviewWorkflowFields(row, canEdit)}
-                    <small>版本：${escapeHtml(row.current_version_no || 0)}｜建立者：${escapeHtml(row.annotation_created_by || '尚無')}</small>
+                    ${renderReviewWorkflowAudioDraftCurrentMeta(row)}
+                    ${renderReviewWorkflowAnnotationHistoryPanel(row, canEdit)}
                 </section>
                 <section class="review-workflow-panel">
                     <h4>音檔判定（唯讀）</h4>

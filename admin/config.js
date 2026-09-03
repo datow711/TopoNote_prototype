@@ -3,6 +3,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyxPScSi3MxyJUT93vD0-fR
 
 const CONFIG = {
     SUPABASE_URL: 'https://sikconjhtomqdkicbjal.supabase.co',
+    SUPABASE_AUTH_IDENTIFIER_URL: 'https://sikconjhtomqdkicbjal.supabase.co/functions/v1/auth-login',
+    SUPABASE_AUTH_EMAIL_BOOTSTRAP_URL: 'https://sikconjhtomqdkicbjal.supabase.co/functions/v1/auth-email-bootstrap',
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpa2NvbmpodG9tcWRraWNiamFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1ODk4NzAsImV4cCI6MjA5MDE2NTg3MH0.CR4zasAgXSogTsoSvLonTRwYlBkBPAyAj6jh-TKqViM',
     
     // 原本上傳音檔到 Google Drive 的 GAS 網址 (這個保留不變)
