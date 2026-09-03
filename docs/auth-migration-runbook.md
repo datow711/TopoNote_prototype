@@ -15,10 +15,27 @@
    - `SUPABASE_AUTH_MIGRATION_PASSWORD`：統一密碼，至少 8 個字元。不要貼到聊天、Git 或 log。
    - `SUPABASE_AUTH_MIGRATION_CONFIRM`：填入 `I_UNDERSTAND_SHARED_PASSWORD`。
    - `SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON`：只有 `email` 欄位不是合法 email 的帳號才需要。
+   - `SUPABASE_AUTH_MIGRATION_SELECTOR`：從 Apps Script 編輯器執行單筆函式時，填入 `test.audio` 或 investigator UUID。
 3. 先執行 `previewAuthUserMigration()`。它只讀取 active investigators 與 Auth users，不建立、重設或連結任何資料。
 4. 確認預覽結果中的 email 對應、建立／重設數量與 skipped／failed 原因。
 5. 執行 `migrateInvestigatorsToSupabaseAuth()`。它會逐筆建立或找到 Auth user、設定統一密碼，並回填 `auth_user_id` 與 `auth_login_email`。
 6. 回到 Supabase 讀回 Auth 使用者與 investigators link，再用一個測試帳號登入。
+
+## 單筆帳號操作
+
+若只要處理一位使用者，請使用單筆函式；selector 可以填 account 或 investigator 的 UUID，不要填顯示名稱。
+
+Apps Script 編輯器的「執行」按鈕不能傳入參數，所以先在 Project Settings > Script Properties 設定：
+
+- Name：`SUPABASE_AUTH_MIGRATION_SELECTOR`
+- Value：`test.audio`
+
+接著在函式選單選擇並執行 `previewSingleAuthUserMigration`，不要執行整批的 `previewAuthUserMigration`。
+預期只看到 total: 1、ready: 1、wouldCreate: 1、skipped: 0、failed: 0。
+
+確認預覽結果無誤後，選擇並執行 `migrateSingleInvestigatorToSupabaseAuth`。單筆正式搬移只建立／連結這一位 Auth 使用者，不會執行整批搬移。
+
+單筆函式仍會檢查其他 active investigator 是否已使用相同 email，避免單筆操作繞過重複 email 防護。
 
 ## 特殊帳號對應
 

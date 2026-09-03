@@ -1147,6 +1147,7 @@ function doOptions(e) { return ContentService.createTextOutput("OK"); }
 var SUPABASE_AUTH_MIGRATION_PASSWORD_PROPERTY = 'SUPABASE_AUTH_MIGRATION_PASSWORD';
 var SUPABASE_AUTH_MIGRATION_CONFIRM_PROPERTY = 'SUPABASE_AUTH_MIGRATION_CONFIRM';
 var SUPABASE_AUTH_MIGRATION_EMAIL_MAP_PROPERTY = 'SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON';
+var SUPABASE_AUTH_MIGRATION_SELECTOR_PROPERTY = 'SUPABASE_AUTH_MIGRATION_SELECTOR';
 var SUPABASE_AUTH_MIGRATION_CONFIRM_VALUE = 'I_UNDERSTAND_SHARED_PASSWORD';
 var SUPABASE_AUTH_ADMIN_PAGE_SIZE_ = 1000;
 
@@ -1158,7 +1159,25 @@ function migrateInvestigatorsToSupabaseAuth() {
   return runAuthUserMigration_(false);
 }
 
-function runAuthUserMigration_(dryRun) {
+function previewSingleAuthUserMigration(accountOrId) {
+  var selector = String(accountOrId || '').trim() || getAuthMigrationSelector_();
+  return runAuthUserMigration_(true, selector);
+}
+
+function migrateSingleInvestigatorToSupabaseAuth(accountOrId) {
+  var selector = String(accountOrId || '').trim() || getAuthMigrationSelector_();
+  return runAuthUserMigration_(false, selector);
+}
+
+function getAuthMigrationSelector_() {
+  var selector = PropertiesService.getScriptProperties().getProperty(SUPABASE_AUTH_MIGRATION_SELECTOR_PROPERTY) || '';
+  if (!selector.trim()) {
+    throw new Error('Set SUPABASE_AUTH_MIGRATION_SELECTOR to an account or investigator id first.');
+  }
+  return selector.trim();
+}
+
+function runAuthUserMigration_(dryRun, selector) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) {
     throw new Error('Auth migration is already running.');
@@ -1176,7 +1195,8 @@ function runAuthUserMigration_(dryRun) {
       }
     }
 
-    var rows = fetchActiveInvestigatorsForAuthMigration_();
+    var allRows = fetchActiveInvestigatorsForAuthMigration_();
+    var rows = selectAuthMigrationRows_(allRows, selector);
     var authUsers = fetchAllSupabaseAuthUsers_();
     var result = {
       dryRun: dryRun,
@@ -1200,9 +1220,17 @@ function runAuthUserMigration_(dryRun) {
       var authEmail = normalizeEmail_(user && user.email);
       if (authEmail) authByEmail[authEmail] = user;
     });
-    rows.forEach(function(row) {
+    allRows.forEach(function(row) {
       var linkedId = String(row.auth_user_id || '').trim();
       if (linkedId && !dbAuthOwner[linkedId]) dbAuthOwner[linkedId] = String(row.id);
+    });
+
+    allRows.forEach(function(row) {
+      var targetEmail = resolveAuthMigrationEmail_(row, emailMap);
+      if (validAuthMigrationEmail_(targetEmail)) {
+        if (!emailOwner[targetEmail]) emailOwner[targetEmail] = {};
+        emailOwner[targetEmail][String(row.id)] = true;
+      }
     });
 
     rows.forEach(function(row) {
@@ -1222,15 +1250,17 @@ function runAuthUserMigration_(dryRun) {
         result.rows.push(item);
         return;
       }
-      if (emailOwner[targetEmail] && emailOwner[targetEmail] !== String(row.id)) {
+      var emailOwners = emailOwner[targetEmail] || {};
+      var hasOtherEmailOwner = Object.keys(emailOwners).some(function(ownerId) {
+        return ownerId !== String(row.id);
+      });
+      if (hasOtherEmailOwner) {
         item.status = 'failed';
         item.reason = 'duplicate_auth_email_mapping';
         result.failed++;
         result.rows.push(item);
         return;
       }
-      emailOwner[targetEmail] = String(row.id);
-
       var linkedId = String(row.auth_user_id || '').trim();
       if (linkedId && dbAuthOwner[linkedId] !== String(row.id)) {
         item.status = 'failed';
@@ -1344,6 +1374,21 @@ function resolveAuthMigrationEmail_(row, mapping) {
 
 function validAuthMigrationEmail_(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+}
+
+function selectAuthMigrationRows_(rows, selector) {
+  if (selector === undefined || selector === null || String(selector).trim() === '') return rows;
+  var needle = String(selector).trim();
+  var matches = rows.filter(function(row) {
+    return String(row.id || '').trim() === needle || String(row.account || '').trim() === needle;
+  });
+  if (matches.length === 0) {
+    throw new Error('No active investigator matches account or id: ' + needle);
+  }
+  if (matches.length > 1) {
+    throw new Error('Selector matches multiple active investigators: ' + needle);
+  }
+  return matches;
 }
 
 function fetchActiveInvestigatorsForAuthMigration_() {
