@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首次登入流程本機預覽</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --preview-ink: #062333;
+            --preview-muted: #526b78;
+            --preview-accent: #00d084;
+            --preview-border: #cbdde5;
+        }
+
+        body {
+            min-height: 100vh;
+            padding: 32px 18px;
+            background: #f7fafb;
+            color: var(--preview-ink);
+        }
+
+        .preview-shell {
+            width: min(620px, 100%);
+            margin: 0 auto;
+        }
+
+        .preview-shell h1 {
+            margin: 0 0 8px;
+            font-size: clamp(24px, 5vw, 34px);
+        }
+
+        .preview-subtitle {
+            margin: 0 0 20px;
+            color: var(--preview-muted);
+            line-height: 1.6;
+        }
+
+        .preview-card {
+            padding: 22px;
+        }
+
+        .preview-mode-banner {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 18px;
+            padding: 12px 14px;
+            border: 1px solid #b8d9e5;
+            border-left: 4px solid var(--preview-accent);
+            border-radius: 8px;
+            background: #f2fbfd;
+            line-height: 1.5;
+        }
+
+        .preview-mode-banner strong {
+            font-size: 14px;
+        }
+
+        .preview-mode-banner span {
+            color: var(--preview-muted);
+            font-size: 13px;
+        }
+
+        .preview-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        #preview-identifier {
+            width: 100%;
+            min-height: 42px;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+            padding: 9px 11px;
+            border: 1px solid var(--preview-border);
+            border-radius: 7px;
+            font: inherit;
+        }
+
+        .preview-status {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: #eef8f2;
+            color: #185c38;
+            line-height: 1.6;
+        }
+
+        .preview-status strong {
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .preview-next-step {
+            margin-top: 12px;
+        }
+
+        .preview-next-step button {
+            width: 100%;
+        }
+
+        .preview-footer-note {
+            margin-top: 16px;
+            color: var(--preview-muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .preview-password {
+            display: block;
+            margin-top: 8px;
+            padding: 10px 12px;
+            border: 1px solid #b8d9e5;
+            border-radius: 7px;
+            background: #fff;
+            color: var(--preview-ink);
+            font: 700 16px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .04em;
+            word-break: break-word;
+        }
+
+        .preview-dialog[hidden],
+        .preview-status[hidden],
+        .preview-next-step[hidden] {
+            display: none;
+        }
+
+        .preview-dialog {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            background: rgba(0, 30, 43, .42);
+        }
+
+        .preview-dialog-panel {
+            width: min(520px, 100%);
+            padding: 22px;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 18px 60px rgba(0, 30, 43, .24);
+        }
+
+        .preview-dialog-panel h2 {
+            margin-top: 0;
+            font-size: 22px;
+        }
+
+        .preview-dialog-panel p {
+            line-height: 1.7;
+        }
+
+        .preview-dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 18px 12px;
+            }
+
+            .preview-card,
+            .preview-dialog-panel {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="preview-shell">
+        <h1>地名語音調查系統</h1>
+        <p class="preview-subtitle">首次登入流程本機預覽</p>
+
+        <section class="card preview-card" aria-labelledby="preview-login-title">
+            <div class="preview-mode-banner">
+                <strong>本機預覽模式</strong>
+                <span>這是畫面測試，不會連線 Supabase、不會寄出真實 Email，也不會修改任何資料。</span>
+            </div>
+
+            <h2 id="preview-login-title">第一次登入？請先到信箱收信</h2>
+            <label class="preview-label" for="preview-identifier">Email 或使用者名稱</label>
+            <input id="preview-identifier" type="text" value="test2@test.com" autocomplete="off">
+            <button class="btn-secondary" type="button" id="preview-send-btn">首次登入：寄送 Email 連結</button>
+
+            <div class="preview-status" id="preview-status" role="status" hidden>
+                <strong>登入連結已寄出</strong>
+                <span>請到信箱收信並點擊連結；若沒有看到，請檢查垃圾信件匣。</span>
+            </div>
+
+            <div class="preview-next-step" id="preview-next-step" hidden>
+                <button class="btn-primary" type="button" id="preview-link-btn">模擬點擊信件中的登入連結</button>
+            </div>
+
+            <p class="preview-footer-note">正式系統中，只有驗證信連結成功後才會進入下一步；單純輸入 email 不會直接顯示密碼。</p>
+        </section>
+    </main>
+
+    <div class="preview-dialog" id="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-dialog-title" hidden>
+        <div class="preview-dialog-panel">
+            <h2 id="preview-dialog-title">請記下共用登入密碼</h2>
+            <p>你剛完成首次 Email 驗證登入。從下一次新的登入工作階段開始，必須輸入自己的 Email／使用者名稱與共用密碼。</p>
+            <div class="auth-bootstrap-password-note">
+                請記下以下密碼。這是本機預覽用的假密碼，不是真實系統密碼：
+                <code class="preview-password">LocalPreview-Password-2026</code>
+            </div>
+            <p>記下密碼後，請按下確認。確認前請不要關閉這個視窗。</p>
+            <div class="preview-dialog-actions">
+                <button class="btn-primary" type="button" id="preview-confirm-btn">我已記下密碼，確認</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const identifierInput = document.getElementById('preview-identifier');
+        const sendButton = document.getElementById('preview-send-btn');
+        const status = document.getElementById('preview-status');
+        const nextStep = document.getElementById('preview-next-step');
+        const linkButton = document.getElementById('preview-link-btn');
+        const dialog = document.getElementById('preview-dialog');
+        const confirmButton = document.getElementById('preview-confirm-btn');
+
+        sendButton.addEventListener('click', () => {
+            if (!identifierInput.value.trim()) {
+                identifierInput.focus();
+                return;
+            }
+            status.hidden = false;
+            nextStep.hidden = false;
+            sendButton.textContent = '重新寄送 Email 連結';
+        });
+
+        linkButton.addEventListener('click', () => {
+            dialog.hidden = false;
+            confirmButton.focus();
+        });
+
+        confirmButton.addEventListener('click', () => {
+            dialog.hidden = true;
+            status.innerHTML = '<strong>已完成首次啟用</strong><span>下一次新的登入工作階段，請使用 Email／使用者名稱與共用密碼。</span>';
+            sendButton.disabled = true;
+            linkButton.disabled = true;
+        });
+    </script>
+</body>
+</html>
