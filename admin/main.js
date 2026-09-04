@@ -4846,7 +4846,7 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false, canAnnotate 
                                 ${canAssess ? `<button class="review-workflow-assess-btn" type="button" onclick="openReviewWorkflowAudioAssessment(${row.task_id}, '${escapeJsString(row.language)}', ${item.audio_record_id}, this)" aria-expanded="false" aria-controls="review-workflow-assessment-${row.case_id}-${item.audio_record_id}">${decision !== '\u672a\u5be9\u807d' ? '重新判定' : '開始判定'}</button>` : ''}
                             </div>
                         </div>
-                        <div class="review-workflow-source-grid">
+                        <div class="review-workflow-source-grid" data-field-count="${displayFields.length}">
                             ${displayFields.map(field => renderReviewWorkflowSourceCell(row, item.audio_record_id, field, source, canEdit, sourceCanAnnotate)).join('')}
                         </div>
                         ${canAssess ? renderReviewWorkflowAudioAssessmentPanel(row, item) : ''}

@@ -3566,10 +3566,12 @@ button:disabled {
 .review-workflow-source-id { color: #536573; font-weight: 700; }
 .review-workflow-source-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .review-workflow-source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; }
-.review-workflow-source-field { min-width: 0; min-height: 112px; padding: 10px; border-right: 1px solid #e1e7eb; }
+.review-workflow-source-grid[data-field-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.review-workflow-source-grid[data-field-count="6"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.review-workflow-source-field { min-width: 0; min-height: 76px; padding: 8px; border-right: 1px solid #e1e7eb; }
 .review-workflow-source-field:last-child { border-right: 0; }
-.review-workflow-source-field-label { margin-bottom: 8px; color: #5f7080; font-weight: 700; }
-.review-workflow-source-field .compare-value { min-width: 0; min-height: 2.7em; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; }
+.review-workflow-source-field-label { margin-bottom: 4px; color: #5f7080; font-weight: 700; }
+.review-workflow-source-field .compare-value { min-width: 0; min-height: 1.35em; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; }
 .review-workflow-source-card > .review-player { padding: 0 12px 8px; }
 .review-workflow-fill-field-btn { display: inline-block; margin-top: 4px; }
 .review-workflow-audio-draft-panel {
@@ -3894,6 +3896,8 @@ button:disabled {
     .review-workflow-source-heading { grid-template-columns: minmax(0, 1fr); align-items: start; }
     .review-workflow-source-actions { justify-content: flex-start; }
     .review-workflow-source-grid { grid-template-columns: 1fr; }
+    .review-workflow-source-grid[data-field-count="5"],
+    .review-workflow-source-grid[data-field-count="6"] { grid-template-columns: 1fr; }
     .review-workflow-source-field { min-height: 0; border-right: 0; border-bottom: 1px solid #e1e7eb; }
     .review-workflow-source-field:last-child { border-bottom: 0; }
 }
