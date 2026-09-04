@@ -4711,6 +4711,12 @@ function canAnnotateReviewWorkflowAudio(row) {
     return getReviewWorkflowUsableAudioEvidence(row).length > 0;
 }
 
+function canViewReviewWorkflowAudioSources(row) {
+    if (!isAudioReviewRole() || getReviewWorkbenchMode() !== 'audio') return false;
+    return Number(row?.audio_record_count || 0) > 0
+        || getReviewWorkflowAudioEvidence(row).length > 0;
+}
+
 function renderLegacyReviewWorkflowAudioEvidence(row, canEdit = false) {
     const evidence = getReviewWorkflowAudioEvidence(row);
     if (evidence.length === 0) return '<div class="review-workflow-empty">沒有可顯示的音檔 evidence。</div>';
@@ -4742,7 +4748,7 @@ function getReviewWorkflowAudioSource(row, audioRecordId) {
 
 function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEdit, canAnnotate = false) {
     const value = source ? getReviewWorkflowSourceFieldValue(source, field) : '';
-    const isLoading = row.audio_sources_loaded !== true && !Array.isArray(row.audio_sources);
+    const isLoading = !source && row.audio_sources_loaded !== true && !Array.isArray(row.audio_sources);
     const displayValue = isLoading ? '\u8b80\u53d6\u4e2d\u2026' : (value || '\u672a\u586b');
     const annotationCopyButton = canAnnotate && value
         ? `<button class="copy-field-btn review-workflow-audio-draft-fill-field-btn" type="button" onclick="fillReviewWorkflowAudioDraftFieldFromSource(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u5e36\u5165</button>`
@@ -4819,7 +4825,8 @@ function renderReviewWorkflowAudioSourceTable(row, canEdit = false, canAnnotate 
     const compareFields = config.compareFields
         .map(fieldKey => config.fields.find(field => field.key === fieldKey))
         .filter(Boolean);
-    const displayFields = canAnnotate ? config.fields : compareFields;
+    const canViewOriginalSources = isAudioReviewRole() && getReviewWorkbenchMode() === 'audio';
+    const displayFields = canAnnotate || canViewOriginalSources ? config.fields : compareFields;
     const sourceById = new Map(getReviewWorkflowAudioSources(row)
         .map(source => [Number(source.audio_record_id), source]));
     const canAssess = canAssessReviewWorkflowAudio(row);
@@ -6110,7 +6117,7 @@ function renderReviewWorkflowQueue() {
         const audioDraftPanel = item.querySelector('[data-review-audio-draft-panel]');
         if (audioDraftPanel) bindReviewWorkflowAudioAnnotationDraftPanel(audioDraftPanel, row.case_id);
         if (!isWritten && !row.audio_sources_loaded && !Array.isArray(row.audio_sources)
-            && (canEdit || canAssessReviewWorkflowAudio(row))) {
+            && (canEdit || canViewReviewWorkflowAudioSources(row))) {
             loadReviewWorkflowAudioSourcesForRow(row, item, canEdit, canAnnotate);
         }
     });

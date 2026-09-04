@@ -2,7 +2,7 @@ const { pathToFileURL } = require('url');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 
-const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
+const appUrl = pathToFileURL(path.join(__dirname, '..', 'admin', 'index.html')).href;
 test('recording respondent key is optional and not presented as a two-person requirement', async ({ page }) => {
   await page.goto(appUrl);
   await expect(page.locator('label[for="respondent-key-input"]')).toHaveText('受訪者代號（可留空）');
@@ -1090,6 +1090,72 @@ test('admin audio inspection workbench hides proofing controls', async ({ page }
   await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item input:visible, .review-workflow-item textarea:visible')).toHaveCount(0);
   await expect(page.locator('.review-workflow-draft-btn, .review-workflow-approve-btn')).toHaveCount(0);
+});
+
+test('unclaimed audio assessor can view original annotation sources without edit controls', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      if (rpcName === 'get_review_workflow_audio_sources') {
+        return [{
+          audio_record_id: 31,
+          phonetic_reading: 'Tsui-lau lun',
+          annotations: {
+            taihan: '\\u539f\\u59cb\\u6f22\\u5b57',
+            tl1: 'Tsui-lau lun',
+            tainote: '\\u539f\\u59cb\\u5099\\u8a3b'
+          }
+        }];
+      }
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.userRole = 'audio_assessor';
+    state.userId = 'audio@example.com';
+    state.userName = 'Audio Assessor';
+    state.reviewWorkbenchMode = 'audio';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 93,
+      task_id: 93,
+      language: '\\u53f0\\u8a9e',
+      place_name: '\\u672a\\u9818\\u53d6\\u539f\\u59cb\\u6a19\\u8a3b\\u6e2c\\u8a66',
+      class_name: '\\u6e2c\\u8a66',
+      state: '\\u5f85\\u6821\\u5c0d',
+      version_kind: 'draft',
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 1,
+      audio_review_state: '\\u672a\\u5be9\\u807d',
+      audio_claim_by: null,
+      audio_claim_until: null,
+      audio_evidence: [
+        {
+          audio_record_id: 31,
+          audio_file_id: 'drive-31',
+          recorder_name: 'Recorder',
+          assessment_decision: '\\u672a\\u5be9\\u807d'
+        }
+      ]
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workflow-source-grid')).toContainText('\\u539f\\u59cb\\u6f22\\u5b57');
+  await expect(page.locator('.review-workflow-source-grid')).toContainText('Tsui-lau lun');
+  await expect(page.locator('.review-workflow-source-grid')).toContainText('\\u539f\\u59cb\\u5099\\u8a3b');
+  await expect(page.locator('.review-workflow-source-field')).toHaveCount(5);
+  await expect(page.locator('.review-workflow-audio-source-fill-btn, .review-workflow-audio-draft-fill-field-btn')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-assess-btn')).toHaveCount(0);
+  const calls = await page.evaluate(() => window.__workflowCalls);
+  expect(calls).toContainEqual({
+    rpcName: 'get_review_workflow_audio_sources',
+    body: { p_case_id: 93 }
+  });
 });
 
 test('satellite written draft stays in the shared proofing workbench', async ({ page }) => {
