@@ -17,6 +17,7 @@ var RECORDS_SHEET_HEADERS = ['紀錄時間', '上傳者ID', '序號', '地名', 
 var WRITTEN_ANNOTATION_CLASS = '書面標注';
 var WRITTEN_ANNOTATION_CLASSES = ['書面標注', '直接標注'];
 var SATELLITE_LOCKED_BACKGROUND = '#666666';
+var SATELLITE_PARENT_FOLDER_ID = '1_NX2OMSUY9eRv3YKEvqQ1T3xkVlQFvsr';
 var SATELLITE_LOCKED_FONT_COLOR = '#eeeeee';
 var SATELLITE_LOCKED_NOTE = '請勿填寫';
 
@@ -2228,8 +2229,10 @@ function ensureSatelliteSpreadsheet_(rosterSheet, roster, person) {
   if (!entry) return null;
   if (entry.spreadsheetId) return entry.spreadsheetId;
 
+  var satelliteFolder = DriveApp.getFolderById(SATELLITE_PARENT_FOLDER_ID);
   var created = SpreadsheetApp.create('書面標注_' + person);
   var sheet = created.getSheets()[0];
+  DriveApp.getFileById(created.getId()).moveTo(satelliteFolder);
   sheet.getRange(1, 1, 1, SATELLITE_HEADERS.length).setValues([SATELLITE_HEADERS]);
   sheet.getRange(1, 1, 1, SATELLITE_HEADERS.length)
     .setBackground('#d9ead3')
