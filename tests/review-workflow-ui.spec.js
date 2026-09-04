@@ -327,12 +327,14 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await expect(page.locator('#review-workflow-audio-language-filter')).toBeVisible();
   await expect(page.locator('.review-workflow-audio-language-option')).toHaveCount(3);
   await expect(page.locator('.review-workflow-audio-language-option')).toHaveText(['全部', '台語', '客語']);
-  await expect(page.locator('.review-workflow-audio-filter-group')).toHaveCount(1);
-  await expect(page.locator('.review-workflow-audio-filter-group').first()).toContainText('行政區與語種');
+  await expect(page.locator('.review-workflow-audio-primary-heading h3')).toHaveText('行政區與語種');
+  await expect(page.locator('.review-workflow-audio-secondary')).toBeVisible();
+  await expect(page.locator('.review-workflow-audio-secondary summary')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-audio-filter-apply')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-audio-filter-clear')).toHaveCount(0);
   await expect(page.locator('.review-workflow-audio-filter-row > *')).toHaveCount(3);
   await expect(page.locator('#review-workflow-audio-flag-filter')).toBeAttached();
   await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toBeDisabled();
-  await expect(page.locator('.review-workflow-audio-secondary')).not.toHaveAttribute('open', '');
 
   const filterWidth = await page.locator('.review-workflow-audio-filter-bar').evaluate(element => ({
     scrollWidth: element.scrollWidth,
@@ -342,7 +344,6 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
 
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
 
-  await page.locator('.review-workflow-audio-secondary summary').click();
   const desktopFilterLayout = await page.evaluate(() => {
     const topValues = selector => Array.from(document.querySelectorAll(selector))
       .map(element => element.getBoundingClientRect().top);
@@ -355,7 +356,6 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   expect(desktopFilterLayout.secondaryTops).toHaveLength(3);
   expect(Math.max(...desktopFilterLayout.primaryTops) - Math.min(...desktopFilterLayout.primaryTops)).toBeLessThanOrEqual(1);
   expect(Math.max(...desktopFilterLayout.secondaryTops) - Math.min(...desktopFilterLayout.secondaryTops)).toBeLessThanOrEqual(1);
-  await page.locator('.review-workflow-audio-secondary summary').click();
   await page.setViewportSize({ width: 375, height: 800 });
   const mobileFilterWidth = await page.locator('.review-workflow-audio-filter-bar').evaluate(element => ({
     scrollWidth: element.scrollWidth,
@@ -383,60 +383,65 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await expect(page.locator('.review-workflow-audio-language-option[data-language="客語"]')).toHaveClass(/is-selected/);
   await expect(page.locator('.review-workflow-audio-language-option[data-language="all"]')).not.toHaveClass(/is-selected/);
 
-  const openSecondaryFilters = async () => {
-    const details = page.locator('.review-workflow-audio-secondary');
-    if (!(await details.getAttribute('open'))) {
-      await details.locator('summary').click();
-    }
-  };
-  await openSecondaryFilters();
-  await page.locator('.review-workflow-audio-filter-clear').click();
+  await page.locator('.review-workflow-audio-primary-clear').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(3);
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('unreviewed');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('completed');
   await expect(page.locator('.review-workflow-item')).toHaveCount(2);
   await expect(page.locator('.review-workflow-item').filter({ hasText: '完成案件' })).toBeVisible();
   await expect(page.locator('.review-workflow-item').filter({ hasText: '待追問案件' })).toBeVisible();
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-flag-filter').selectOption('followup');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-status-filter').selectOption('all');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-flag-filter').selectOption('unusable');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-flag-filter').selectOption('all');
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-claim-filter').selectOption('other');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
 
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-claim-filter').selectOption('mine');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
-  await openSecondaryFilters();
   await page.locator('#review-workflow-audio-keyword').fill('TEST0001');
-  await page.locator('.review-workflow-audio-filter-apply').click();
+  await page.locator('#review-workflow-audio-keyword').dispatchEvent('change');
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
   await expect(page.locator('.review-workflow-item')).toContainText('石崁頭');
 
-  await openSecondaryFilters();
-  await page.locator('.review-workflow-audio-filter-clear').click();
+  await page.locator('.review-workflow-audio-primary-clear').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(3);
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
+});
+
+test('audio assessor enters the audio review workbench after login', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.loadDataFromSupabase = async () => {};
+    window.loadAnnouncementsForCurrentUser = async () => {};
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [];
+  });
+  await page.evaluate(async () => {
+    await enterApp({
+      user_id: 'audio-user-id',
+      account: 'audio@example.com',
+      role: 'audio_assessor',
+      email: 'audio@example.com',
+      name: 'Audio Assessor'
+    }, { persist: false });
+  });
+
+  await expect(page.locator('#tab-review')).toHaveClass(/active/);
+  await expect(page.locator('.review-workbench-mode-btn[aria-label="目前工作台：音檔檢驗"]')).toBeVisible();
 });
 
 test('audio assessor sees claimed audio workbench and sends audio claim token', async ({ page }) => {

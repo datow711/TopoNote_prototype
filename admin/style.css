@@ -4389,29 +4389,24 @@ button:disabled {
 }
 .review-workflow-audio-primary-heading {
     display: flex;
-    align-items: baseline;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
 }
-.review-workflow-audio-primary-heading strong {
+.review-workflow-audio-primary-heading h3 {
+    margin: 0;
     color: #173849;
-    font-size: 1rem;
-}
-.review-workflow-audio-primary-heading span {
-    color: #60717b;
-    font-size: .9rem;
-}
-.review-workflow-audio-primary-heading {
-    justify-content: space-between;
+    font-size: .92rem;
 }
 .review-workflow-audio-primary-clear {
-    min-height: 32px;
-    padding: 5px 10px;
+    min-height: 30px;
+    padding: 4px 8px;
     border: 1px solid #b7cbd5;
     border-radius: 7px;
     background: #fff;
     color: #315467;
     font: inherit;
-    font-size: .88rem;
+    font-size: .82rem;
     font-weight: 700;
     cursor: pointer;
 }
@@ -4472,40 +4467,8 @@ button:disabled {
 .review-workflow-audio-secondary {
     border: 1px solid #dfe6eb;
     border-radius: 9px;
-    background: #fff;
-}
-.review-workflow-audio-secondary summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-height: 38px;
-    box-sizing: border-box;
-    padding: 6px 10px;
-    color: #315467;
-    font-weight: 700;
-    cursor: pointer;
-    list-style: none;
-}
-.review-workflow-audio-secondary summary::-webkit-details-marker {
-    display: none;
-}
-.review-workflow-audio-secondary summary::after {
-    content: '＋';
-    color: #60717b;
-    font-size: 1.05rem;
-}
-.review-workflow-audio-secondary[open] summary {
-    border-bottom: 1px solid #dfe6eb;
-}
-.review-workflow-audio-secondary[open] summary::after {
-    content: '－';
-}
-.review-workflow-audio-secondary summary small {
-    margin-left: auto;
-    color: #7a8992;
-    font-size: .84rem;
-    font-weight: 400;
+    border-color: #e4d8c7;
+    background: #fff8ee;
 }
 .review-workflow-audio-secondary-body {
     display: grid;
@@ -4536,24 +4499,11 @@ button:disabled {
     font: inherit;
     font-weight: 400;
 }
-.review-workflow-audio-secondary-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
 .review-workflow-audio-filter-hint {
     margin: 0;
     color: #6a7b87;
     font-size: .84rem;
     line-height: 1.5;
-}
-.review-workflow-audio-secondary-actions button {
-    min-height: 36px;
-    padding: 6px 12px;
-    border-radius: 7px;
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
 }
 .review-workflow-audio-filter-count {
     margin: 0 2px;
@@ -4562,25 +4512,13 @@ button:disabled {
 }
 @media (max-width: 640px) {
     .review-workflow-audio-primary-heading {
-        display: grid;
-        gap: 2px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     .review-workflow-audio-primary-controls,
     .review-workflow-audio-secondary-options {
         grid-template-columns: 1fr;
-    }
-    .review-workflow-audio-secondary summary {
-        align-items: flex-start;
-    }
-    .review-workflow-audio-secondary summary small {
-        text-align: right;
-    }
-    .review-workflow-audio-secondary-actions {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .review-workflow-audio-secondary-actions button {
-        width: 100%;
     }
 }
 .review-workflow-audio-filter-group {

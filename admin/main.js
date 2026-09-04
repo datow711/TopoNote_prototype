@@ -1304,7 +1304,7 @@ async function enterApp(user, options = {}) {
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('app-section').classList.remove('hidden');
     initFilters();
-    switchTab(isProofreaderRole() ? 'review' : 'assigned');
+    switchTab(isProofreaderRole() || isAudioAssessorRole() ? 'review' : 'assigned');
 }
 
 function logout() {
@@ -4226,8 +4226,9 @@ function setReviewWorkflowAudioClaimFilter(value, form) {
     if (state.currentTab === 'review') renderReviewWorkflowQueue();
 }
 
-function applyReviewWorkflowAudioKeywordFilter(form) {
-    state.reviewWorkflowAudioKeyword = String(form?.querySelector('[data-role="audio-keyword"]')?.value || '').trim();
+
+function setReviewWorkflowAudioKeywordFilter(value) {
+    state.reviewWorkflowAudioKeyword = String(value || '').trim();
     if (state.currentTab === 'review') renderReviewWorkflowQueue();
 }
 
@@ -4367,16 +4368,13 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
         escapeHtml(language) + '</option>'
     ).join('');
     return `
-        <form class="review-workflow-audio-filter-bar" onsubmit="event.preventDefault(); applyReviewWorkflowAudioKeywordFilter(this)">
+        <form class="review-workflow-audio-filter-bar" onsubmit="event.preventDefault()">
             <div class="review-workflow-audio-primary">
                 <div class="review-workflow-audio-primary-heading">
-                    <strong>主要篩選</strong>
-                    <span>先選行政區與語種，再開始審聽</span>
+                    <h3>行政區與語種</h3>
                     <button type="button" class="review-workflow-audio-primary-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
                 </div>
-                <section class="review-workflow-audio-filter-group">
-                    <h3>行政區與語種</h3>
-                    <div class="review-workflow-audio-filter-row" aria-label="行政區與語種篩選">
+                <div class="review-workflow-audio-filter-row" aria-label="行政區與語種篩選">
                         <label>
                             <span>縣市</span>
                             <select id="review-workflow-audio-county-filter" aria-label="縣市" onchange="setReviewWorkflowAudioCountyFilter(this.value)">
@@ -4401,17 +4399,12 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                             </div>
                         </div>
                     </div>
-                </section>
             </div>
-            <details class="review-workflow-audio-secondary">
-                <summary>
-                    <span>其他篩選</span>
-                    <small>進度、特殊標記、領取狀態、關鍵字</small>
-                </summary>
+            <div class="review-workflow-audio-secondary">
                 <div class="review-workflow-audio-secondary-body">
                     <label class="review-workflow-audio-keyword">
                         <span>關鍵字</span>
-                        <input id="review-workflow-audio-keyword" type="search" data-role="audio-keyword" value="${escapeHtml(state.reviewWorkflowAudioKeyword || '')}" placeholder="地名／來源 ID／音檔 ID／錄音人" autocomplete="off">
+                        <input id="review-workflow-audio-keyword" type="search" data-role="audio-keyword" value="${escapeHtml(state.reviewWorkflowAudioKeyword || '')}" placeholder="地名／來源 ID／音檔 ID／錄音人" autocomplete="off" onchange="setReviewWorkflowAudioKeywordFilter(this.value)">
                     </label>
                     <div class="review-workflow-audio-secondary-options">
                         <label>
@@ -4434,12 +4427,8 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                         </label>
                     </div>
                     <p class="review-workflow-audio-filter-hint">音檔進度只看每筆音檔是否已判定；特殊標記則看是否需後續處理或含不可用音檔，兩者可以同時套用。</p>
-                    <div class="review-workflow-audio-secondary-actions">
-                        <button type="submit" class="review-workflow-audio-filter-apply">套用其他篩選</button>
-                        <button type="button" class="review-workflow-audio-filter-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
-                    </div>
                 </div>
-            </details>
+            </div>
             <div class="review-workflow-audio-filter-count">顯示 ${visibleRows.length} / ${totalRows.length} 筆音檔案件</div>
         </form>
     `;
