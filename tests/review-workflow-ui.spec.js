@@ -325,6 +325,8 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
 
   await expect(page.locator('#review-workflow-audio-county-filter')).toBeVisible();
   await expect(page.locator('#review-workflow-audio-language-filter')).toBeVisible();
+  await expect(page.locator('.review-workflow-audio-language-option')).toHaveCount(3);
+  await expect(page.locator('.review-workflow-audio-language-option')).toHaveText(['全部', '台語', '客語']);
   await expect(page.locator('.review-workflow-audio-filter-group')).toHaveCount(1);
   await expect(page.locator('.review-workflow-audio-filter-group').first()).toContainText('行政區與語種');
   await expect(page.locator('.review-workflow-audio-filter-row > *')).toHaveCount(3);
@@ -378,6 +380,8 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await expect(page.locator('.review-workflow-item')).toContainText('待追問案件');
   await page.locator('#review-workflow-audio-language-filter .review-workflow-audio-language-option[data-language="客語"]').click();
   await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-audio-language-option[data-language="客語"]')).toHaveClass(/is-selected/);
+  await expect(page.locator('.review-workflow-audio-language-option[data-language="all"]')).not.toHaveClass(/is-selected/);
 
   const openSecondaryFilters = async () => {
     const details = page.locator('.review-workflow-audio-secondary');

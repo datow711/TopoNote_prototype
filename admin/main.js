@@ -8,6 +8,7 @@ if ('serviceWorker' in navigator) {
 }
 
 const STATUS_FILTER_VALUES = ['未錄音', '台語已有錄音', '客語已有錄音', '台語完成', '客語完成', '全部完成'];
+const REVIEW_WORKFLOW_AUDIO_LANGUAGE_OPTIONS = ['台語', '客語'];
 const LEAFLET_VERSION = '1.9.4';
 const LEAFLET_CSS_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
 const LEAFLET_JS_URL = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
@@ -4050,8 +4051,7 @@ function getReviewWorkflowAudioFilterState(rows = state.reviewWorkflowQueue) {
     const selectedTowns = Array.isArray(state.reviewWorkflowAudioSelectedTowns)
         ? state.reviewWorkflowAudioSelectedTowns.filter(town => towns.includes(town))
         : [...towns];
-    const languages = [...new Set(sourceRows.map(row => row?.language).filter(Boolean))]
-        .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
+    const languages = [...REVIEW_WORKFLOW_AUDIO_LANGUAGE_OPTIONS];
     const validStatuses = ['all', 'unreviewed', 'completed'];
     const validFlags = ['all', 'followup', 'unusable'];
     const validClaims = ['all', 'mine', 'available', 'other'];
@@ -4391,7 +4391,7 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                         <div class="review-workflow-audio-language-label">
                             <span>語種</span>
                             <div id="review-workflow-audio-language-filter" class="review-workflow-audio-language-chips" role="radiogroup" aria-label="語種">
-                                <button type="button" class="review-workflow-audio-language-option ${filters.language === 'all' ? 'is-selected' : ''}" data-language="all" aria-pressed="${filters.language === 'all'}" onclick="setReviewWorkflowAudioLanguageFilter('all')">全部語種</button>
+                                <button type="button" class="review-workflow-audio-language-option ${filters.language === 'all' ? 'is-selected' : ''}" data-language="all" aria-pressed="${filters.language === 'all'}" onclick="setReviewWorkflowAudioLanguageFilter('all')">全部</button>
                                 ${filters.languages.map(language =>
                                     '<button type="button" class="review-workflow-audio-language-option ' + (filters.language === language ? 'is-selected' : '') +
                                     '" data-language="' + escapeHtml(language) + '" aria-pressed="' + (filters.language === language) +
@@ -4400,6 +4400,7 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                                 ).join('')}
                             </div>
                         </div>
+                    </div>
                 </section>
             </div>
             <details class="review-workflow-audio-secondary">

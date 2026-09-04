@@ -4619,28 +4619,39 @@ button:disabled {
     box-sizing: border-box;
 }
 .review-workflow-audio-language-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #b7cbd5;
+    border-radius: 7px;
 }
 .review-workflow-audio-language-option {
-    min-height: 36px;
-    padding: 5px 12px;
-    border: 1px solid #b7cbd5;
-    border-radius: 999px;
-    background: #fff;
-    color: #315467;
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 0;
+    border-right: 1px solid #b7cbd5;
+    border-radius: 0;
+    background: #eef4f6;
+    color: #526573;
     font: inherit;
     font-weight: 700;
     cursor: pointer;
 }
+.review-workflow-audio-language-option:last-child {
+    border-right: 0;
+}
 .review-workflow-audio-language-option:hover,
 .review-workflow-audio-language-option:focus-visible {
-    border-color: #2586b2;
-    background: #eef8fc;
+    background: #dcecf2;
+    color: #315467;
 }
 .review-workflow-audio-language-option.is-selected {
-    border-color: #176b8b;
     background: #176b8b;
     color: #fff;
 }
@@ -4648,7 +4659,7 @@ button:disabled {
 .review-workflow-audio-filter-row select:focus,
 .review-workflow-audio-town-button:focus-visible {
     outline: 2px solid #7db8d4;
-    outline-offset: 1px;
+    outline-offset: -2px;
 }
 .review-workflow-assessment-meta {
     flex-basis: 100%;
