@@ -4373,16 +4373,16 @@ button:disabled {
     }
 }
 .review-workflow-audio-filter-bar {
-    gap: 12px;
-    margin-bottom: 14px;
+    gap: 8px;
+    margin-bottom: 10px;
     padding: 0;
     border: 0;
     background: transparent;
 }
 .review-workflow-audio-primary {
     display: grid;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     border: 1px solid #cfe0e7;
     border-radius: 9px;
     background: #f6fafc;
@@ -4390,7 +4390,7 @@ button:disabled {
 .review-workflow-audio-primary-heading {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 8px;
 }
 .review-workflow-audio-primary-heading strong {
     color: #173849;
@@ -4479,9 +4479,9 @@ button:disabled {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    min-height: 42px;
+    min-height: 38px;
     box-sizing: border-box;
-    padding: 8px 12px;
+    padding: 6px 10px;
     color: #315467;
     font-weight: 700;
     cursor: pointer;
@@ -4509,17 +4509,17 @@ button:disabled {
 }
 .review-workflow-audio-secondary-body {
     display: grid;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
 }
 .review-workflow-audio-secondary-options {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
 }
 .review-workflow-audio-secondary-options label {
     display: grid;
-    gap: 5px;
+    gap: 4px;
     min-width: 0;
     color: #526573;
     font-weight: 700;
@@ -4585,7 +4585,7 @@ button:disabled {
 }
 .review-workflow-audio-filter-group {
     display: grid;
-    gap: 8px;
+    gap: 6px;
 }
 .review-workflow-audio-filter-group + .review-workflow-audio-filter-group {
     padding-top: 10px;
@@ -4598,14 +4598,15 @@ button:disabled {
 }
 .review-workflow-audio-filter-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
 }
 .review-workflow-audio-filter-row > label,
-.review-workflow-audio-filter-row > .review-workflow-audio-town-label {
+.review-workflow-audio-filter-row > .review-workflow-audio-town-label,
+.review-workflow-audio-filter-row > .review-workflow-audio-language-label {
     display: grid;
     align-content: start;
-    gap: 5px;
+    gap: 4px;
     min-width: 0;
     color: #526573;
     font-weight: 700;
@@ -4620,11 +4621,11 @@ button:disabled {
 .review-workflow-audio-language-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 .review-workflow-audio-language-option {
     min-height: 36px;
-    padding: 6px 14px;
+    padding: 5px 12px;
     border: 1px solid #b7cbd5;
     border-radius: 999px;
     background: #fff;

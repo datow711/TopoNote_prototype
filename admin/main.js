@@ -4375,8 +4375,8 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                     <button type="button" class="review-workflow-audio-primary-clear" onclick="clearReviewWorkflowAudioFilters()">清除全部條件</button>
                 </div>
                 <section class="review-workflow-audio-filter-group">
-                    <h3>行政區</h3>
-                    <div class="review-workflow-audio-filter-row">
+                    <h3>行政區與語種</h3>
+                    <div class="review-workflow-audio-filter-row" aria-label="行政區與語種篩選">
                         <label>
                             <span>縣市</span>
                             <select id="review-workflow-audio-county-filter" aria-label="縣市" onchange="setReviewWorkflowAudioCountyFilter(this.value)">
@@ -4388,19 +4388,18 @@ function renderReviewWorkflowAudioFilter(totalRows, visibleRows) {
                             <span>鄉鎮</span>
                             ${renderReviewWorkflowAudioTownFilter(filters)}
                         </div>
-                    </div>
-                </section>
-                <section class="review-workflow-audio-filter-group">
-                    <h3>語種</h3>
-                    <div id="review-workflow-audio-language-filter" class="review-workflow-audio-language-chips" role="radiogroup" aria-label="語種">
-                        <button type="button" class="review-workflow-audio-language-option ${filters.language === 'all' ? 'is-selected' : ''}" data-language="all" aria-pressed="${filters.language === 'all'}" onclick="setReviewWorkflowAudioLanguageFilter('all')">全部語種</button>
-                        ${filters.languages.map(language =>
-                            '<button type="button" class="review-workflow-audio-language-option ' + (filters.language === language ? 'is-selected' : '') +
-                            '" data-language="' + escapeHtml(language) + '" aria-pressed="' + (filters.language === language) +
-                            '" onclick="setReviewWorkflowAudioLanguageFilter(\'' + escapeJsString(language) + '\')">' +
-                            escapeHtml(language) + '</button>'
-                        ).join('')}
-                    </div>
+                        <div class="review-workflow-audio-language-label">
+                            <span>語種</span>
+                            <div id="review-workflow-audio-language-filter" class="review-workflow-audio-language-chips" role="radiogroup" aria-label="語種">
+                                <button type="button" class="review-workflow-audio-language-option ${filters.language === 'all' ? 'is-selected' : ''}" data-language="all" aria-pressed="${filters.language === 'all'}" onclick="setReviewWorkflowAudioLanguageFilter('all')">全部語種</button>
+                                ${filters.languages.map(language =>
+                                    '<button type="button" class="review-workflow-audio-language-option ' + (filters.language === language ? 'is-selected' : '') +
+                                    '" data-language="' + escapeHtml(language) + '" aria-pressed="' + (filters.language === language) +
+                                    '" onclick="setReviewWorkflowAudioLanguageFilter(\'' + escapeJsString(language) + '\')">' +
+                                    escapeHtml(language) + '</button>'
+                                ).join('')}
+                            </div>
+                        </div>
                 </section>
             </div>
             <details class="review-workflow-audio-secondary">

@@ -222,7 +222,7 @@ test('audio assessment shows conditional fields inline', async ({ page }) => {
   await expect(panel).toBeHidden();
 });
 test('audio workbench filters cases by progress, claim, and keyword', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 800 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(appUrl);
   await page.evaluate(() => {
     state.userRole = 'audio_assessor';
@@ -325,9 +325,9 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
 
   await expect(page.locator('#review-workflow-audio-county-filter')).toBeVisible();
   await expect(page.locator('#review-workflow-audio-language-filter')).toBeVisible();
-  await expect(page.locator('.review-workflow-audio-filter-group')).toHaveCount(2);
-  await expect(page.locator('.review-workflow-audio-filter-group').first()).toContainText('行政區');
-  await expect(page.locator('.review-workflow-audio-filter-group').nth(1)).toContainText('語種');
+  await expect(page.locator('.review-workflow-audio-filter-group')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-audio-filter-group').first()).toContainText('行政區與語種');
+  await expect(page.locator('.review-workflow-audio-filter-row > *')).toHaveCount(3);
   await expect(page.locator('#review-workflow-audio-flag-filter')).toBeAttached();
   await expect(page.locator('#review-workflow-audio-town-filter .town-filter-button')).toBeDisabled();
   await expect(page.locator('.review-workflow-audio-secondary')).not.toHaveAttribute('open', '');
@@ -339,6 +339,27 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   expect(filterWidth.scrollWidth).toBeLessThanOrEqual(filterWidth.clientWidth);
 
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
+
+  await page.locator('.review-workflow-audio-secondary summary').click();
+  const desktopFilterLayout = await page.evaluate(() => {
+    const topValues = selector => Array.from(document.querySelectorAll(selector))
+      .map(element => element.getBoundingClientRect().top);
+    return {
+      primaryTops: topValues('.review-workflow-audio-filter-row > *'),
+      secondaryTops: topValues('.review-workflow-audio-secondary-options > label')
+    };
+  });
+  expect(desktopFilterLayout.primaryTops).toHaveLength(3);
+  expect(desktopFilterLayout.secondaryTops).toHaveLength(3);
+  expect(Math.max(...desktopFilterLayout.primaryTops) - Math.min(...desktopFilterLayout.primaryTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...desktopFilterLayout.secondaryTops) - Math.min(...desktopFilterLayout.secondaryTops)).toBeLessThanOrEqual(1);
+  await page.locator('.review-workflow-audio-secondary summary').click();
+  await page.setViewportSize({ width: 375, height: 800 });
+  const mobileFilterWidth = await page.locator('.review-workflow-audio-filter-bar').evaluate(element => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth
+  }));
+  expect(mobileFilterWidth.scrollWidth).toBeLessThanOrEqual(mobileFilterWidth.clientWidth);
   await expect(page.locator('.review-workflow-item')).toHaveCount(3);
 
   await page.locator('#review-workflow-audio-county-filter').selectOption({ label: '臺北市' });
