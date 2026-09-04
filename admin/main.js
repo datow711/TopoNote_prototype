@@ -6035,6 +6035,7 @@ function renderReviewWorkflowQueue() {
             ? `<button class="review-workflow-assign-btn" type="button" onclick="assignReviewWorkflowCase(${row.case_id})">ADMIN 改派</button>`
             : '';
         const item = document.createElement('article');
+        item.dataset.caseId = String(row.case_id);
         item.className = 'review-item review-workflow-item';
         item.innerHTML = `
             <div class="review-heading">
@@ -6124,6 +6125,19 @@ function renderReviewWorkflowQueue() {
 }
 
 
+function focusReviewWorkflowCase(caseId) {
+    const caseIdText = String(caseId);
+    const item = Array.from(document.querySelectorAll('.review-workflow-item'))
+        .find(candidate => candidate.dataset.caseId === caseIdText);
+    if (!item) return;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    item.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+        inline: 'nearest'
+    });
+}
+
 async function performReviewWorkflowAction(rpcName, body, button, successMessage) {
     const originalText = button?.innerText || '';
     if (button) { button.disabled = true; button.innerText = '處理中...'; }
@@ -6131,6 +6145,10 @@ async function performReviewWorkflowAction(rpcName, body, button, successMessage
         await reviewWorkflowRpc(rpcName, body);
         await loadReviewWorkflowQueue({ silent: true });
         if (successMessage) alert(successMessage);
+        if ((rpcName === 'claim_review_case' || rpcName === 'claim_audio_review_case')
+            && body?.p_case_id !== null && body?.p_case_id !== undefined) {
+            focusReviewWorkflowCase(body.p_case_id);
+        }
     } catch (error) {
         alert(`審查 workflow 操作失敗：${error.message}`);
         if (button) { button.disabled = false; button.innerText = originalText; }

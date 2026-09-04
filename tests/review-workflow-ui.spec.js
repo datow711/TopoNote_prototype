@@ -478,6 +478,90 @@ test('audio assessor sees claimed audio workbench and sends audio claim token', 
   expect(call.body.p_claim_token).toBe('00000000-0000-0000-0000-000000000088');
   expect(call.body.p_metadata.needs_followup).toBe(false);
 });
+
+test('claiming a review case scrolls the reordered case into view', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.alert = () => {};
+    window.confirm = () => true;
+    const makeRow = (caseId, placeName) => ({
+      case_id: caseId,
+      task_id: caseId,
+      language: '\u53f0\u8a9e',
+      place_name: placeName,
+      class_name: 'test',
+      state: 'pending',
+      audio_claim_by: null,
+      audio_claim_token: null,
+      audio_claim_until: null,
+      audio_record_count: 1,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_review_state: '\u672a\u5be9\u807d',
+      audio_evidence: [{
+        audio_record_id: caseId + 1000,
+        audio_file_id: 'drive-' + caseId,
+        recorder_name: 'Recorder',
+        assessment_decision: '\u672a\u5be9\u807d'
+      }],
+      audio_sources_loaded: true,
+      audio_sources: []
+    });
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [];
+    };
+    window.loadReviewWorkflowQueue = async () => {
+      const claimed = state.reviewWorkflowQueue.find(row => row.case_id === 101);
+      const other = state.reviewWorkflowQueue.find(row => row.case_id === 100);
+      claimed.audio_claim_by = state.userId;
+      claimed.audio_claim_until = '2999-01-01T00:00:00Z';
+      state.reviewWorkflowQueue = [claimed, other];
+      renderReviewWorkflowQueue();
+    };
+    state.userRole = 'audio_assessor';
+    state.userId = 'audio@example.com';
+    state.userName = 'Audio Assessor';
+    state.reviewWorkbenchMode = 'audio';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioFlagFilter = 'all';
+    state.reviewWorkflowAudioClaimFilter = 'all';
+    state.reviewWorkflowAudioKeyword = '';
+    state.reviewWorkflowAudioCountyFilter = '';
+    state.reviewWorkflowAudioSelectedTowns = null;
+    state.reviewWorkflowAudioLanguageFilter = 'all';
+    state.reviewWorkflowQueue = [
+      makeRow(100, 'before-case'),
+      makeRow(101, 'claimed-case')
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workflow-item')).toHaveCount(2);
+  await page.evaluate(() => {
+    const list = document.getElementById('place-list-container');
+    list.style.height = '240px';
+    list.style.maxHeight = '240px';
+    list.scrollTop = list.scrollHeight;
+  });
+  await page.locator('[data-case-id="101"] .review-workflow-claim-btn').click();
+
+  await expect(page.locator('.review-workflow-item').first()).toHaveAttribute('data-case-id', '101');
+  await page.waitForFunction(() => {
+    const list = document.getElementById('place-list-container');
+    const item = list.querySelector('[data-case-id="101"]');
+    if (!item) return false;
+    return item.getBoundingClientRect().top <= list.getBoundingClientRect().top + 5;
+  });
+  const call = await page.evaluate(() => window.__workflowCalls[0]);
+  expect(call.rpcName).toBe('claim_audio_review_case');
+  expect(call.body.p_case_id).toBe(101);
+});
+
 test('audio assessor can save a case-level annotation draft from a usable audio source', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 });
   await page.goto(appUrl);
