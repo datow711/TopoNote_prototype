@@ -36,6 +36,9 @@ test('admin portal includes its own static assets and role gate', async () => {
   expect(adminMain).toContain('function isAdminPortalPath()');
   expect(adminMain).toContain("ADMIN_PORTAL_ROLES.includes(user?.role)");
   expect(adminMain).toContain("['admin', 'audio_assessor', 'proofreader']");
+  expect(adminMain).not.toContain('function startEmailBootstrapLogin');
+  expect(adminMain).not.toContain('function showMissingPasswordDialog');
+  expect(adminMain).not.toContain('SUPABASE_AUTH_EMAIL_BOOTSTRAP_URL');
   expect(adminMain).toContain("expectedRole: 'admin_portal'");
   expect(adminMain).toContain('\u6b64\u5165\u53e3\u50c5\u4f9b\u7ba1\u7406\u54e1\u3001\u5be9\u807d\u54e1\u8207\u6821\u5c0d\u54e1\u4f7f\u7528');
 });
