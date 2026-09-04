@@ -43,7 +43,11 @@ test('Auth roster migration is manual, confirmed, and never public', async () =>
   expect(gasSource).toContain('function migrateInvestigatorsToSupabaseAuth()');
   expect(gasSource).toContain('function previewSingleAuthUserMigration(accountOrId)');
   expect(gasSource).toContain('function migrateSingleInvestigatorToSupabaseAuth(accountOrId)');
+  expect(gasSource).toContain('function previewPrivilegedAuthUserMigration()');
+  expect(gasSource).toContain('function migratePrivilegedInvestigatorsToSupabaseAuth()');
+  expect(gasSource).toContain("['admin', 'audio_assessor', 'proofreader']");
   expect(gasSource).toContain('function selectAuthMigrationRows_(rows, selector)');
+  expect(gasSource).toContain('function selectPrivilegedAuthMigrationRows_(rows)');
   expect(gasSource).toContain('SUPABASE_AUTH_MIGRATION_PASSWORD');
   expect(gasSource).toContain('SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON');
   expect(gasSource).toContain('I_UNDERSTAND_SHARED_PASSWORD');

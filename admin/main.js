@@ -121,6 +121,7 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const SUPABASE_AUTH_SESSION_KEY = 'toponote_supabase_auth_session';
 const SUPABASE_AUTH_REFRESH_SKEW_MS = 60 * 1000;
 const USER_LABEL_SELECT = 'id,account,role,is_active,name,email,phone';
+const ADMIN_PORTAL_ROLES = ['admin', 'audio_assessor', 'proofreader'];
 const EMAIL_BOOTSTRAP_PENDING_KEY = 'toponote_email_bootstrap_pending';
 const EMAIL_BOOTSTRAP_SESSION_KEY = 'toponote_email_bootstrap_session';
 const USER_PROFILE_SELECT = [
@@ -983,18 +984,11 @@ function consumeSupabaseAuthCallback() {
     return { session, isEmailBootstrap };
 }
 async function restoreSession() {
-    const authCallback = consumeSupabaseAuthCallback();
-    if (authCallback?.error) {
-        const callbackStatus = document.getElementById('login-status');
-        callbackStatus.innerText = 'Email login link expired; please request a new one-time login link.';
-        callbackStatus.style.color = 'red';
+    const authSession = getSavedSupabaseAuthSession();
+    if (!authSession) {
+        clearSession();
         return;
     }
-    const authSession = authCallback?.session || getSavedSupabaseAuthSession();
-    const emailBootstrapSession = Boolean(authCallback?.isEmailBootstrap
-        || sessionStorage.getItem(EMAIL_BOOTSTRAP_SESSION_KEY));
-    const session = getSavedSession();
-    if (!authSession && !session) return;
 
     const status = document.getElementById('login-status');
     status.innerText = '正在恢復登入狀態...';
@@ -1007,18 +1001,8 @@ async function restoreSession() {
         }
         const accessToken = await getSupabaseAuthAccessToken();
         if (!accessToken) throw new Error('Supabase Auth session is missing');
-        const onboardingStatus = emailBootstrapSession
-            ? await getPasswordOnboardingStatus()
-            : null;
-        if (onboardingStatus?.password_login_required === true) {
-            throw new Error('email bootstrap login is no longer available');
-        }
         const freshSession = await fetchAuthenticatedInvestigator();
         await enterApp(freshSession, { persist: false });
-        if (emailBootstrapSession) {
-            sessionStorage.removeItem(EMAIL_BOOTSTRAP_SESSION_KEY);
-            await maybeShowPasswordOnboardingDialog(onboardingStatus);
-        }
     } catch (err) {
         console.error('恢復登入狀態失敗:', err);
         clearSession();
@@ -1306,7 +1290,7 @@ function isAdminPortalPath() {
 }
 
 function isAdminPortalRoleAllowed(user) {
-    return !isAdminPortalPath() || user?.role === 'admin' || user?.role === 'audio_assessor';
+    return !isAdminPortalPath() || ADMIN_PORTAL_ROLES.includes(user?.role);
 }
 
 function toggleAdminLogin() {
@@ -1316,13 +1300,13 @@ function toggleAdminLogin() {
 async function login() {
     await performSupabaseAuthLogin({
         passwordElementId: 'auth-password',
-        expectedRole: 'nonadmin',
+        expectedRole: 'admin_portal',
         button: document.getElementById('login-btn'),
-        loadingText: '驗證登入中...',
-        resetText: '進入我的任務',
+        loadingText: '登入審查入口中...',
+        resetText: '登入審查入口',
         missingMessage: '請輸入 Email 或使用者名稱',
         passwordMessage: '請輸入登入密碼',
-        failedMessage: '一般調查員登入資訊錯誤'
+        failedMessage: '工作人員登入資訊錯誤'
     });
 }
 async function loginAdmin() {
@@ -1377,11 +1361,7 @@ async function performSupabaseAuthLogin({ passwordElementId, expectedRole, butto
     const password = document.getElementById(passwordElementId)?.value || '';
     if (!identifier) return alert(missingMessage);
     if (!password) {
-        if (passwordElementId === 'auth-password') {
-            showMissingPasswordDialog();
-        } else {
-            alert(passwordMessage);
-        }
+        alert(passwordMessage);
         return;
     }
     const status = document.getElementById('login-status');
@@ -1393,9 +1373,11 @@ async function performSupabaseAuthLogin({ passwordElementId, expectedRole, butto
     try {
         await signInWithSupabaseAuth(identifier, password);
         const user = normalizeAuthenticatedUser(await fetchAuthenticatedInvestigator(), identifier);
-        const roleMatches = expectedRole === 'nonadmin'
-            ? (isAdminPortalPath() ? user.role === 'audio_assessor' : user.role !== 'admin')
-            : user.role === expectedRole;
+        const roleMatches = expectedRole === 'admin_portal'
+            ? ADMIN_PORTAL_ROLES.includes(user.role)
+            : expectedRole === 'nonadmin'
+                ? user.role !== 'admin'
+                : user.role === expectedRole;
         if (expectedRole && !roleMatches) {
             throw new Error(`role mismatch: expected ${expectedRole}, got ${user.role || 'empty'}`);
         }
@@ -1405,7 +1387,7 @@ async function performSupabaseAuthLogin({ passwordElementId, expectedRole, butto
         clearSession();
         clearSupabaseAuthSession();
         const message = error.message === 'admin portal role is not allowed'
-            ? '此入口僅供審聽員與管理員使用'
+            ? '此入口僅供管理員、審聽員與校對員使用'
             : error.message === 'Auth account is not linked to an active investigator'
                 ? '此 Auth 帳號尚未連結啟用中的調查員帳號'
                 : failedMessage;

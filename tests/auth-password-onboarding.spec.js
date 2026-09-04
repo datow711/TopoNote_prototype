@@ -3,7 +3,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { test, expect } = require('@playwright/test');
 
-const appUrl = pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
+const appUrl = pathToFileURL(path.join(__dirname, '..', 'admin', 'index.html')).href;
 const migration = fs.readFileSync(
   path.join(__dirname, '..', 'db', '20260902_auth_password_onboarding.sql'),
   'utf8'
@@ -26,7 +26,31 @@ test('email bootstrap contract is server-gated and uses a real Auth email flow',
   expect(edgeFunction).toContain('return jsonResponse({ ok: true })');
 });
 
-test("missing password shows guidance dialog and can start email bootstrap", async ({ page }) => {
+test('admin portal requires password and does not expose email bootstrap', async ({ page }) => {
+  await page.goto(appUrl);
+  await expect(page.locator('#email-bootstrap-btn')).toHaveCount(0);
+  await expect(page.getByText('取得密碼信')).toHaveCount(0);
+  await page.evaluate(async () => {
+    window.__alerts = [];
+    window.alert = message => window.__alerts.push(String(message));
+    document.getElementById('email').value = 'test.audio';
+    await window.login();
+  });
+  await expect(page.locator('#missing-password-dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__alerts)).toEqual(['請輸入登入密碼']);
+});
+test('admin portal role gate accepts only staff roles', async ({ page }) => {
+  await page.goto(appUrl);
+  const result = await page.evaluate(() => ['admin', 'audio_assessor', 'proofreader', 'user']
+    .map(role => [role, isAdminPortalRoleAllowed({ role })]));
+  expect(result).toEqual([
+    ['admin', true],
+    ['audio_assessor', true],
+    ['proofreader', true],
+    ['user', false]
+  ]);
+});
+test.skip('legacy missing-password email bootstrap flow is disabled on /admin; retained for historical coverage', async ({ page }) => {
   let requestBody = null;
   await page.route("**/functions/v1/auth-email-bootstrap", async route => {
     requestBody = JSON.parse(route.request().postData() || "{}");
@@ -50,7 +74,7 @@ test("missing password shows guidance dialog and can start email bootstrap", asy
 
   expect(requestBody).toEqual({ identifier: "liz462" });
 });
-test('email bootstrap request sends only the identifier and does not create a session locally', async ({ page }) => {
+test.skip('legacy email bootstrap request is disabled on /admin; retained for historical coverage', async ({ page }) => {
   let requestBody = null;
   await page.route('**/functions/v1/auth-email-bootstrap', async route => {
     requestBody = JSON.parse(route.request().postData() || '{}');
@@ -72,7 +96,7 @@ test('email bootstrap request sends only the identifier and does not create a se
   await expect(page.locator('#login-status')).toContainText('登入連結已寄出');
 });
 
-test('magic link callback shows mandatory password onboarding dialog and acknowledgement is persisted', async ({ page }) => {
+test.skip('legacy password-onboarding flow is disabled on /admin; retained for historical coverage', async ({ page }) => {
   let acknowledgementBody = null;
   await page.route('**/rest/v1/rpc/get_authenticated_investigator', async route => {
     await route.fulfill({
@@ -125,7 +149,7 @@ test('magic link callback shows mandatory password onboarding dialog and acknowl
   expect(acknowledgementBody).toEqual({});
 });
 
-test('stale magic link is rejected before app entry after acknowledgement', async ({ page }) => {
+test.skip('legacy magic-link flow is disabled on /admin; retained for historical coverage', async ({ page }) => {
   let authenticatedRpcCalled = false;
   await page.route('**/rest/v1/rpc/get_password_onboarding_status', async route => {
     await route.fulfill({

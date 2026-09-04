@@ -1148,6 +1148,7 @@ var SUPABASE_AUTH_MIGRATION_PASSWORD_PROPERTY = 'SUPABASE_AUTH_MIGRATION_PASSWOR
 var SUPABASE_AUTH_MIGRATION_CONFIRM_PROPERTY = 'SUPABASE_AUTH_MIGRATION_CONFIRM';
 var SUPABASE_AUTH_MIGRATION_EMAIL_MAP_PROPERTY = 'SUPABASE_AUTH_MIGRATION_EMAIL_MAP_JSON';
 var SUPABASE_AUTH_MIGRATION_SELECTOR_PROPERTY = 'SUPABASE_AUTH_MIGRATION_SELECTOR';
+var SUPABASE_AUTH_MIGRATION_PRIVILEGED_ROLES_ = ['admin', 'audio_assessor', 'proofreader'];
 var SUPABASE_AUTH_MIGRATION_CONFIRM_VALUE = 'I_UNDERSTAND_SHARED_PASSWORD';
 var SUPABASE_AUTH_ADMIN_PAGE_SIZE_ = 1000;
 
@@ -1169,6 +1170,14 @@ function migrateSingleInvestigatorToSupabaseAuth(accountOrId) {
   return runAuthUserMigration_(false, selector);
 }
 
+function previewPrivilegedAuthUserMigration() {
+  return runAuthUserMigration_(true, null, true);
+}
+
+function migratePrivilegedInvestigatorsToSupabaseAuth() {
+  return runAuthUserMigration_(false, null, true);
+}
+
 function getAuthMigrationSelector_() {
   var selector = PropertiesService.getScriptProperties().getProperty(SUPABASE_AUTH_MIGRATION_SELECTOR_PROPERTY) || '';
   if (!selector.trim()) {
@@ -1177,7 +1186,7 @@ function getAuthMigrationSelector_() {
   return selector.trim();
 }
 
-function runAuthUserMigration_(dryRun, selector) {
+function runAuthUserMigration_(dryRun, selector, privilegedOnly) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) {
     throw new Error('Auth migration is already running.');
@@ -1196,7 +1205,9 @@ function runAuthUserMigration_(dryRun, selector) {
     }
 
     var allRows = fetchActiveInvestigatorsForAuthMigration_();
-    var rows = selectAuthMigrationRows_(allRows, selector);
+    var rows = privilegedOnly
+      ? selectPrivilegedAuthMigrationRows_(allRows)
+      : selectAuthMigrationRows_(allRows, selector);
     var authUsers = fetchAllSupabaseAuthUsers_();
     var result = {
       dryRun: dryRun,
@@ -1389,6 +1400,13 @@ function selectAuthMigrationRows_(rows, selector) {
     throw new Error('Selector matches multiple active investigators: ' + needle);
   }
   return matches;
+}
+
+function selectPrivilegedAuthMigrationRows_(rows) {
+  return rows.filter(function(row) {
+    var role = String(row.role || '').trim().toLowerCase();
+    return SUPABASE_AUTH_MIGRATION_PRIVILEGED_ROLES_.indexOf(role) >= 0;
+  });
 }
 
 function fetchActiveInvestigatorsForAuthMigration_() {

@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260828-audio-filter-hierarchy">
+    <link rel="stylesheet" href="style.css?v=20260904-admin-password-only">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
@@ -21,14 +21,8 @@
     <div id="login-section" class="card">
         <input type="text" id="email" placeholder="Email 或使用者名稱" autocomplete="username">
         <input type="password" id="auth-password" placeholder="登入密碼" autocomplete="current-password">
-        <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
-        <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
-        <button class="btn-secondary" onclick="startEmailBootstrapLogin()" id="email-bootstrap-btn">取得密碼信</button>
-        <small class="email-bootstrap-hint">尚未設定密碼？請輸入 Email／使用者名稱，按「取得密碼信」後到信箱收信。</small>
-        <div id="admin-login-fields" class="hidden">
-            <input type="password" id="password" placeholder="管理者登入密碼" autocomplete="current-password">
-            <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>
-        </div>
+        <button class="btn-primary" onclick="login()" id="login-btn">登入審查入口</button>
+        <small class="admin-login-hint">此入口供管理員、審聽員與校對員使用。請輸入各自的 Email／使用者名稱，以及管理員提供的統一密碼。</small>
         <div id="login-status" style="text-align: center; margin-top: 10px; color: red;"></div>
     </div>
 
