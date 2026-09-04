@@ -1174,13 +1174,13 @@ function applySatelliteTaskLanguageGuidance_(sheet, startRow, taskMetaList) {
   taskMetaList.forEach(function(meta, index) {
     var rowNumber = startRow + index;
     if (!meta.taiWritten) {
-      sheet.getRange(rowNumber, 6, 1, 2)
+      sheet.getRange(rowNumber, 6, 1, 5)
         .setBackground(SATELLITE_LOCKED_BACKGROUND)
         .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
         .setNote(SATELLITE_LOCKED_NOTE);
     }
     if (!meta.hakWritten) {
-      sheet.getRange(rowNumber, 8, 1, 2)
+      sheet.getRange(rowNumber, 11, 1, 6)
         .setBackground(SATELLITE_LOCKED_BACKGROUND)
         .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
         .setNote(SATELLITE_LOCKED_NOTE);
@@ -2148,9 +2148,33 @@ function syncClassification() {
 /**
  * 🛰️ 分發任務到各標注員的衛星表單 (自動初始化標題列 + 強化去重)
  */
-var SATELLITE_HEADERS = ["UUID", "地名", "縣市", "鄉鎮", "村里", "台文漢字", "台文羅馬字", "客文漢字", "客文羅馬字", "任務狀態", "備註"];
+var SATELLITE_HEADERS = [
+  "UUID", "地名", "縣市", "鄉鎮", "村里",
+  "TaiHan1", "TL1", "TL2", "TL3", "TaiNote",
+  "Honzii", "HP1", "HP2", "HP3", "HDialect", "HakNote",
+  "任務狀態"
+];
 // 標注員填答欄（1-based）。更新既有列時只補空格，不覆蓋標注員已填的內容。
-var SATELLITE_ANSWER_COLUMNS = [6, 7, 8, 9];
+var SATELLITE_ANSWER_COLUMNS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+var SATELLITE_HEADER_ALIASES = {
+  "UUID": ["UUID"],
+  "地名": ["地名"],
+  "縣市": ["縣市"],
+  "鄉鎮": ["鄉鎮"],
+  "村里": ["村里"],
+  "TaiHan1": ["TaiHan1", "台文漢字"],
+  "TL1": ["TL1", "台文羅馬字"],
+  "TL2": ["TL2"],
+  "TL3": ["TL3"],
+  "TaiNote": ["TaiNote", "備註"],
+  "Honzii": ["Honzii", "客文漢字"],
+  "HP1": ["HP1", "客文羅馬字"],
+  "HP2": ["HP2"],
+  "HP3": ["HP3"],
+  "HDialect": ["HDialect"],
+  "HakNote": ["HakNote", "備註"],
+  "任務狀態": ["任務狀態"]
+};
 var WRITTEN_ANNOTATOR_SHEET_NAME = '書面標注員名單';
 // 書面標注員名單欄位（0-based）：標注員姓名、分區、衛星表單_ID、最後同步時間
 var ANNOTATOR_ROSTER_NAME_COL = 0;
@@ -2244,20 +2268,130 @@ function ensureSatelliteSpreadsheet_(rosterSheet, roster, person) {
   return entry.spreadsheetId;
 }
 
+function getSatelliteHeaderMap_(headers) {
+  var map = {};
+  (headers || []).forEach(function(header, index) {
+    var key = String(header || '').trim();
+    if (key && map[key] === undefined) map[key] = index;
+  });
+  return map;
+}
+
+function getSatelliteValueByAliases_(row, headerMap, aliases) {
+  for (var i = 0; i < (aliases || []).length; i++) {
+    var index = headerMap[aliases[i]];
+    if (index !== undefined) return row[index];
+  }
+  return '';
+}
+
+function normalizeSatelliteSheetRow_(row, headerMap) {
+  return SATELLITE_HEADERS.map(function(header) {
+    return getSatelliteValueByAliases_(
+      row,
+      headerMap,
+      SATELLITE_HEADER_ALIASES[header] || [header]
+    );
+  });
+}
+
+function isSatelliteCurrentLayout_(headers) {
+  for (var i = 0; i < SATELLITE_HEADERS.length; i++) {
+    if (String((headers || [])[i] || '').trim() !== SATELLITE_HEADERS[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function normalizeSatelliteSheetData_(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (!data.length || isSatelliteCurrentLayout_(data[0])) return data;
+
+  var headerMap = getSatelliteHeaderMap_(data[0]);
+  if (headerMap.UUID === undefined) return data;
+
+  var normalized = [SATELLITE_HEADERS];
+  for (var i = 1; i < data.length; i++) {
+    normalized.push(normalizeSatelliteSheetRow_(data[i], headerMap));
+  }
+
+  sheet.getRange(1, 1, normalized.length, SATELLITE_HEADERS.length).setValues(normalized);
+  sheet.getRange(1, 1, 1, SATELLITE_HEADERS.length)
+    .setBackground('#d9ead3')
+    .setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  return normalized;
+}
+
+function collectSatelliteAnnotationFields_(row, headerMap) {
+  var getValue = function(aliases) {
+    return String(getSatelliteValueByAliases_(row, headerMap, aliases) || '').trim();
+  };
+  var taiFields = {};
+  var hakFields = {};
+  var taiFieldDefinitions = [
+    { key: 'TaiHan1', aliases: ['TaiHan1', '台文漢字'] },
+    { key: 'TL1', aliases: ['TL1', '台文羅馬字'] },
+    { key: 'TL2', aliases: ['TL2'] },
+    { key: 'TL3', aliases: ['TL3'] },
+    { key: 'TaiNote', aliases: ['TaiNote'] }
+  ];
+  var hakFieldDefinitions = [
+    { key: 'Honzii', aliases: ['Honzii', '客文漢字'] },
+    { key: 'HP1', aliases: ['HP1', '客文羅馬字'] },
+    { key: 'HP2', aliases: ['HP2'] },
+    { key: 'HP3', aliases: ['HP3'] },
+    { key: 'HDialect', aliases: ['HDialect'] },
+    { key: 'HakNote', aliases: ['HakNote'] }
+  ];
+  var hasTaiFields = false;
+  var hasHakFields = false;
+
+  taiFieldDefinitions.forEach(function(field) {
+    var value = getValue(field.aliases);
+    if (value) {
+      taiFields[field.key] = value;
+      hasTaiFields = true;
+    }
+  });
+  hakFieldDefinitions.forEach(function(field) {
+    var value = getValue(field.aliases);
+    if (value) {
+      hakFields[field.key] = value;
+      hasHakFields = true;
+    }
+  });
+
+  // 舊版只有一欄「備註」，依該語種已有核心答案時帶入對應備註，避免誤送另一語種。
+  var legacyNote = getValue(['備註']);
+  if (legacyNote) {
+    if (!taiFields.TaiNote && (taiFields.TaiHan1 || taiFields.TL1)) {
+      taiFields.TaiNote = legacyNote;
+      hasTaiFields = true;
+    }
+    if (!hakFields.HakNote && (hakFields.Honzii || hakFields.HP1)) {
+      hakFields.HakNote = legacyNote;
+      hasHakFields = true;
+    }
+  }
+
+  return {
+    taiFields: taiFields,
+    hakFields: hakFields,
+    hasTaiFields: hasTaiFields,
+    hasHakFields: hasHakFields
+  };
+}
+
 function buildSatelliteTaskRow_(row, colMap, taiWritten, hakWritten) {
-  // 任務狀態與備註在工作清單是分語種的，衛星表單只有一欄，
-  // 因此只帶該標注員負責的語種，兩種都負責時併陳。
+  // 任務狀態仍為顯示欄；各語種的完整填答欄與備註分開保留。
   var states = [];
-  var notes = [];
   if (taiWritten) {
     states.push('台語:' + String(getCellValue_(row, colMap, 'T_State') || '').trim());
-    var taiNote = String(getCellValue_(row, colMap, 'TaiNote') || '').trim();
-    if (taiNote) notes.push(taiNote);
   }
   if (hakWritten) {
     states.push('客語:' + String(getCellValue_(row, colMap, 'H_State') || '').trim());
-    var hakNote = String(getCellValue_(row, colMap, 'HakNote') || '').trim();
-    if (hakNote && notes.indexOf(hakNote) < 0) notes.push(hakNote);
   }
 
   return [
@@ -2268,10 +2402,16 @@ function buildSatelliteTaskRow_(row, colMap, taiWritten, hakWritten) {
     getCellValue_(row, colMap, 'Village'),
     taiWritten ? getCellValue_(row, colMap, 'TaiHan1') : '',
     taiWritten ? getCellValue_(row, colMap, 'TL1') : '',
+    taiWritten ? getCellValue_(row, colMap, 'TL2') : '',
+    taiWritten ? getCellValue_(row, colMap, 'TL3') : '',
+    taiWritten ? getCellValue_(row, colMap, 'TaiNote') : '',
     hakWritten ? getCellValue_(row, colMap, 'Honzii') : '',
     hakWritten ? getCellValue_(row, colMap, 'HP1') : '',
-    states.join(' | '),
-    notes.join(' | ')
+    hakWritten ? getCellValue_(row, colMap, 'HP2') : '',
+    hakWritten ? getCellValue_(row, colMap, 'HP3') : '',
+    hakWritten ? getCellValue_(row, colMap, 'HDialect') : '',
+    hakWritten ? getCellValue_(row, colMap, 'HakNote') : '',
+    states.join(' | ')
   ];
 }
 
@@ -2355,7 +2495,7 @@ function pushTasksToSatelliteSheets() {
         targetSheet.setFrozenRows(1);
       }
 
-      var existing = targetSheet.getDataRange().getValues();
+      var existing = normalizeSatelliteSheetData_(targetSheet);
       var rowByUuid = {};
       for (var k = 1; k < existing.length; k++) {
         var key = String(existing[k][0] || '').trim();
@@ -2449,26 +2589,24 @@ function pullResultsFromSatelliteSheets() {
       var sSheet = sSS.getSheets()[0];
       var sData = sSheet.getDataRange().getValues();
       var sHeaders = sData[0] || [];
-      var sColMap = {};
-      sHeaders.forEach((h, i) => sColMap[String(h || '').trim()] = i);
+      var sColMap = getSatelliteHeaderMap_(sHeaders);
 
-      var getSatelliteValue = function(row, header) {
-        var index = sColMap[header];
-        return index === undefined ? '' : row[index];
+      var getSatelliteValue = function(row, aliases) {
+        return getSatelliteValueByAliases_(row, sColMap, aliases);
       };
 
       for (var j = 1; j < sData.length; j++) {
         var sRow = sData[j];
-        var uuid = String(getSatelliteValue(sRow, "UUID") || '').trim();
+        var uuid = String(getSatelliteValue(sRow, SATELLITE_HEADER_ALIASES.UUID) || '').trim();
         var located = uuid ? sourceIndex[uuid] : null;
         if (!located) continue;
 
-        var twHan = String(getSatelliteValue(sRow, "台文漢字") || '').trim();
-        var twRoman = String(getSatelliteValue(sRow, "台文羅馬字") || '').trim();
-        var hkHan = String(getSatelliteValue(sRow, "客文漢字") || '').trim();
-        var hkRoman = String(getSatelliteValue(sRow, "客文羅馬字") || '').trim();
-        var note = String(getSatelliteValue(sRow, "備註") || '').trim();
-        if (!twHan && !twRoman && !hkHan && !hkRoman) continue;
+        var annotationFields = collectSatelliteAnnotationFields_(sRow, sColMap);
+        var taiFields = annotationFields.taiFields;
+        var hakFields = annotationFields.hakFields;
+        var hasTaiFields = annotationFields.hasTaiFields;
+        var hasHakFields = annotationFields.hasHakFields;
+        if (!hasTaiFields && !hasHakFields) continue;
 
         var l2Sheet = located.source.sheet;
         var l2ColMap = located.source.colMap;
@@ -2476,15 +2614,6 @@ function pullResultsFromSatelliteSheets() {
         var l2Row = located.row;
         var rowUpdated = false;
         var rowWarnings = [];
-        var taiFields = {};
-        var hakFields = {};
-
-        if (twHan) taiFields.TaiHan1 = twHan;
-        if (twRoman) taiFields.TL1 = twRoman;
-        if (note) taiFields.TaiNote = note;
-        if (hkHan) hakFields.Honzii = hkHan;
-        if (hkRoman) hakFields.HP1 = hkRoman;
-        if (note) hakFields.HakNote = note;
 
         var submitDraft = function(language, fields) {
           var stamp = buildSatelliteDraftSourceStamp_(uuid, language, fields);
@@ -2498,7 +2627,7 @@ function pullResultsFromSatelliteSheets() {
           });
         };
 
-        if (twHan || twRoman) {
+        if (hasTaiFields) {
           if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '台語')) {
             try {
               submitDraft('台語', taiFields);
@@ -2514,7 +2643,7 @@ function pullResultsFromSatelliteSheets() {
           }
         }
 
-        if (hkHan || hkRoman) {
+        if (hasHakFields) {
           if (isLanguageWrittenAnnotationClass_(l2Row, l2ColMap, '客語')) {
             try {
               submitDraft('客語', hakFields);
