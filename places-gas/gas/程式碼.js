@@ -1173,14 +1173,26 @@ function buildSatellitePullClassWarning_(uuid, language, row, colMap) {
 function applySatelliteTaskLanguageGuidance_(sheet, startRow, taskMetaList) {
   taskMetaList.forEach(function(meta, index) {
     var rowNumber = startRow + index;
-    if (!meta.taiWritten) {
-      sheet.getRange(rowNumber, 6, 1, 5)
+    var taiRange = sheet.getRange(rowNumber, 6, 1, 5);
+    if (meta.taiWritten) {
+      taiRange
+        .setBackground('#ffffff')
+        .setFontColor('#000000')
+        .clearNote();
+    } else {
+      taiRange
         .setBackground(SATELLITE_LOCKED_BACKGROUND)
         .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
         .setNote(SATELLITE_LOCKED_NOTE);
     }
-    if (!meta.hakWritten) {
-      sheet.getRange(rowNumber, 11, 1, 6)
+    var hakRange = sheet.getRange(rowNumber, 11, 1, 6);
+    if (meta.hakWritten) {
+      hakRange
+        .setBackground('#ffffff')
+        .setFontColor('#000000')
+        .clearNote();
+    } else {
+      hakRange
         .setBackground(SATELLITE_LOCKED_BACKGROUND)
         .setFontColor(SATELLITE_LOCKED_FONT_COLOR)
         .setNote(SATELLITE_LOCKED_NOTE);

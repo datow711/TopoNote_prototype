@@ -148,4 +148,32 @@ test.describe('satellite sheet field contract', () => {
       [4, 11, 1, 6]
     ]);
   });
+
+  test('clears stale formatting for a language assigned to the annotator', () => {
+    const operations = [];
+    const chain = {
+      setBackground(value) { operations.push(['setBackground', value]); return this; },
+      setFontColor(value) { operations.push(['setFontColor', value]); return this; },
+      setNote(value) { operations.push(['setNote', value]); return this; },
+      clearNote() { operations.push(['clearNote']); return this; }
+    };
+    const sheet = {
+      getRange() {
+        return chain;
+      }
+    };
+
+    gasContext.applySatelliteTaskLanguageGuidance_(sheet, 4, [
+      { taiWritten: true, hakWritten: true }
+    ]);
+
+    expect(operations).toEqual([
+      ['setBackground', '#ffffff'],
+      ['setFontColor', '#000000'],
+      ['clearNote'],
+      ['setBackground', '#ffffff'],
+      ['setFontColor', '#000000'],
+      ['clearNote']
+    ]);
+  });
 });
