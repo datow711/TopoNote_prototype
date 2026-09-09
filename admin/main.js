@@ -5589,7 +5589,7 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
                     <input type="text" data-role="respondent-key" value="${escapeHtml(respondentKey)}" placeholder="若有需要，再填寫代號">
                 </label>
                 <label class="review-workflow-assessment-field review-workflow-assessment-field-wide">
-                    <span>判定補充說明（可留空）</span>
+                    <span>補充資訊</span>
                     <textarea data-role="reason" rows="2" placeholder="記錄音質、內容或其他判斷依據"></textarea>
                 </label>
                 <label class="review-workflow-assessment-field hidden" data-field="unusable-reason">
