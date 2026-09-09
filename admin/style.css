@@ -3568,6 +3568,13 @@ button:disabled {
 .review-workflow-source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; }
 .review-workflow-source-grid[data-field-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .review-workflow-source-grid[data-field-count="6"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.review-workflow-source-field-label[title],
+.review-workflow-audio-draft-snapshot-field > span[title],
+.review-workflow-audio-draft-field > span[title] {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
 .review-workflow-source-field { min-width: 0; min-height: 76px; padding: 8px; border-right: 1px solid #e1e7eb; }
 .review-workflow-source-field:last-child { border-right: 0; }
 .review-workflow-source-field-label { margin-bottom: 4px; color: #5f7080; font-weight: 700; }

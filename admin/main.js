@@ -179,6 +179,41 @@ const REVIEW_FIELD_CONFIG = {
     }
 };
 
+const REVIEW_FIELD_LABEL_GUIDE = {
+    TaiHan1: {
+        supplement: '台語漢字',
+        description: '依教育部推薦用字標示台語漢字'
+    },
+    TL1: {
+        supplement: '主音讀',
+        description: '依照音檔內容標注當地腔調的音讀'
+    },
+    TL2: {
+        supplement: '副音讀',
+        description: '若主音讀非優勢腔，則在此標注優勢腔'
+    },
+    TL3: {
+        supplement: '又念作',
+        description: '若同一個漢字可能有其他念法同時存在則在此標注音讀，例如諸羅山 Tsu-lô-san 又唸作 Ti-ló-sán'
+    },
+    TaiNote: {
+        supplement: '備註',
+        description: '前三項未能寫明的其他情形則在此填寫，如同時存在的其他說法、文白異讀同時存在、特殊借字，關於地名的演變源流、歷史考證，如可以也於此欄註記。'
+    }
+};
+
+function getReviewWorkflowFieldDisplayLabel(field) {
+    const guide = REVIEW_FIELD_LABEL_GUIDE[field?.key];
+    return guide?.supplement ? `${field.label}(${guide.supplement})` : field.label;
+}
+
+function getReviewWorkflowFieldHintAttributes(field) {
+    const guide = REVIEW_FIELD_LABEL_GUIDE[field?.key];
+    if (!guide?.description) return '';
+    const displayLabel = getReviewWorkflowFieldDisplayLabel(field);
+    return `title="${escapeHtml(guide.description)}" aria-label="${escapeHtml(displayLabel + '：' + guide.description)}" tabindex="0"`;
+}
+
 const TASK_EXPORT_BASE_COLUMNS = [
     { key: 'county', label: '縣市' },
     { key: 'town', label: '鄉鎮' },
@@ -4745,9 +4780,11 @@ function renderReviewWorkflowSourceCell(row, audioRecordId, field, source, canEd
     const fillButton = canEdit && value
         ? `<button class="copy-field-btn review-workflow-fill-field-btn" type="button" onclick="fillReviewWorkflowDraftFieldFromAudio(${row.case_id}, ${audioRecordId}, '${escapeJsString(field.key)}', this)">\u586b\u5165</button>`
         : annotationCopyButton;
+    const displayLabel = getReviewWorkflowFieldDisplayLabel(field);
+    const hintAttributes = getReviewWorkflowFieldHintAttributes(field);
     return `
         <div class="review-workflow-source-field ${value ? 'has-value' : ''}">
-            <div class="review-workflow-source-field-label">${escapeHtml(field.label)}</div>
+            <div class="review-workflow-source-field-label" ${hintAttributes}>${escapeHtml(displayLabel)}</div>
             <div class="compare-value">${escapeHtml(displayValue)}</div>
             ${fillButton}
         </div>
@@ -4921,9 +4958,11 @@ function renderReviewWorkflowAudioDraftSnapshot(fields, config, className = '') 
         <div class="${snapshotClass}">
             ${config.fields.map(field => {
                 const value = String(normalizedFields[field.key] || '').trim();
+                const displayLabel = getReviewWorkflowFieldDisplayLabel(field);
+                const hintAttributes = getReviewWorkflowFieldHintAttributes(field);
                 return `
                     <div class="review-workflow-audio-draft-snapshot-field ${value ? 'has-value' : ''}">
-                        <span>${escapeHtml(field.label)}</span>
+                        <span ${hintAttributes}>${escapeHtml(displayLabel)}</span>
                         <strong>${value ? escapeHtml(value) : '尚未填寫'}</strong>
                     </div>
                 `;
@@ -5257,12 +5296,14 @@ function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
     `).join('');
     const fieldInputs = config.fields.map(field => {
         const value = String(currentFields[field.key] || '');
+        const displayLabel = getReviewWorkflowFieldDisplayLabel(field);
+        const hintAttributes = getReviewWorkflowFieldHintAttributes(field);
         const control = field.multiline
             ? `<textarea id="${getReviewWorkflowAudioDraftInputId(row.case_id, languageKey, field.key)}" data-role="audio-draft-field" data-field-key="${escapeHtml(field.key)}" rows="3" placeholder="${escapeHtml(field.placeholder || '')}">${escapeHtml(value)}</textarea>`
             : `<input id="${getReviewWorkflowAudioDraftInputId(row.case_id, languageKey, field.key)}" data-role="audio-draft-field" data-field-key="${escapeHtml(field.key)}" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
         return `
             <label class="review-workflow-audio-draft-field ${field.multiline ? 'is-multiline' : ''}">
-                <span>${escapeHtml(field.label)}</span>
+                <span ${hintAttributes}>${escapeHtml(displayLabel)}</span>
                 ${control}
             </label>
         `;
