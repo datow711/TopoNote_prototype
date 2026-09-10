@@ -3888,7 +3888,7 @@ function getReviewWorkflowAudioProgress(row) {
     );
     const followup = Math.max(
         Number(row?.follow_up_audio_count || 0),
-        evidence.filter(item => item.needs_followup || item.assessment_decision === '待追問').length
+        evidence.filter(item => item.assessment_decision === '待追問').length
     );
     const unusable = Math.max(
         Number(row?.unusable_audio_count || 0),
@@ -4382,9 +4382,7 @@ function getReviewWorkflowAudioEvidenceItem(row, audioRecordId) {
 }
 
 function isReviewWorkflowAudioEvidenceUsable(item) {
-    const needsFollowup = item?.needs_followup === true
-        || String(item?.needs_followup || '').toLowerCase() === 'true';
-    return item?.assessment_decision === '可用' && !needsFollowup;
+    return item?.assessment_decision === '可用';
 }
 
 function getReviewWorkflowUsableAudioEvidence(row) {
@@ -4978,7 +4976,7 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
                 </label>
                 <label class="review-workflow-assessment-field review-workflow-assessment-field-wide">
                     <span>補充資訊</span>
-                    <textarea data-role="reason" rows="2" placeholder="記錄音質、內容或其他判斷依據"></textarea>
+                    <textarea data-role="reason" rows="2" placeholder="記錄音質、內容、發音差異或其他補充資訊"></textarea>
                 </label>
                 <label class="review-workflow-assessment-field hidden" data-field="unusable-reason">
                     <span>不可用原因 <em>必填</em></span>
@@ -4993,17 +4991,7 @@ function renderReviewWorkflowAudioAssessmentPanel(row, item) {
                     <span>其他不可用原因 <em>必填</em></span>
                     <textarea data-role="unusable-reason-text" rows="2" placeholder="請說明音檔為何不可用"></textarea>
                 </label>
-                <label class="review-workflow-assessment-field review-workflow-followup-toggle">
-                    <span>需要後續處理</span>
-                    <span class="review-workflow-checkbox-label">
-                        <input type="checkbox" data-role="needs-followup">
-                        <span>需要</span>
-                    </span>
-                </label>
-                <label class="review-workflow-assessment-field hidden review-workflow-assessment-field-wide" data-field="followup-reason">
-                    <span>後續處理原因 <em>必填</em></span>
-                    <textarea data-role="followup-reason" rows="2" placeholder="請說明要追問或後續處理的內容"></textarea>
-                </label>
+
             </div>
             <div class="review-workflow-assessment-message" data-role="assessment-message" aria-live="polite"></div>
             <div class="review-workflow-assessment-actions">
@@ -5057,9 +5045,9 @@ function renderReviewWorkflowAudioAssessmentHistoryRows(rows) {
                     <div><dt>判定人</dt><dd title="${escapeHtml(assessorTitle)}">${escapeHtml(assessorLabel)}</dd></div>
                     <div><dt>判定時間</dt><dd>${escapeHtml(formatReviewWorkflowAudioAssessmentTime(entry.created_at))}</dd></div>
                     <div><dt>受訪者代號</dt><dd>${escapeHtml(entry.respondent_key || '未指定')}</dd></div>
-                    ${reason ? `<div><dt>補充說明</dt><dd>${escapeHtml(reason)}</dd></div>` : ''}
+                    ${reason ? `<div><dt>補充資訊</dt><dd>${escapeHtml(reason)}</dd></div>` : ''}
                     ${unusableReason ? `<div><dt>不可用原因</dt><dd>${escapeHtml(unusableReason)}</dd></div>` : ''}
-                    ${entry.needs_followup ? `<div><dt>後續處理</dt><dd>${escapeHtml(followupReason || '需要後續處理')}</dd></div>` : ''}
+                    ${entry.needs_followup ? `<div><dt>待追問原因</dt><dd>${escapeHtml(followupReason || '需要後續處理')}</dd></div>` : ''}
                 </dl>
             </li>
         `;
@@ -5127,18 +5115,18 @@ function setReviewWorkflowAudioAssessmentMessage(panel, message, isError = false
 
 function getReviewWorkflowAudioAssessmentValues(panel) {
     const decision = panel?.dataset.decision || '';
+    const reason = panel?.querySelector('[data-role="reason"]')?.value || '';
     const unusableReasonCode = panel?.querySelector('[data-role="unusable-reason-code"]')?.value || '';
     const unusableReasonText = panel?.querySelector('[data-role="unusable-reason-text"]')?.value.trim() || '';
-    const needsFollowup = decision === '待追問'
-        || Boolean(panel?.querySelector('[data-role="needs-followup"]')?.checked);
+    const needsFollowup = decision === '待追問';
     return {
         respondentKey: panel?.querySelector('[data-role="respondent-key"]')?.value.trim() || '',
         decision,
-        reason: panel?.querySelector('[data-role="reason"]')?.value || '',
+        reason,
         unusableReasonCode,
         unusableReasonText,
         needsFollowup,
-        followupReasonText: panel?.querySelector('[data-role="followup-reason"]')?.value.trim() || ''
+        followupReasonText: needsFollowup ? reason.trim() : ''
     };
 }
 
@@ -5152,8 +5140,8 @@ function getReviewWorkflowAudioAssessmentValidation(values) {
     if (values.decision === '不可用' && values.unusableReasonCode === '其他' && !values.unusableReasonText) {
         return '請補充其他不可用原因。';
     }
-    if (values.needsFollowup && !values.followupReasonText) {
-        return '需要後續處理時，請填寫原因。';
+    if (values.decision === '待追問' && !values.reason.trim()) {
+        return '判定為待追問時，請填寫補充資訊。';
     }
     return '';
 }
@@ -5162,18 +5150,11 @@ function refreshReviewWorkflowAudioAssessmentPanel(panel) {
     if (!panel) return;
     const values = getReviewWorkflowAudioAssessmentValues(panel);
     const isUnusable = values.decision === '不可用';
-    const isFollowupRequired = values.decision === '待追問' || values.needsFollowup;
     panel.querySelector('[data-field="unusable-reason"]')?.classList.toggle('hidden', !isUnusable);
     panel.querySelector('[data-field="unusable-other"]')?.classList.toggle(
         'hidden',
         !isUnusable || values.unusableReasonCode !== '其他'
     );
-    panel.querySelector('[data-field="followup-reason"]')?.classList.toggle('hidden', !isFollowupRequired);
-    const followupCheckbox = panel.querySelector('[data-role="needs-followup"]');
-    if (followupCheckbox) {
-        followupCheckbox.disabled = values.decision === '待追問';
-        if (values.decision === '待追問') followupCheckbox.checked = true;
-    }
     const validationMessage = getReviewWorkflowAudioAssessmentValidation(values);
     const saveButton = panel.querySelector('[data-action="save"]');
     if (saveButton) saveButton.disabled = Boolean(validationMessage);
@@ -5197,10 +5178,7 @@ function resetReviewWorkflowAudioAssessmentPanel(panel) {
     if (unusableReasonCode) unusableReasonCode.value = '';
     const unusableReasonText = panel.querySelector('[data-role="unusable-reason-text"]');
     if (unusableReasonText) unusableReasonText.value = '';
-    const followupCheckbox = panel.querySelector('[data-role="needs-followup"]');
-    if (followupCheckbox) followupCheckbox.checked = panel.dataset.initialDecision === '待追問';
-    const followupReason = panel.querySelector('[data-role="followup-reason"]');
-    if (followupReason) followupReason.value = '';
+
     panel.querySelectorAll('[data-decision]').forEach(decisionButton => {
         const selected = decisionButton.dataset.decision === panel.dataset.decision;
         decisionButton.classList.toggle('is-selected', selected);
@@ -5340,7 +5318,7 @@ async function saveReviewWorkflowAudioAssessment(taskId, language, audioRecordId
             p_assessor_account: state.userId, p_respondent_key: values.respondentKey,
             p_decision: values.decision,
             p_metadata: {
-                reason: values.reason,
+                reason: values.needsFollowup ? '' : values.reason,
                 unusable_reason_code: values.unusableReasonCode,
                 unusable_reason_text: values.unusableReasonText,
                 needs_followup: values.needsFollowup,

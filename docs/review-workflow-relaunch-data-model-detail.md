@@ -83,11 +83,11 @@
 | `audio_record_id` | 現有實體音檔 ID |
 | `task_id/source_id` | 對應地名 |
 | `language` | 台語／客語 |
-| `usability` | 未審聽、可用、不可用 |
+| `usability` | 未審聽、可用、不可用、待追問 |
 | `unusable_reason_code` | 先提供 `無聲`、`聽不清楚`；其他可為 `other` |
 | `unusable_reason_text` | 其他不可用原因文字 |
-| `needs_followup` | 是否需後續處理的旗標 |
-| `followup_reason_text` | 後續處理原因文字 |
+| `needs_followup` | 由最新 `decision` 自動同步；只有 `decision=待追問` 時為 true |
+| `followup_reason_text` | 待追問時的補充資訊／待追問原因（相容歷史欄位） |
 | `followup_status` | 無、待助理處理、助理處理中、待專業會議、已處理 |
 | `reviewer_account` | 最近一次判定者 |
 | `reviewed_at` | 最近一次判定時間 |
@@ -104,7 +104,7 @@
 1. `audio_records.unlinked_at IS NULL`。
 2. 最新 `usability=可用`。
 3. 同一地名×語種的不同受訪人由審聽者依耳朵判定；系統不保存受訪人身份。
-4. `needs_followup` 不影響可用數量，但只要尚有未結案後續處理，就不得送校對。
+4. `decision=待追問` 的音檔不得作為標注來源；單純補充資訊不影響可用數量或標注資格。
 5. 改判後重新計算有效數量；若少於兩筆，案件回到錄音／補件處理，已保存草稿不得刪除。
 
 ### 4. `audio_assessment_events`

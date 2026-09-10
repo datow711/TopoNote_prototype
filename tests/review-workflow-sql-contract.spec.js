@@ -31,6 +31,10 @@ const authWrapperGrantMigration = fs.readFileSync(
   'utf8'
 );
 
+const simplifiedAssessmentMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260909_simplify_audio_assessment_decision.sql'),
+  'utf8'
+);
 test('audio assessor annotation drafts have isolated permissions and concurrency guards', async () => {
   expect(audioDraftMigration).toContain(
     'create or replace function public.save_audio_annotation_draft('
@@ -161,4 +165,11 @@ test('private Auth helpers have explicit least-privilege grants', async () => {
     expect(authWrapperGrantMigration).toContain(`revoke all on function private.${name}`);
     expect(authWrapperGrantMigration).toContain(`grant execute on function private.${name}`);
   });
+});
+
+test('audio assessment follow-up state is derived from decision', async () => {
+  expect(simplifiedAssessmentMigration).toContain("v_needs_followup := p_decision = U&'\\5f85\\8ffd\\554f';");
+  expect(simplifiedAssessmentMigration).toContain("v_followup_reason_text := coalesce(nullif(trim(coalesce(p_metadata ->> 'followup_reason_text', '')), ''), coalesce(p_metadata ->> 'reason', ''));");
+  expect(simplifiedAssessmentMigration).toContain("raise exception 'selected audio must be usable';");
+  expect(simplifiedAssessmentMigration).not.toContain('coalesce(v_latest_assessment.needs_followup, false)');
 });

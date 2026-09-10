@@ -55,6 +55,8 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
   await expect(panel).toBeVisible();
   await expect(panel.locator('[data-field="unusable-reason"]')).toBeHidden();
   await panel.locator('[data-decision="可用"]').click();
+  await expect(panel.locator('[data-role="needs-followup"]')).toHaveCount(0);
+  await panel.locator('[data-role="reason"]').fill('音質清楚，確實講到目標地名');
   await expect(panel.locator('[data-action="save"]')).toBeEnabled();
   await panel.locator('[data-action="save"]').click();
   await page.waitForFunction(() => window.__workflowCalls.length === 1);
@@ -66,6 +68,8 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
   expect(result.assessmentCall.body.p_respondent_key).toBe('');
   expect(result.assessmentCall.body.p_decision).toBe('\u53ef\u7528');
   expect(result.assessmentCall.body.p_metadata.needs_followup).toBe(false);
+  expect(result.assessmentCall.body.p_metadata.reason).toBe('音質清楚，確實講到目標地名');
+  expect(result.assessmentCall.body.p_metadata.followup_reason_text).toBe('');
 });
 
 test('audio assessment shows last assessor and append-only history inline', async ({ page }) => {
@@ -212,11 +216,10 @@ test('audio assessment shows conditional fields inline', async ({ page }) => {
   await expect(panel.locator('[data-action="save"]')).toBeDisabled();
   await panel.locator('[data-role="unusable-reason-code"]').selectOption('其他');
   await expect(panel.locator('[data-field="unusable-other"]')).toBeVisible();
-  await panel.locator('[data-role="needs-followup"]').check();
-  await expect(panel.locator('[data-field="followup-reason"]')).toBeVisible();
-  await panel.locator('[data-role="unusable-reason-text"]').fill('背景雜訊過大');
+  await panel.locator('[data-decision="待追問"]').click();
+  await expect(panel.locator('[data-role="needs-followup"]')).toHaveCount(0);
   await expect(panel.locator('[data-action="save"]')).toBeDisabled();
-  await panel.locator('[data-role="followup-reason"]').fill('請請調查員確認是否有較清楚版本');
+  await panel.locator('[data-role="reason"]').fill('請調查員確認是否有較清楚版本');
   await expect(panel.locator('[data-action="save"]')).toBeEnabled();
   await panel.locator('[data-action="cancel"]').click();
   await expect(panel).toBeHidden();
