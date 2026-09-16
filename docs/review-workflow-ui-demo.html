@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>審聽工作台 UI Demo</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --demo-ink: #1f3038;
+            --demo-muted: #6b7c84;
+            --demo-line: #d8e2e5;
+            --demo-soft-line: #e7eef0;
+            --demo-surface: #ffffff;
+            --demo-canvas: #f4f7f7;
+            --demo-accent: #176b73;
+            --demo-accent-soft: #e9f5f3;
+            --demo-blue: #25648a;
+            --demo-blue-soft: #edf5fb;
+            --demo-warning: #8a5b1d;
+            --demo-warning-soft: #fff5e3;
+            --demo-danger: #a34242;
+            --demo-danger-soft: #fff0f0;
+            --demo-shadow: 0 8px 22px rgba(31, 48, 56, .07);
+            font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--demo-ink);
+            background: var(--demo-canvas);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        button, input, select, textarea { font: inherit; }
+        button { cursor: pointer; }
+        button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline: 3px solid rgba(37, 100, 138, .28);
+            outline-offset: 1px;
+        }
+        .demo-app {
+            width: min(1440px, calc(100% - 28px));
+            margin: 0 auto;
+            padding: 18px 0 42px;
+        }
+        .demo-header {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .demo-eyebrow {
+            color: var(--demo-accent);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .04em;
+        }
+        .demo-header-row {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .demo-header h1 {
+            margin: 0;
+            font-size: clamp(22px, 3vw, 32px);
+            letter-spacing: -.03em;
+        }
+        .demo-header p {
+            margin: 4px 0 0;
+            color: var(--demo-muted);
+        }
+        .demo-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .demo-save-state {
+            color: var(--demo-warning);
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .demo-button {
+            min-height: 34px;
+            padding: 7px 12px;
+            border: 1px solid var(--demo-line);
+            border-radius: 7px;
+            background: var(--demo-surface);
+            color: var(--demo-ink);
+            font-weight: 750;
+        }
+        .demo-button:hover { border-color: var(--demo-blue); }
+        .demo-button.primary {
+            border-color: var(--demo-accent);
+            background: var(--demo-accent);
+            color: #fff;
+        }
+        .demo-button.small {
+            min-height: 28px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .demo-filter-bar {
+            display: grid;
+            grid-template-columns: auto minmax(130px, 1fr) minmax(170px, 1.2fr) minmax(150px, 1fr) minmax(210px, 1.5fr) auto;
+            align-items: end;
+            gap: 8px;
+            padding: 9px 10px;
+            border: 1px solid var(--demo-line);
+            border-radius: 9px;
+            background: var(--demo-surface);
+            box-shadow: 0 2px 8px rgba(31, 48, 56, .03);
+        }
+        .filter-title {
+            align-self: center;
+            color: var(--demo-accent);
+            font-weight: 850;
+            white-space: nowrap;
+        }
+        .filter-field {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+        .filter-field > span {
+            color: var(--demo-muted);
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .filter-field select {
+            width: 100%;
+            min-height: 34px;
+            padding: 5px 8px;
+            border: 1px solid var(--demo-line);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--demo-ink);
+        }
+        .filter-segment {
+            display: flex;
+            min-height: 34px;
+            overflow: hidden;
+            border: 1px solid var(--demo-line);
+            border-radius: 6px;
+            background: #fbfcfc;
+        }
+        .filter-segment button {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 5px 8px;
+            border: 0;
+            border-right: 1px solid var(--demo-line);
+            background: transparent;
+            color: var(--demo-muted);
+            font-size: 12px;
+            font-weight: 750;
+            white-space: nowrap;
+        }
+        .filter-segment button:last-child { border-right: 0; }
+        .filter-segment button.is-active {
+            background: var(--demo-accent-soft);
+            color: var(--demo-accent);
+        }
+        .priority-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 34px;
+            padding: 5px 8px;
+            border: 1px solid #d5c39f;
+            border-radius: 6px;
+            background: var(--demo-warning-soft);
+            color: var(--demo-warning);
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .priority-toggle input { accent-color: var(--demo-warning); }
+        .result-count {
+            grid-column: 1 / -1;
+            color: var(--demo-muted);
+            font-size: 12px;
+        }
+        .place-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .place-card {
+            overflow: hidden;
+            border: 1px solid #cbd9dd;
+            border-radius: 11px;
+            background: var(--demo-surface);
+            box-shadow: var(--demo-shadow);
+        }
+        .place-card.is-focused {
+            border-color: #8ebdc0;
+            box-shadow: 0 10px 26px rgba(23, 107, 115, .10);
+        }
+        .place-card[hidden] { display: none; }
+        .place-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 15px 10px;
+            border-bottom: 1px solid var(--demo-soft-line);
+            background: linear-gradient(90deg, #f8fbfb, #fff);
+        }
+        .place-card-title {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0;
+            font-size: 21px;
+            letter-spacing: -.02em;
+        }
+        .place-card-number {
+            color: var(--demo-muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .place-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px 12px;
+            margin-top: 3px;
+            color: var(--demo-muted);
+            font-size: 12px;
+        }
+        .place-meta strong { color: var(--demo-ink); }
+        .place-card-status {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--demo-blue-soft);
+            color: var(--demo-blue);
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .status-badge.warning {
+            background: var(--demo-warning-soft);
+            color: var(--demo-warning);
+        }
+        .place-card-body {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(365px, 1fr);
+            min-width: 0;
+        }
+        .draft-area {
+            min-width: 0;
+            padding: 15px;
+        }
+        .audio-area {
+            min-width: 0;
+            padding: 13px;
+            border-left: 1px solid var(--demo-soft-line);
+            background: #fbfdfd;
+        }
+        .section-heading {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 9px;
+        }
+        .section-heading h3 {
+            margin: 0;
+            font-size: 15px;
+        }
+        .section-heading small {
+            color: var(--demo-muted);
+            font-size: 11px;
+        }
+        .place-description {
+            margin: 0 0 12px;
+            padding: 8px 10px;
+            border-left: 3px solid #9bc8ca;
+            background: #f4faf9;
+            color: #4b6267;
+            font-size: 12px;
+        }
+        .draft-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .draft-field {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+        .draft-field.wide { grid-column: 1 / -1; }
+        .draft-field label {
+            color: var(--demo-muted);
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .draft-field input, .draft-field textarea {
+            width: 100%;
+            min-width: 0;
+            padding: 8px 9px;
+            border: 1px solid var(--demo-line);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--demo-ink);
+        }
+        .draft-field textarea {
+            min-height: 70px;
+            resize: vertical;
+        }
+        .draft-field input::placeholder, .draft-field textarea::placeholder { color: #9aa9ae; }
+        .draft-tools {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--demo-soft-line);
+        }
+        .selected-source {
+            color: var(--demo-muted);
+            font-size: 12px;
+        }
+        .selected-source strong { color: var(--demo-accent); }
+        .audio-area-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .audio-area-header h3 {
+            margin: 0;
+            font-size: 15px;
+        }
+        .audio-area-header span {
+            color: var(--demo-muted);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .audio-note {
+            margin: 0 0 8px;
+            color: var(--demo-muted);
+            font-size: 11px;
+        }
+        .audio-table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--demo-line);
+            border-radius: 7px;
+            background: #fff;
+        }
+        .audio-table {
+            width: 100%;
+            min-width: 690px;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 11px;
+        }
+        .audio-table th, .audio-table td {
+            padding: 7px 6px;
+            border-bottom: 1px solid var(--demo-soft-line);
+            text-align: left;
+            vertical-align: top;
+        }
+        .audio-table tr:last-child td { border-bottom: 0; }
+        .audio-table th {
+            color: var(--demo-muted);
+            background: #f6f9f9;
+            font-size: 10px;
+            font-weight: 850;
+            white-space: nowrap;
+        }
+        .audio-table th:nth-child(1) { width: 46px; }
+        .audio-table th:nth-child(2) { width: 82px; }
+        .audio-table th:nth-child(3) { width: 84px; }
+        .audio-table th:nth-child(4) { width: 105px; }
+        .audio-table th:nth-child(5) { width: 52px; }
+        .audio-table th:nth-child(6) { width: 58px; }
+        .audio-table th:nth-child(7) { width: 188px; }
+        .audio-sn {
+            color: var(--demo-accent);
+            font-weight: 900;
+        }
+        .audio-recorder {
+            display: block;
+            margin-top: 2px;
+            color: var(--demo-muted);
+            font-size: 10px;
+            overflow-wrap: anywhere;
+        }
+        .audio-value {
+            display: block;
+            min-height: 1.35em;
+            color: var(--demo-ink);
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+        .audio-value.empty { color: #a6b2b5; }
+        .audio-button {
+            min-height: 27px;
+            padding: 4px 7px;
+            border: 1px solid var(--demo-line);
+            border-radius: 5px;
+            background: #fff;
+            color: var(--demo-blue);
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .audio-button:hover { border-color: var(--demo-blue); background: var(--demo-blue-soft); }
+        .audio-player-state {
+            display: block;
+            margin-top: 4px;
+            color: var(--demo-muted);
+            font-size: 10px;
+        }
+        .judge-toggle {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 2px;
+            min-width: 174px;
+        }
+        .judge-toggle button {
+            min-height: 27px;
+            padding: 3px 4px;
+            border: 1px solid var(--demo-line);
+            background: #fff;
+            color: var(--demo-muted);
+            font-size: 10px;
+            font-weight: 800;
+        }
+        .judge-toggle button:first-child { border-radius: 5px 0 0 5px; }
+        .judge-toggle button:last-child { border-radius: 0 5px 5px 0; }
+        .judge-toggle button + button { border-left: 0; }
+        .judge-toggle button.is-selected[data-decision="可用"] {
+            border-color: #4f9b83;
+            background: #e9f7f0;
+            color: #26755c;
+        }
+        .judge-toggle button.is-selected[data-decision="不可用"] {
+            border-color: #cd8d8d;
+            background: var(--demo-danger-soft);
+            color: var(--demo-danger);
+        }
+        .judge-toggle button.is-selected[data-decision="待追問"] {
+            border-color: #d4b77d;
+            background: var(--demo-warning-soft);
+            color: var(--demo-warning);
+        }
+        .fill-button {
+            min-height: 27px;
+            padding: 4px 6px;
+            border: 1px solid #a8c9c3;
+            border-radius: 5px;
+            background: var(--demo-accent-soft);
+            color: var(--demo-accent);
+            font-size: 10px;
+            font-weight: 850;
+            white-space: nowrap;
+        }
+        .fill-button:disabled {
+            cursor: not-allowed;
+            border-color: var(--demo-soft-line);
+            background: #f6f8f8;
+            color: #a6b2b5;
+        }
+        .audio-table tr[data-decision="不可用"] .audio-value,
+        .audio-table tr[data-decision="待追問"] .audio-value {
+            color: var(--demo-muted);
+        }
+        .audio-table tr.has-unsaved td:first-child {
+            box-shadow: inset 3px 0 0 var(--demo-warning);
+        }
+        .place-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 15px;
+            border-top: 1px solid var(--demo-soft-line);
+            background: #fbfcfc;
+        }
+        .place-card-footer small { color: var(--demo-muted); }
+        .compact-card .place-card-body { display: none; }
+        .compact-card .place-card-header { border-bottom: 0; }
+        .compact-summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--demo-muted);
+            font-size: 12px;
+        }
+        .empty-state {
+            padding: 26px;
+            border: 1px dashed var(--demo-line);
+            border-radius: 9px;
+            background: rgba(255, 255, 255, .65);
+            color: var(--demo-muted);
+            text-align: center;
+        }
+        .demo-legend {
+            margin-top: 12px;
+            color: var(--demo-muted);
+            font-size: 12px;
+        }
+        .demo-legend strong { color: var(--demo-ink); }
+
+        @media (max-width: 1120px) {
+            .demo-filter-bar {
+                grid-template-columns: auto repeat(2, minmax(150px, 1fr));
+            }
+            .priority-toggle { justify-self: start; }
+            .result-count { grid-column: 1 / -1; }
+        }
+        @media (max-width: 900px) {
+            .place-card-body { grid-template-columns: 1fr; }
+            .audio-area {
+                border-top: 1px solid var(--demo-soft-line);
+                border-left: 0;
+            }
+            .audio-table { min-width: 690px; }
+        }
+        @media (max-width: 640px) {
+            .demo-app { width: min(100% - 16px, 560px); padding-top: 12px; }
+            .demo-header-row { align-items: flex-start; flex-direction: column; }
+            .demo-header-actions { width: 100%; justify-content: space-between; }
+            .demo-filter-bar { grid-template-columns: 1fr; }
+            .filter-title { align-self: auto; }
+            .result-count { grid-column: auto; }
+            .place-card-header { flex-direction: column; }
+            .place-card-status { justify-content: flex-start; }
+            .draft-grid { grid-template-columns: 1fr; }
+            .draft-field.wide { grid-column: auto; }
+            .draft-tools, .place-card-footer { align-items: flex-start; flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<main class="demo-app">
+    <header class="demo-header">
+        <div class="demo-eyebrow">UI DEMO · 不連接正式資料</div>
+        <div class="demo-header-row">
+            <div>
+                <h1>音檔審聽工作台</h1>
+                <p>以地名為主體；音檔只提供聆聽、判定與帶入草稿。</p>
+            </div>
+            <div class="demo-header-actions">
+                <span class="demo-save-state" id="save-state" aria-live="polite">本次變更尚未保存</span>
+                <button class="demo-button primary" type="button" id="save-place">儲存此地名</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="demo-filter-bar" aria-label="審聽篩選">
+        <div class="filter-title">優先處理</div>
+        <label class="filter-field">
+            <span>縣市</span>
+            <select id="county-filter">
+                <option value="all">全部縣市</option>
+                <option value="宜蘭縣">宜蘭縣</option>
+                <option value="臺東縣">臺東縣</option>
+            </select>
+        </label>
+        <div class="filter-field">
+            <span>語種</span>
+            <div class="filter-segment" id="language-filter" role="group" aria-label="語種">
+                <button type="button" class="is-active" data-language="all">全部</button>
+                <button type="button" data-language="台語">台語</button>
+                <button type="button" data-language="客語">客語</button>
+            </div>
+        </div>
+        <label class="filter-field">
+            <span>錄音人</span>
+            <select id="recorder-filter">
+                <option value="all">全部錄音人</option>
+                <option value="林秀琴">林秀琴</option>
+                <option value="陳明德">陳明德</option>
+                <option value="黃玉蘭">黃玉蘭</option>
+            </select>
+        </label>
+        <label class="filter-field">
+            <span>音檔進度</span>
+            <select id="progress-filter">
+                <option value="all">全部進度</option>
+                <option value="unreviewed">尚有未判定</option>
+                <option value="partial">部分已判定</option>
+                <option value="completed">全部已判定</option>
+            </select>
+        </label>
+        <label class="priority-toggle">
+            <input type="checkbox" id="two-record-filter" checked>
+            <span>優先顯示 2 筆以上音檔</span>
+        </label>
+        <div class="result-count" id="result-count" aria-live="polite"></div>
+    </section>
+
+    <section class="place-list" id="place-list">
+        <article class="place-card is-focused"
+                 data-county="宜蘭縣"
+                 data-language="台語"
+                 data-record-count="3"
+                 data-progress="partial"
+                 data-recorders="林秀琴,陳明德">
+            <header class="place-card-header">
+                <div>
+                    <div class="place-card-title">
+                        <span class="place-card-number">01</span>
+                        <h2 class="place-card-title">水流崙</h2>
+                    </div>
+                    <div class="place-meta">
+                        <span>宜蘭縣・冬山鄉</span>
+                        <span>UUID：<strong>3f0e…a812</strong></span>
+                        <span>語種：<strong>台語</strong></span>
+                    </div>
+                </div>
+                <div class="place-card-status">
+                    <span class="status-badge">3 筆音檔</span>
+                    <span class="status-badge warning">1 筆待判定</span>
+                </div>
+            </header>
+            <div class="place-card-body">
+                <section class="draft-area" aria-labelledby="draft-title-1">
+                    <div class="section-heading">
+                        <h3 id="draft-title-1">地名資料草稿</h3>
+                        <small>可先填寫，不必等所有音檔判定完成</small>
+                    </div>
+                    <p class="place-description">目前可從「可用」音檔帶入內容；審聽備註只供後續檢查，不寫入地名正式欄位。</p>
+                    <div class="draft-grid">
+                        <div class="draft-field">
+                            <label for="taihan-1">TaiHan1｜台語漢字</label>
+                            <input id="taihan-1" value="水流崙" placeholder="台語漢字">
+                        </div>
+                        <div class="draft-field">
+                            <label for="tl1-1">TL1｜主音讀</label>
+                            <input id="tl1-1" value="Tsuí-liû-lūn" placeholder="主音讀羅馬字">
+                        </div>
+                        <div class="draft-field">
+                            <label for="tl2-1">TL2｜副音讀</label>
+                            <input id="tl2-1" placeholder="優勢腔副音讀">
+                        </div>
+                        <div class="draft-field">
+                            <label for="tl3-1">TL3｜又念作</label>
+                            <input id="tl3-1" placeholder="其他念法">
+                        </div>
+                        <div class="draft-field">
+                            <label for="tai-note-1">TaiNote｜地名備註</label>
+                            <input id="tai-note-1" placeholder="地名本身的補充說明">
+                        </div>
+                        <div class="draft-field wide">
+                            <label for="assessor-note-1">審聽備註｜不作為地名資料</label>
+                            <textarea id="assessor-note-1" placeholder="記錄音檔之間的差異、聽感、待追問原因或交給後續檢查者的資訊。">#03 尾音比 #01 清楚；#02 的 TL1 與 #03 不一致，先保留兩種說法供校對。</textarea>
+                        </div>
+                    </div>
+                    <div class="draft-tools">
+                        <span class="selected-source">目前採用音檔：<strong id="selected-source">尚未指定</strong></span>
+                        <button class="demo-button small" type="button" id="clear-draft">清除本次草稿變更</button>
+                    </div>
+                </section>
+
+                <aside class="audio-area" aria-labelledby="audio-title-1">
+                    <div class="audio-area-header">
+                        <h3 id="audio-title-1">音檔審聽</h3>
+                        <span id="audio-progress-1">2 / 3 已判定</span>
+                    </div>
+                    <p class="audio-note">判定先留在本頁；儲存地名時與草稿一起送出。</p>
+                    <div class="audio-table-wrap">
+                        <table class="audio-table">
+                            <thead>
+                            <tr>
+                                <th>SN</th>
+                                <th>TaiHan1</th>
+                                <th>TL1</th>
+                                <th>TaiNote</th>
+                                <th>播放</th>
+                                <th>帶入</th>
+                                <th>判定</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr data-audio-row data-audio-id="1836" data-decision="可用">
+                                <td>
+                                    <span class="audio-sn">#01</span>
+                                    <span class="audio-recorder">林秀琴</span>
+                                </td>
+                                <td><span class="audio-value">水流崙</span></td>
+                                <td><span class="audio-value">Tsuí-liû-lūn</span></td>
+                                <td><span class="audio-value empty">未填</span></td>
+                                <td>
+                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <span class="audio-player-state" aria-live="polite"></span>
+                                </td>
+                                <td><button class="fill-button" type="button" data-fill-source="1836">填入</button></td>
+                                <td>
+                                    <div class="judge-toggle" role="group" aria-label="音檔 #01 判定">
+                                        <button type="button" data-decision="可用" class="is-selected">可用</button>
+                                        <button type="button" data-decision="不可用">不可用</button>
+                                        <button type="button" data-decision="待追問">待追問</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr data-audio-row data-audio-id="1837" data-decision="可用">
+                                <td>
+                                    <span class="audio-sn">#02</span>
+                                    <span class="audio-recorder">陳明德</span>
+                                </td>
+                                <td><span class="audio-value">水流崙</span></td>
+                                <td><span class="audio-value">Tsuí-lāu-lūn</span></td>
+                                <td><span class="audio-value">尾音較短</span></td>
+                                <td>
+                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <span class="audio-player-state" aria-live="polite"></span>
+                                </td>
+                                <td><button class="fill-button" type="button" data-fill-source="1837">填入</button></td>
+                                <td>
+                                    <div class="judge-toggle" role="group" aria-label="音檔 #02 判定">
+                                        <button type="button" data-decision="可用" class="is-selected">可用</button>
+                                        <button type="button" data-decision="不可用">不可用</button>
+                                        <button type="button" data-decision="待追問">待追問</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr data-audio-row data-audio-id="1838" data-decision="">
+                                <td>
+                                    <span class="audio-sn">#03</span>
+                                    <span class="audio-recorder">林秀琴</span>
+                                </td>
+                                <td><span class="audio-value">水流崙</span></td>
+                                <td><span class="audio-value">Tsuí-liû-lūn</span></td>
+                                <td><span class="audio-value">音質較清楚</span></td>
+                                <td>
+                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <span class="audio-player-state" aria-live="polite"></span>
+                                </td>
+                                <td><button class="fill-button" type="button" data-fill-source="1838" disabled>先判定可用</button></td>
+                                <td>
+                                    <div class="judge-toggle" role="group" aria-label="音檔 #03 判定">
+                                        <button type="button" data-decision="可用">可用</button>
+                                        <button type="button" data-decision="不可用">不可用</button>
+                                        <button type="button" data-decision="待追問">待追問</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </aside>
+            </div>
+            <footer class="place-card-footer">
+                <small>地名卡片內完成：聽音檔 → 判定 → 填草稿 → 儲存。</small>
+                <button class="demo-button primary small" type="button" id="save-card">儲存此地名</button>
+            </footer>
+        </article>
+
+        <article class="place-card compact-card"
+                 data-county="臺東縣"
+                 data-language="客語"
+                 data-record-count="2"
+                 data-progress="completed"
+                 data-recorders="黃玉蘭">
+            <header class="place-card-header">
+                <div>
+                    <div class="place-card-title">
+                        <span class="place-card-number">02</span>
+                        <h2 class="place-card-title">石門坑</h2>
+                    </div>
+                    <div class="place-meta">
+                        <span>臺東縣・池上鄉</span>
+                        <span>UUID：<strong>bd77…c420</strong></span>
+                        <span>語種：<strong>客語</strong></span>
+                    </div>
+                </div>
+                <div class="place-card-status">
+                    <span class="status-badge">2 筆音檔</span>
+                    <span class="status-badge">全部已判定</span>
+                </div>
+            </header>
+            <div class="place-card-body"></div>
+            <footer class="place-card-footer">
+                <div class="compact-summary">
+                    <span>客語</span>
+                    <span>・</span>
+                    <span>2 / 2 已判定</span>
+                    <span>・</span>
+                    <span>黃玉蘭</span>
+                </div>
+                <button class="demo-button small expand-card" type="button">開啟處理</button>
+            </footer>
+        </article>
+
+        <article class="place-card compact-card"
+                 data-county="宜蘭縣"
+                 data-language="台語"
+                 data-record-count="1"
+                 data-progress="unreviewed"
+                 data-recorders="陳明德">
+            <header class="place-card-header">
+                <div>
+                    <div class="place-card-title">
+                        <span class="place-card-number">03</span>
+                        <h2 class="place-card-title">鹿埔</h2>
+                    </div>
+                    <div class="place-meta">
+                        <span>宜蘭縣・三星鄉</span>
+                        <span>UUID：<strong>16bc…19d0</strong></span>
+                        <span>語種：<strong>台語</strong></span>
+                    </div>
+                </div>
+                <div class="place-card-status">
+                    <span class="status-badge">1 筆音檔</span>
+                    <span class="status-badge warning">尚未判定</span>
+                </div>
+            </header>
+            <div class="place-card-body"></div>
+            <footer class="place-card-footer">
+                <div class="compact-summary">
+                    <span>台語</span>
+                    <span>・</span>
+                    <span>0 / 1 已判定</span>
+                    <span>・</span>
+                    <span>陳明德</span>
+                </div>
+                <button class="demo-button small expand-card" type="button">開啟處理</button>
+            </footer>
+        </article>
+    </section>
+
+    <p class="demo-legend"><strong>討論提示：</strong>本原型只示範版面與暫存操作；「填入」是否保留、可用音檔如何選定、儲存後如何進入「待檢查」，會在 UI 確認後再轉成資料庫與程式設計。</p>
+</main>
+
+<script>
+    const demoState = {
+        language: 'all',
+        dirty: false
+    };
+
+    function allCards() {
+        return Array.from(document.querySelectorAll('[data-record-count]'));
+    }
+
+    function updateResultCount() {
+        const visible = allCards().filter(card => !card.hidden).length;
+        document.getElementById('result-count').textContent =
+            '顯示 ' + visible + ' / ' + allCards().length + ' 個地名；預設優先處理至少 2 筆音檔的地名。';
+    }
+
+    function applyFilters() {
+        const county = document.getElementById('county-filter').value;
+        const recorder = document.getElementById('recorder-filter').value;
+        const progress = document.getElementById('progress-filter').value;
+        const preferTwo = document.getElementById('two-record-filter').checked;
+
+        allCards().forEach(card => {
+            const cardRecorders = String(card.dataset.recorders || '').split(',');
+            const countyMatches = county === 'all' || card.dataset.county === county;
+            const languageMatches = demoState.language === 'all' || card.dataset.language === demoState.language;
+            const recorderMatches = recorder === 'all' || cardRecorders.includes(recorder);
+            const progressMatches = progress === 'all' || card.dataset.progress === progress;
+            const recordCountMatches = !preferTwo || Number(card.dataset.recordCount) >= 2;
+            card.hidden = !(countyMatches && languageMatches && recorderMatches && progressMatches && recordCountMatches);
+        });
+        updateResultCount();
+    }
+
+    function markDirty(message) {
+        demoState.dirty = true;
+        document.getElementById('save-state').textContent = message || '本次變更尚未保存';
+    }
+
+    function updateAudioProgress() {
+        const rows = Array.from(document.querySelectorAll('[data-audio-row]'));
+        const assessed = rows.filter(row => row.dataset.decision).length;
+        const progress = document.getElementById('audio-progress-1');
+        if (progress) progress.textContent = assessed + ' / ' + rows.length + ' 已判定';
+        rows.forEach(row => {
+            row.classList.toggle('has-unsaved', Boolean(row.dataset.decision));
+            row.querySelectorAll('.judge-toggle button').forEach(button => {
+                button.classList.toggle('is-selected', button.dataset.decision === row.dataset.decision);
+                button.setAttribute('aria-pressed', String(button.dataset.decision === row.dataset.decision));
+            });
+            const fillButton = row.querySelector('.fill-button');
+            const canFill = row.dataset.decision === '可用';
+            if (fillButton) {
+                fillButton.disabled = !canFill;
+                fillButton.textContent = canFill ? '填入' : '先判定可用';
+            }
+        });
+    }
+
+    document.querySelectorAll('#language-filter button').forEach(button => {
+        button.addEventListener('click', () => {
+            demoState.language = button.dataset.language;
+            document.querySelectorAll('#language-filter button').forEach(candidate => {
+                candidate.classList.toggle('is-active', candidate === button);
+            });
+            applyFilters();
+        });
+    });
+
+    ['county-filter', 'recorder-filter', 'progress-filter', 'two-record-filter'].forEach(id => {
+        document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    document.querySelectorAll('.judge-toggle button').forEach(button => {
+        button.addEventListener('click', () => {
+            const row = button.closest('[data-audio-row]');
+            row.dataset.decision = button.dataset.decision;
+            markDirty('判定已暫存於本頁，尚未送出');
+            updateAudioProgress();
+        });
+    });
+
+    document.querySelectorAll('.play-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const state = button.nextElementSibling;
+            const playing = state.textContent === 'Demo 播放中';
+            state.textContent = playing ? '' : 'Demo 播放中';
+            button.textContent = playing ? '播放' : '停止';
+        });
+    });
+
+    document.querySelectorAll('.fill-button').forEach(button => {
+        button.addEventListener('click', () => {
+            if (button.disabled) return;
+            document.getElementById('selected-source').textContent = '音檔 #' + button.dataset.fillSource;
+            document.getElementById('taihan-1').value = '水流崙';
+            document.getElementById('tl1-1').value = button.dataset.fillSource === '1837'
+                ? 'Tsuí-lāu-lūn'
+                : 'Tsuí-liû-lūn';
+            markDirty('已帶入音檔 #' + button.dataset.fillSource + '，尚未保存');
+        });
+    });
+
+    function savePlace() {
+        demoState.dirty = false;
+        document.getElementById('save-state').textContent = 'Demo：已儲存，狀態可進入「待檢查」';
+        document.querySelectorAll('[data-audio-row]').forEach(row => row.classList.remove('has-unsaved'));
+    }
+
+    document.getElementById('save-place').addEventListener('click', savePlace);
+    document.getElementById('save-card').addEventListener('click', savePlace);
+    document.getElementById('clear-draft').addEventListener('click', () => {
+        ['taihan-1', 'tl1-1', 'tl2-1', 'tl3-1', 'tai-note-1', 'assessor-note-1'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('selected-source').textContent = '尚未指定';
+        markDirty('草稿欄位已清除，尚未保存');
+    });
+
+    document.querySelectorAll('.expand-card').forEach(button => {
+        button.addEventListener('click', () => {
+            const card = button.closest('.compact-card');
+            document.querySelectorAll('.compact-card').forEach(candidate => candidate.classList.remove('is-focused'));
+            card.classList.add('is-focused');
+            button.textContent = '已選取（Demo）';
+            markDirty('Demo：已選取另一個地名');
+        });
+    });
+
+    updateAudioProgress();
+    applyFilters();
+</script>
+</body>
+</html>
