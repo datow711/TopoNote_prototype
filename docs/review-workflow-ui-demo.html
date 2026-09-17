@@ -383,9 +383,9 @@
         .audio-table th:nth-child(1) { width: 40px; }
         .audio-table th:nth-child(2) { width: 54px; }
         .audio-table th:nth-child(3) { width: 58px; }
-        .audio-table th:nth-child(4) { width: 54px; }
+        .audio-table th:nth-child(4) { width: 68px; }
         .audio-table th:nth-child(5) { width: 34px; }
-        .audio-table th:nth-child(6) { width: 74px; }
+        .audio-table th:nth-child(6) { width: 60px; }
         .audio-sn-cell { position: relative; }
         .audio-sn-cell .audio-sn { display: inline-flex; min-height: 27px; align-items: center; }
         .audio-sn-cell .fill-button {
@@ -437,19 +437,21 @@
         .judge-toggle {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 1px;
+            gap: 0;
             min-width: 0;
-            width: 100%;
+            width: 60px;
         }
         .judge-toggle button {
             min-height: 27px;
             min-width: 0;
-            padding: 1px;
+            padding: 0;
             border: 0;
             border-radius: 4px;
             background: transparent;
             color: var(--demo-muted);
-            font-size: 14px;
+            font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
+            font-variant-emoji: emoji;
+            font-size: 16px;
             font-weight: 800;
         }
         .judge-toggle button:hover { background: var(--demo-canvas); }
