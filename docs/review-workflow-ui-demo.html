@@ -257,7 +257,7 @@
         }
         .place-card-body {
             display: grid;
-            grid-template-columns: minmax(0, 2fr) minmax(365px, 1fr);
+            grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
             min-width: 0;
         }
         .draft-area {
@@ -361,13 +361,13 @@
         }
         .audio-table {
             width: 100%;
-            min-width: 690px;
+            min-width: 0;
             border-collapse: collapse;
             table-layout: fixed;
             font-size: 11px;
         }
         .audio-table th, .audio-table td {
-            padding: 7px 6px;
+            padding: 6px 3px;
             border-bottom: 1px solid var(--demo-soft-line);
             text-align: left;
             vertical-align: top;
@@ -380,12 +380,12 @@
             font-weight: 850;
             white-space: nowrap;
         }
-        .audio-table th:nth-child(1) { width: 46px; }
-        .audio-table th:nth-child(2) { width: 82px; }
-        .audio-table th:nth-child(3) { width: 84px; }
-        .audio-table th:nth-child(4) { width: 105px; }
-        .audio-table th:nth-child(5) { width: 52px; }
-        .audio-table th:nth-child(6) { width: 116px; }
+        .audio-table th:nth-child(1) { width: 40px; }
+        .audio-table th:nth-child(2) { width: 54px; }
+        .audio-table th:nth-child(3) { width: 58px; }
+        .audio-table th:nth-child(4) { width: 54px; }
+        .audio-table th:nth-child(5) { width: 34px; }
+        .audio-table th:nth-child(6) { width: 74px; }
         .audio-sn-cell { position: relative; }
         .audio-sn-cell .audio-sn { display: inline-flex; min-height: 27px; align-items: center; }
         .audio-sn-cell .fill-button {
@@ -419,15 +419,15 @@
         .audio-value.empty { color: #a6b2b5; }
         .audio-button {
             min-height: 27px;
-            padding: 4px 7px;
-            border: 1px solid var(--demo-line);
-            border-radius: 5px;
-            background: #fff;
+            padding: 0 2px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
             color: var(--demo-blue);
-            font-size: 11px;
+            font-size: 18px;
             font-weight: 800;
         }
-        .audio-button:hover { border-color: var(--demo-blue); background: var(--demo-blue-soft); }
+        .audio-button:hover { background: transparent; color: var(--demo-accent); }
         .audio-player-state {
             display: block;
             margin-top: 4px;
@@ -437,21 +437,22 @@
         .judge-toggle {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 2px;
-            min-width: 104px;
+            gap: 1px;
+            min-width: 0;
+            width: 100%;
         }
         .judge-toggle button {
             min-height: 27px;
-            padding: 2px 3px;
-            border: 1px solid var(--demo-line);
-            background: #fff;
+            min-width: 0;
+            padding: 1px;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
             color: var(--demo-muted);
             font-size: 14px;
             font-weight: 800;
         }
-        .judge-toggle button:first-child { border-radius: 5px 0 0 5px; }
-        .judge-toggle button:last-child { border-radius: 0 5px 5px 0; }
-        .judge-toggle button + button { border-left: 0; }
+        .judge-toggle button:hover { background: var(--demo-canvas); }
         .judge-toggle button.is-selected[data-decision="可用"] {
             border-color: #4f9b83;
             background: #e9f7f0;
@@ -532,7 +533,7 @@
                 border-top: 1px solid var(--demo-soft-line);
                 border-left: 0;
             }
-            .audio-table { min-width: 690px; }
+            .audio-table { min-width: 0; }
         }
         @media (max-width: 640px) {
             .demo-app { width: min(100% - 16px, 560px); padding-top: 12px; }
@@ -697,7 +698,7 @@
                                 <td><span class="audio-value">Tsuí-liû-lūn</span></td>
                                 <td><span class="audio-value empty">未填</span></td>
                                 <td>
-                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <button class="audio-button play-button" type="button" aria-label="播放">⏯️</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
                                 <td>
@@ -718,7 +719,7 @@
                                 <td><span class="audio-value">Tsuí-lāu-lūn</span></td>
                                 <td><span class="audio-value">尾音較短</span></td>
                                 <td>
-                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <button class="audio-button play-button" type="button" aria-label="播放">⏯️</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
                                 <td>
@@ -739,7 +740,7 @@
                                 <td><span class="audio-value">Tsuí-liû-lūn</span></td>
                                 <td><span class="audio-value">音質較清楚</span></td>
                                 <td>
-                                    <button class="audio-button play-button" type="button">播放</button>
+                                    <button class="audio-button play-button" type="button" aria-label="播放">⏯️</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
                                 <td>
@@ -922,7 +923,8 @@
             const state = button.nextElementSibling;
             const playing = state.textContent === 'Demo 播放中';
             state.textContent = playing ? '' : 'Demo 播放中';
-            button.textContent = playing ? '播放' : '停止';
+            button.textContent = '⏯️';
+            button.setAttribute('aria-label', playing ? '播放' : '停止');
         });
     });
 
