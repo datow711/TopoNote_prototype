@@ -104,7 +104,7 @@
         }
         .demo-filter-bar {
             display: grid;
-            grid-template-columns: auto minmax(110px, .9fr) minmax(110px, .9fr) minmax(118px, 1fr) minmax(124px, 1.1fr) minmax(100px, .75fr) minmax(100px, .75fr);
+            grid-template-columns: minmax(110px, .9fr) minmax(110px, .9fr) minmax(118px, 1fr) minmax(124px, 1.1fr) minmax(100px, .75fr) minmax(100px, .75fr);
             align-items: end;
             gap: 8px;
             padding: 9px 10px;
@@ -112,12 +112,6 @@
             border-radius: 9px;
             background: var(--demo-surface);
             box-shadow: 0 2px 8px rgba(31, 48, 56, .03);
-        }
-        .filter-title {
-            align-self: center;
-            color: var(--demo-accent);
-            font-weight: 850;
-            white-space: nowrap;
         }
         .filter-field {
             display: grid;
@@ -166,21 +160,6 @@
             background: var(--demo-accent-soft);
             color: var(--demo-accent);
         }
-        .priority-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            min-height: 34px;
-            padding: 5px 8px;
-            border: 1px solid #d5c39f;
-            border-radius: 6px;
-            background: var(--demo-warning-soft);
-            color: var(--demo-warning);
-            font-size: 12px;
-            font-weight: 800;
-            white-space: nowrap;
-        }
-        .priority-toggle input { accent-color: var(--demo-warning); }
         .result-count {
             grid-column: 1 / -1;
             color: var(--demo-muted);
@@ -511,6 +490,28 @@
             background: #fbfcfc;
         }
         .place-card-footer small { color: var(--demo-muted); }
+        .place-card-save-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .follow-up-check {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--demo-muted);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .follow-up-check input {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            accent-color: var(--demo-accent);
+        }
         .compact-card .place-card-body { display: none; }
         .compact-card .place-card-header { border-bottom: 0; }
         .compact-summary {
@@ -531,9 +532,8 @@
 
         @media (max-width: 1120px) {
             .demo-filter-bar {
-                grid-template-columns: auto repeat(3, minmax(120px, 1fr));
+                grid-template-columns: repeat(3, minmax(120px, 1fr));
             }
-            .priority-toggle { justify-self: start; }
             .result-count { grid-column: 1 / -1; }
         }
         @media (max-width: 900px) {
@@ -571,7 +571,6 @@
     </header>
 
     <section class="demo-filter-bar" aria-label="審聽篩選">
-        <div class="filter-title">優先處理</div>
         <label class="filter-field">
             <span>縣市</span>
             <select id="county-filter">
@@ -777,7 +776,13 @@
             </div>
             <footer class="place-card-footer">
                 <span class="demo-save-state" id="save-state" aria-live="polite">本次變更尚未保存</span>
-                <button class="demo-button primary small" type="button" id="save-card">儲存此地名</button>
+                <div class="place-card-save-actions">
+                    <label class="follow-up-check">
+                        <input type="checkbox" id="follow-up-review-1">
+                        <span>此地名草稿語音檔尚需後續檢視</span>
+                    </label>
+                    <button class="demo-button primary small" type="button" id="save-card">儲存此地名</button>
+                </div>
             </footer>
         </article>
 
