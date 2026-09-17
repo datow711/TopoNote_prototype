@@ -1216,7 +1216,8 @@ test('recording status filter supports language recorded choices and union selec
 test('investigator recording language defaults to assigned language and warns out of scope uploads', async ({ page }) => {
   await page.goto(appUrl);
   const result = await page.evaluate(() => {
-    window.alert = () => {};
+    const alerts = [];
+    window.alert = message => alerts.push(String(message));
     window.confirm = () => true;
 
     state.userRole = 'user';
@@ -1267,11 +1268,30 @@ test('investigator recording language defaults to assigned language and warns ou
     openRecordingUI(bothLanguagePlace, null);
     const bothDefault = document.querySelector('input[name="lang"]:checked')?.value;
 
+    closeRecordingUI();
+    openRecordingUI(otherPlace, null);
+    const otherRecordingDisplay = document.getElementById('recording-section').style.display;
+    const otherSelectedAfterOpen = state.selectedPlace;
+
+    const uploadCalls = [];
+    state.selectedPlace = otherPlace;
+    audioBlob = new Blob(['blocked audio'], { type: 'audio/mp4' });
+    pendingUploadJob = null;
+    window.fetch = async () => {
+      uploadCalls.push(true);
+      return { ok: true, json: async () => ({ success: true }) };
+    };
+    uploadAudio();
+
     return {
       hakDefault,
       bothDefault,
       languageWarning: getUploadScopeWarning(hakOnlyPlace, '台語'),
-      placeWarning: getUploadScopeWarning(otherPlace, '台語')
+      placeWarning: getUploadScopeWarning(otherPlace, '台語'),
+      otherRecordingDisplay,
+      otherSelectedAfterOpen,
+      uploadCalls,
+      alerts
     };
   });
 
@@ -1279,6 +1299,10 @@ test('investigator recording language defaults to assigned language and warns ou
   expect(result.bothDefault).toBe('台語');
   expect(result.languageWarning).toContain('語種不符合');
   expect(result.placeWarning).toContain('地名不在你的任務清單');
+  expect(result.otherRecordingDisplay).toBe('none');
+  expect(result.otherSelectedAfterOpen).toBeNull();
+  expect(result.uploadCalls).toHaveLength(0);
+  expect(result.alerts.filter(message => message.includes('受指派的地名')).length).toBeGreaterThanOrEqual(2);
 });
 
 test('original uploader can edit record text fields without reuploading audio', async ({ page }) => {

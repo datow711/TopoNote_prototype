@@ -128,7 +128,9 @@ test('Root GAS 成功資料映射使用正式 audio_records id 與 created_at', 
   expect(result.legacyLogPending).toBe(false);
 });
 
-function loadCoordinatorGas() {
+function loadCoordinatorGas(options = {}) {
+  const assignedUsers = options.assignedUsers || ['user@example.com'];
+  const actorRole = options.actorRole || 'user';
   let dbRecord = null;
   let dbInsertCount = 0;
   let driveCreateCount = 0;
@@ -215,9 +217,26 @@ function loadCoordinatorGas() {
     },
     UrlFetchApp: {
       fetch: (url, options) => {
-        if (url.includes('/final_tasks?')) {
-          expect(url).toContain('&id=eq.101');
-          return response(200, JSON.stringify([{ id: 101, source_id: 'SRC-101' }]));
+        if (url.includes('/app_tasks_view?')) {
+          expect(url).toContain('&task_id=eq.101');
+          return response(200, JSON.stringify([{
+            task_id: 101,
+            source_id: 'SRC-101',
+            source_table: 'third_phase_places',
+            assigned_to: assignedUsers[0] || null,
+            assigned_users: assignedUsers,
+            t_assignee: assignedUsers[0] || null,
+            h_assignee: null
+          }]));
+        }
+        if (url.includes('/app_users_view?')) {
+          return response(200, JSON.stringify([{
+            account: 'user@example.com',
+            email: 'user@example.com',
+            name: '測試調查員',
+            role: actorRole,
+            is_active: true
+          }]));
         }
         if (url.includes('/audio_records?')) {
           return response(200, JSON.stringify(dbRecord ? [dbRecord] : []));
@@ -286,4 +305,35 @@ test('Root GAS coordinator 對同一 clientUploadId 只建立一份資源並可�
   expect(stats.sheetAppendCount).toBe(1);
   expect(stats.sheetRows).toHaveLength(1);
   expect(stats.sheetRows[0][7]).toBe(payload.clientUploadId);
+});
+
+test('Root GAS 在建立 Drive 與 audio_records 前拒絕未指派地名', () => {
+  const runtime = loadCoordinatorGas({ assignedUsers: ['other@example.com'] });
+  const payload = {
+    clientUploadId: '550e8400-e29b-41d4-a716-446655440001',
+    requestId: '550e8400-e29b-41d4-a716-446655440001',
+    taskId: '101',
+    sourceId: 'SRC-101',
+    placeName: '甲地',
+    language: '台語',
+    recorderAccount: 'user@example.com',
+    recorderName: '測試調查員',
+    uploadSource: 'file',
+    originalFileName: 'voice.m4a',
+    mimeType: 'audio/mp4',
+    audioBase64: 'data:audio/mp4;base64,AAEC'
+  };
+  let error = null;
+  try {
+    runtime.gas.handleUpload(payload);
+  } catch (caught) {
+    error = caught;
+  }
+  const stats = runtime.getStats();
+  expect(error).toBeTruthy();
+  expect(error.code).toBe('UPLOAD_SCOPE_FORBIDDEN');
+  expect(error.retryable).toBe(false);
+  expect(stats.driveCreateCount).toBe(0);
+  expect(stats.dbInsertCount).toBe(0);
+  expect(stats.sheetAppendCount).toBe(0);
 });

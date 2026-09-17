@@ -831,11 +831,55 @@ function supabaseServiceFetch_(path, options) {
 
 function getUploadTask_(job) {
   var rows = JSON.parse(supabaseServiceFetch_(
-    '/rest/v1/final_tasks?select=id,source_id&id=eq.' + encodeURIComponent(job.taskId) + '&limit=1',
+    '/rest/v1/app_tasks_view?select=task_id,source_id,source_table,assigned_to,assigned_users,t_assignee,h_assignee&task_id=eq.' + encodeURIComponent(job.taskId) + '&limit=1',
     { method: 'get', muteHttpExceptions: true }
   ).getContentText() || '[]');
   if (!rows.length) throw uploadError_('TASK_NOT_FOUND', '找不到對應地名任務', 'VALIDATION', false);
+  var row = rows[0];
+  return {
+    id: row.task_id,
+    source_id: row.source_id,
+    source_table: row.source_table,
+    assigned_to: row.assigned_to,
+    assigned_users: row.assigned_users,
+    t_assignee: row.t_assignee,
+    h_assignee: row.h_assignee
+  };
+}
+function getUploadActor_(job) {
+  var rows = JSON.parse(supabaseServiceFetch_(
+    '/rest/v1/app_users_view?select=account,email,name,role,is_active&account=eq.' + encodeURIComponent(job.recorderAccount) + '&limit=1',
+    { method: 'get', muteHttpExceptions: true }
+  ).getContentText() || '[]');
+  if (!rows.length) throw uploadError_('RECORDER_NOT_FOUND', '找不到有效的調查員帳號', 'AUTHORIZATION', false);
   return rows[0];
+}
+function isUploadTaskAssignedToActor_(task, actor) {
+  var actorIdentifiers = [
+    actor.account,
+    actor.email,
+    actor.name,
+    actor.user_name
+  ].map(normalizeEmail_).filter(Boolean);
+  var assignedIdentifiers = [];
+  ['assigned_users', 'assigned_to', 't_assignee', 'h_assignee'].forEach(function(key) {
+    var value = task[key];
+    if (Array.isArray(value)) assignedIdentifiers = assignedIdentifiers.concat(value);
+    else if (value) assignedIdentifiers.push(value);
+  });
+  return assignedIdentifiers.some(function(identifier) {
+    return actorIdentifiers.indexOf(normalizeEmail_(identifier)) !== -1;
+  });
+}
+function authorizeUploadScope_(job, task) {
+  var actor = getUploadActor_(job);
+  if (String(actor.is_active).toLowerCase() !== 'true') {
+    throw uploadError_('RECORDER_INACTIVE', '目前調查員帳號已停用', 'AUTHORIZATION', false);
+  }
+  if (String(actor.role || '').toLowerCase() === 'admin') return;
+  if (!isUploadTaskAssignedToActor_(task, actor)) {
+    throw uploadError_('UPLOAD_SCOPE_FORBIDDEN', '這個地名尚未指派給目前調查員', 'AUTHORIZATION', false);
+  }
 }
 
 function findAudioRecordByClientUploadId_(clientUploadId) {
@@ -934,8 +978,9 @@ function handleUpload(data) {
   if (!lock.tryLock(10000)) throw uploadError_('LOCK_TIMEOUT', '上傳工作忙碌中，請稍後使用相同 request ID 重試', 'LOCK', true);
   try {
     var job = validateUploadPayload_(data);
-    var existing = findAudioRecordByClientUploadId_(job.clientUploadId);
     var task = getUploadTask_(job);
+    authorizeUploadScope_(job, task);
+    var existing = findAudioRecordByClientUploadId_(job.clientUploadId);
     if (existing) {
       if (String(existing.task_id || '') !== String(job.taskId)) {
         throw uploadError_('CLIENT_UPLOAD_ID_CONFLICT', 'clientUploadId 已經綁定其他 task', 'VALIDATION', false);

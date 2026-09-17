@@ -308,6 +308,10 @@ function isPlaceInCurrentTaskList(place) {
     if (state.assignedPlaces.some(samePlace)) return true;
     return getCurrentUserIdentifiers().some(identifier => assignedUsersInclude(place.assignedUsers, identifier));
 }
+function getPlaceSurveyAccessError(place) {
+    if (!place || state.userRole === 'admin' || isPlaceInCurrentTaskList(place)) return '';
+    return '目前只能開啟受指派的地名進行調查與上傳音檔。';
+}
 
 function getDefaultAnnotationLanguage(place = state.selectedPlace) {
     const assignedLanguages = getAssignedLanguagesForCurrentUser(place);
@@ -6699,6 +6703,16 @@ function openRecordingUI(place, element) {
         alert('目前有一筆待完成的音檔上傳，請先重試或重新選擇音檔。');
         return;
     }
+    const accessError = getPlaceSurveyAccessError(place);
+    if (accessError) {
+        const status = document.getElementById('status');
+        if (status) {
+            status.innerText = accessError;
+            status.style.color = '#e67e22';
+        }
+        alert(accessError);
+        return;
+    }
     state.selectedPlace = place;
     document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
     if(element) element.classList.add('active');
@@ -7651,10 +7665,22 @@ async function executeUploadJob(job) {
 
 function uploadAudio() {
     if (pendingUploadJob) {
+        const pendingPlace = getPlaceByTaskId(pendingUploadJob.taskId) || state.selectedPlace;
+        const accessError = getPlaceSurveyAccessError(pendingPlace);
+        if (accessError) {
+            alert(accessError);
+            return;
+        }
         executeUploadJob(pendingUploadJob);
         return;
     }
     if (!audioBlob || !state.selectedPlace) return;
+    const accessError = getPlaceSurveyAccessError(state.selectedPlace);
+    if (accessError) {
+        alert(accessError);
+        closeRecordingUI();
+        return;
+    }
 
     const lang = getCurrentLanguageLabel();
     const annotations = collectAnnotationInputs();
