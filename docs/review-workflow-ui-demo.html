@@ -467,12 +467,6 @@
             font-weight: 850;
             white-space: nowrap;
         }
-        .fill-button:disabled {
-            cursor: not-allowed;
-            border-color: var(--demo-soft-line);
-            background: #f6f8f8;
-            color: #a6b2b5;
-        }
         .audio-table tr[data-decision="不可用"] .audio-value,
         .audio-table tr[data-decision="待追問"] .audio-value {
             color: var(--demo-muted);
@@ -750,7 +744,7 @@
                             </tr>
                             <tr data-audio-row data-audio-id="1838" data-decision="">
                                 <td class="audio-sn-cell">
-                                    <button class="fill-button" type="button" aria-label="帶入音檔 #1838" data-fill-source="1838" disabled>先判定可用</button>
+                                    <button class="fill-button" type="button" aria-label="帶入音檔 #1838" data-fill-source="1838">帶入</button>
                                     <span class="audio-sn">#03</span>
                                     <span class="audio-recorder">林秀琴</span>
                                 </td>
@@ -921,10 +915,9 @@
                 button.setAttribute('aria-pressed', String(button.dataset.decision === row.dataset.decision));
             });
             const fillButton = row.querySelector('.fill-button');
-            const canFill = row.dataset.decision === '可用';
             if (fillButton) {
-                fillButton.disabled = !canFill;
-                fillButton.textContent = canFill ? '帶入' : '先判定可用';
+                fillButton.disabled = false;
+                fillButton.textContent = '帶入';
             }
         });
     }
@@ -965,7 +958,6 @@
 
     document.querySelectorAll('.fill-button').forEach(button => {
         button.addEventListener('click', () => {
-            if (button.disabled) return;
             document.getElementById('selected-source').textContent = '音檔 #' + button.dataset.fillSource;
             document.getElementById('taihan-1').value = '水流崙';
             document.getElementById('tl1-1').value = button.dataset.fillSource === '1837'
