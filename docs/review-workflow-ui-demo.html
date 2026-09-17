@@ -968,8 +968,19 @@
     });
 
     function savePlace() {
+        const card = document.getElementById('save-card').closest('.place-card');
+        const usableAudioCount = Array.from(card.querySelectorAll('[data-audio-row]'))
+            .filter(row => row.dataset.decision === '可用')
+            .length;
+        const followUpCheck = card.querySelector('.follow-up-check input');
+        if (usableAudioCount < 2 && followUpCheck) {
+            followUpCheck.checked = true;
+        }
         demoState.dirty = false;
-        document.getElementById('save-state').textContent = 'Demo：已儲存，狀態可進入「待檢查」';
+        const saveMessage = usableAudioCount < 2
+            ? 'Demo：已儲存，已標記後續檢視'
+            : 'Demo：已儲存，狀態可進入「待檢查」';
+        document.getElementById('save-state').textContent = saveMessage;
         document.querySelectorAll('[data-audio-row]').forEach(row => row.classList.remove('has-unsaved'));
     }
 
