@@ -383,9 +383,9 @@
         .audio-table th:nth-child(1) { width: 40px; }
         .audio-table th:nth-child(2) { width: 54px; }
         .audio-table th:nth-child(3) { width: 58px; }
-        .audio-table th:nth-child(4) { width: 68px; }
+        .audio-table th:nth-child(4) { width: 77px; }
         .audio-table th:nth-child(5) { width: 34px; }
-        .audio-table th:nth-child(6) { width: 60px; }
+        .audio-table th:nth-child(6) { width: 51px; }
         .audio-sn-cell { position: relative; }
         .audio-sn-cell .audio-sn { display: inline-flex; min-height: 27px; align-items: center; }
         .audio-sn-cell .fill-button {
@@ -399,10 +399,12 @@
         .audio-sn-cell:hover .fill-button,
         .audio-sn-cell:focus-within .fill-button { display: inline-flex; }
         .audio-sn {
+            padding-left: 3px;
             color: var(--demo-accent);
             font-weight: 900;
         }
         .audio-recorder {
+            padding-left: 3px;
             display: block;
             margin-top: 2px;
             color: var(--demo-muted);
@@ -436,10 +438,11 @@
         }
         .judge-toggle {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 0;
             min-width: 0;
-            width: 60px;
+            width: 51px;
+            max-width: 100%;
         }
         .judge-toggle button {
             min-height: 27px;
@@ -451,23 +454,24 @@
             color: var(--demo-muted);
             font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
             font-variant-emoji: emoji;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 800;
+            width: 100%;
         }
         .judge-toggle button:hover { background: var(--demo-canvas); }
         .judge-toggle button.is-selected[data-decision="可用"] {
             border-color: #4f9b83;
-            background: #e9f7f0;
+            background: #c7e5d7;
             color: #26755c;
         }
         .judge-toggle button.is-selected[data-decision="不可用"] {
             border-color: #cd8d8d;
-            background: var(--demo-danger-soft);
+            background: #f4c3c3;
             color: var(--demo-danger);
         }
         .judge-toggle button.is-selected[data-decision="待追問"] {
             border-color: #d4b77d;
-            background: var(--demo-warning-soft);
+            background: #f0d9a8;
             color: var(--demo-warning);
         }
         .fill-button {
