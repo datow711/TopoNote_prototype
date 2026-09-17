@@ -104,7 +104,7 @@
         }
         .demo-filter-bar {
             display: grid;
-            grid-template-columns: auto minmax(130px, 1fr) minmax(170px, 1.2fr) minmax(150px, 1fr) minmax(210px, 1.5fr) auto;
+            grid-template-columns: auto minmax(110px, .9fr) minmax(110px, .9fr) minmax(118px, 1fr) minmax(124px, 1.1fr) minmax(100px, .75fr) minmax(100px, .75fr);
             align-items: end;
             gap: 8px;
             padding: 9px 10px;
@@ -137,6 +137,9 @@
             border-radius: 6px;
             background: #fff;
             color: var(--demo-ink);
+        }
+        .filter-field.narrow-filter {
+            width: min(100%, 132px);
         }
         .filter-segment {
             display: flex;
@@ -381,9 +384,9 @@
             white-space: nowrap;
         }
         .audio-table th:nth-child(1) { width: 40px; }
-        .audio-table th:nth-child(2) { width: 54px; }
+        .audio-table th:nth-child(2) { width: 48px; }
         .audio-table th:nth-child(3) { width: 58px; }
-        .audio-table th:nth-child(4) { width: 77px; }
+        .audio-table th:nth-child(4) { width: 83px; }
         .audio-table th:nth-child(5) { width: 34px; }
         .audio-table th:nth-child(6) { width: 51px; }
         .audio-sn-cell { position: relative; }
@@ -528,7 +531,7 @@
 
         @media (max-width: 1120px) {
             .demo-filter-bar {
-                grid-template-columns: auto repeat(2, minmax(150px, 1fr));
+                grid-template-columns: auto repeat(3, minmax(120px, 1fr));
             }
             .priority-toggle { justify-self: start; }
             .result-count { grid-column: 1 / -1; }
@@ -564,10 +567,6 @@
             <div>
                 <h1>音檔審聽工作台</h1>
             </div>
-            <div class="demo-header-actions">
-                <span class="demo-save-state" id="save-state" aria-live="polite">本次變更尚未保存</span>
-                <button class="demo-button primary" type="button" id="save-place">儲存此地名</button>
-            </div>
         </div>
     </header>
 
@@ -579,6 +578,15 @@
                 <option value="all">全部縣市</option>
                 <option value="宜蘭縣">宜蘭縣</option>
                 <option value="臺東縣">臺東縣</option>
+            </select>
+        </label>
+        <label class="filter-field">
+            <span>鄉鎮</span>
+            <select id="town-filter">
+                <option value="all">全部鄉鎮</option>
+                <option value="冬山鄉">冬山鄉</option>
+                <option value="池上鄉">池上鄉</option>
+                <option value="三星鄉">三星鄉</option>
             </select>
         </label>
         <div class="filter-field">
@@ -598,18 +606,21 @@
                 <option value="黃玉蘭">黃玉蘭</option>
             </select>
         </label>
-        <label class="filter-field">
-            <span>音檔進度</span>
-            <select id="progress-filter">
-                <option value="all">全部進度</option>
-                <option value="unreviewed">尚有未判定</option>
-                <option value="partial">部分已判定</option>
-                <option value="completed">全部已判定</option>
+        <label class="filter-field narrow-filter">
+            <span>音檔數量</span>
+            <select id="record-count-filter">
+                <option value="2plus" selected>兩筆以上</option>
+                <option value="one">一筆音檔</option>
+                <option value="all">全部數量</option>
             </select>
         </label>
-        <label class="priority-toggle">
-            <input type="checkbox" id="two-record-filter" checked>
-            <span>優先顯示 2 筆以上音檔</span>
+        <label class="filter-field narrow-filter">
+            <span>審聽進度</span>
+            <select id="review-status-filter">
+                <option value="unreviewed" selected>未審聽</option>
+                <option value="reviewed">已審聽</option>
+                <option value="all">全部</option>
+            </select>
         </label>
         <div class="result-count" id="result-count" aria-live="polite"></div>
     </section>
@@ -617,9 +628,11 @@
     <section class="place-list" id="place-list">
         <article class="place-card is-focused"
                  data-county="宜蘭縣"
+                 data-township="冬山鄉"
                  data-language="台語"
                  data-record-count="3"
                  data-progress="partial"
+                 data-review-status="unreviewed"
                  data-recorders="林秀琴,陳明德">
             <header class="place-card-header">
                 <div>
@@ -763,15 +776,18 @@
                 </aside>
             </div>
             <footer class="place-card-footer">
+                <span class="demo-save-state" id="save-state" aria-live="polite">本次變更尚未保存</span>
                 <button class="demo-button primary small" type="button" id="save-card">儲存此地名</button>
             </footer>
         </article>
 
         <article class="place-card compact-card"
                  data-county="臺東縣"
+                 data-township="池上鄉"
                  data-language="客語"
                  data-record-count="2"
                  data-progress="completed"
+                 data-review-status="reviewed"
                  data-recorders="黃玉蘭">
             <header class="place-card-header">
                 <div>
@@ -805,9 +821,11 @@
 
         <article class="place-card compact-card"
                  data-county="宜蘭縣"
+                 data-township="三星鄉"
                  data-language="台語"
                  data-record-count="1"
                  data-progress="unreviewed"
+                 data-review-status="unreviewed"
                  data-recorders="陳明德">
             <header class="place-card-header">
                 <div>
@@ -855,23 +873,28 @@
     function updateResultCount() {
         const visible = allCards().filter(card => !card.hidden).length;
         document.getElementById('result-count').textContent =
-            '顯示 ' + visible + ' / ' + allCards().length + ' 個地名；預設優先處理至少 2 筆音檔的地名。';
+            '顯示 ' + visible + ' / ' + allCards().length + ' 個地名';
     }
 
     function applyFilters() {
         const county = document.getElementById('county-filter').value;
+        const township = document.getElementById('town-filter').value;
         const recorder = document.getElementById('recorder-filter').value;
-        const progress = document.getElementById('progress-filter').value;
-        const preferTwo = document.getElementById('two-record-filter').checked;
+        const recordCount = document.getElementById('record-count-filter').value;
+        const reviewStatus = document.getElementById('review-status-filter').value;
 
         allCards().forEach(card => {
             const cardRecorders = String(card.dataset.recorders || '').split(',');
             const countyMatches = county === 'all' || card.dataset.county === county;
+            const townshipMatches = township === 'all' || card.dataset.township === township;
             const languageMatches = demoState.language === 'all' || card.dataset.language === demoState.language;
             const recorderMatches = recorder === 'all' || cardRecorders.includes(recorder);
-            const progressMatches = progress === 'all' || card.dataset.progress === progress;
-            const recordCountMatches = !preferTwo || Number(card.dataset.recordCount) >= 2;
-            card.hidden = !(countyMatches && languageMatches && recorderMatches && progressMatches && recordCountMatches);
+            const recordCountValue = Number(card.dataset.recordCount);
+            const recordCountMatches = recordCount === 'all'
+                || (recordCount === 'one' && recordCountValue === 1)
+                || (recordCount === '2plus' && recordCountValue >= 2);
+            const reviewStatusMatches = reviewStatus === 'all' || card.dataset.reviewStatus === reviewStatus;
+            card.hidden = !(countyMatches && townshipMatches && languageMatches && recorderMatches && recordCountMatches && reviewStatusMatches);
         });
         updateResultCount();
     }
@@ -911,14 +934,15 @@
         });
     });
 
-    ['county-filter', 'recorder-filter', 'progress-filter', 'two-record-filter'].forEach(id => {
+    ['county-filter', 'town-filter', 'recorder-filter', 'record-count-filter', 'review-status-filter'].forEach(id => {
         document.getElementById(id).addEventListener('change', applyFilters);
     });
 
     document.querySelectorAll('.judge-toggle button').forEach(button => {
         button.addEventListener('click', () => {
             const row = button.closest('[data-audio-row]');
-            row.dataset.decision = button.dataset.decision;
+            const selectedDecision = button.dataset.decision;
+            row.dataset.decision = row.dataset.decision === selectedDecision ? '' : selectedDecision;
             markDirty('判定已暫存於本頁，尚未送出');
             updateAudioProgress();
         });
@@ -952,7 +976,6 @@
         document.querySelectorAll('[data-audio-row]').forEach(row => row.classList.remove('has-unsaved'));
     }
 
-    document.getElementById('save-place').addEventListener('click', savePlace);
     document.getElementById('save-card').addEventListener('click', savePlace);
     document.getElementById('clear-draft').addEventListener('click', () => {
         ['taihan-1', 'tl1-1', 'tl2-1', 'tl3-1', 'tai-note-1', 'assessor-note-1'].forEach(id => {
