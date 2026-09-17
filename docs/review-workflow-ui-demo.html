@@ -353,11 +353,6 @@
             font-size: 11px;
             white-space: nowrap;
         }
-        .audio-note {
-            margin: 0 0 8px;
-            color: var(--demo-muted);
-            font-size: 11px;
-        }
         .audio-table-wrap {
             overflow-x: auto;
             border: 1px solid var(--demo-line);
@@ -390,8 +385,19 @@
         .audio-table th:nth-child(3) { width: 84px; }
         .audio-table th:nth-child(4) { width: 105px; }
         .audio-table th:nth-child(5) { width: 52px; }
-        .audio-table th:nth-child(6) { width: 58px; }
-        .audio-table th:nth-child(7) { width: 188px; }
+        .audio-table th:nth-child(6) { width: 116px; }
+        .audio-sn-cell { position: relative; }
+        .audio-sn-cell .audio-sn { display: inline-flex; min-height: 27px; align-items: center; }
+        .audio-sn-cell .fill-button {
+            display: none;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+        }
+        .audio-sn-cell:hover .audio-sn,
+        .audio-sn-cell:focus-within .audio-sn { visibility: hidden; }
+        .audio-sn-cell:hover .fill-button,
+        .audio-sn-cell:focus-within .fill-button { display: inline-flex; }
         .audio-sn {
             color: var(--demo-accent);
             font-weight: 900;
@@ -432,15 +438,15 @@
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 2px;
-            min-width: 174px;
+            min-width: 104px;
         }
         .judge-toggle button {
             min-height: 27px;
-            padding: 3px 4px;
+            padding: 2px 3px;
             border: 1px solid var(--demo-line);
             background: #fff;
             color: var(--demo-muted);
-            font-size: 10px;
+            font-size: 14px;
             font-weight: 800;
         }
         .judge-toggle button:first-child { border-radius: 5px 0 0 5px; }
@@ -512,12 +518,6 @@
             color: var(--demo-muted);
             text-align: center;
         }
-        .demo-legend {
-            margin-top: 12px;
-            color: var(--demo-muted);
-            font-size: 12px;
-        }
-        .demo-legend strong { color: var(--demo-ink); }
 
         @media (max-width: 1120px) {
             .demo-filter-bar {
@@ -556,7 +556,6 @@
         <div class="demo-header-row">
             <div>
                 <h1>音檔審聽工作台</h1>
-                <p>以地名為主體；音檔只提供聆聽、判定與帶入草稿。</p>
             </div>
             <div class="demo-header-actions">
                 <span class="demo-save-state" id="save-state" aria-live="polite">本次變更尚未保存</span>
@@ -638,7 +637,6 @@
                         <h3 id="draft-title-1">地名資料草稿</h3>
                         <small>可先填寫，不必等所有音檔判定完成</small>
                     </div>
-                    <p class="place-description">目前可從「可用」音檔帶入內容；審聽備註只供後續檢查，不寫入地名正式欄位。</p>
                     <div class="draft-grid">
                         <div class="draft-field">
                             <label for="taihan-1">TaiHan1｜台語漢字</label>
@@ -676,7 +674,6 @@
                         <h3 id="audio-title-1">音檔審聽</h3>
                         <span id="audio-progress-1">2 / 3 已判定</span>
                     </div>
-                    <p class="audio-note">判定先留在本頁；儲存地名時與草稿一起送出。</p>
                     <div class="audio-table-wrap">
                         <table class="audio-table">
                             <thead>
@@ -686,13 +683,13 @@
                                 <th>TL1</th>
                                 <th>TaiNote</th>
                                 <th>播放</th>
-                                <th>帶入</th>
                                 <th>判定</th>
                             </tr>
                             </thead>
                             <tbody>
                             <tr data-audio-row data-audio-id="1836" data-decision="可用">
-                                <td>
+                                <td class="audio-sn-cell">
+                                    <button class="fill-button" type="button" aria-label="帶入音檔 #1836" data-fill-source="1836">帶入</button>
                                     <span class="audio-sn">#01</span>
                                     <span class="audio-recorder">林秀琴</span>
                                 </td>
@@ -703,17 +700,17 @@
                                     <button class="audio-button play-button" type="button">播放</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
-                                <td><button class="fill-button" type="button" data-fill-source="1836">填入</button></td>
                                 <td>
                                     <div class="judge-toggle" role="group" aria-label="音檔 #01 判定">
-                                        <button type="button" data-decision="可用" class="is-selected">可用</button>
-                                        <button type="button" data-decision="不可用">不可用</button>
-                                        <button type="button" data-decision="待追問">待追問</button>
+                                        <button type="button" data-decision="可用" aria-label="可用" data-tooltip="可用" class="is-selected">🆗</button>
+                                        <button type="button" data-decision="不可用" aria-label="不可用" data-tooltip="不可用">❌</button>
+                                        <button type="button" data-decision="待追問" aria-label="待追問" data-tooltip="待追問">🆘</button>
                                     </div>
                                 </td>
                             </tr>
                             <tr data-audio-row data-audio-id="1837" data-decision="可用">
-                                <td>
+                                <td class="audio-sn-cell">
+                                    <button class="fill-button" type="button" aria-label="帶入音檔 #1837" data-fill-source="1837">帶入</button>
                                     <span class="audio-sn">#02</span>
                                     <span class="audio-recorder">陳明德</span>
                                 </td>
@@ -724,17 +721,17 @@
                                     <button class="audio-button play-button" type="button">播放</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
-                                <td><button class="fill-button" type="button" data-fill-source="1837">填入</button></td>
                                 <td>
                                     <div class="judge-toggle" role="group" aria-label="音檔 #02 判定">
-                                        <button type="button" data-decision="可用" class="is-selected">可用</button>
-                                        <button type="button" data-decision="不可用">不可用</button>
-                                        <button type="button" data-decision="待追問">待追問</button>
+                                        <button type="button" data-decision="可用" aria-label="可用" data-tooltip="可用" class="is-selected">🆗</button>
+                                        <button type="button" data-decision="不可用" aria-label="不可用" data-tooltip="不可用">❌</button>
+                                        <button type="button" data-decision="待追問" aria-label="待追問" data-tooltip="待追問">🆘</button>
                                     </div>
                                 </td>
                             </tr>
                             <tr data-audio-row data-audio-id="1838" data-decision="">
-                                <td>
+                                <td class="audio-sn-cell">
+                                    <button class="fill-button" type="button" aria-label="帶入音檔 #1838" data-fill-source="1838" disabled>先判定可用</button>
                                     <span class="audio-sn">#03</span>
                                     <span class="audio-recorder">林秀琴</span>
                                 </td>
@@ -745,12 +742,11 @@
                                     <button class="audio-button play-button" type="button">播放</button>
                                     <span class="audio-player-state" aria-live="polite"></span>
                                 </td>
-                                <td><button class="fill-button" type="button" data-fill-source="1838" disabled>先判定可用</button></td>
                                 <td>
                                     <div class="judge-toggle" role="group" aria-label="音檔 #03 判定">
-                                        <button type="button" data-decision="可用">可用</button>
-                                        <button type="button" data-decision="不可用">不可用</button>
-                                        <button type="button" data-decision="待追問">待追問</button>
+                                        <button type="button" data-decision="可用" aria-label="可用" data-tooltip="可用">🆗</button>
+                                        <button type="button" data-decision="不可用" aria-label="不可用" data-tooltip="不可用">❌</button>
+                                        <button type="button" data-decision="待追問" aria-label="待追問" data-tooltip="待追問">🆘</button>
                                     </div>
                                 </td>
                             </tr>
@@ -760,7 +756,6 @@
                 </aside>
             </div>
             <footer class="place-card-footer">
-                <small>地名卡片內完成：聽音檔 → 判定 → 填草稿 → 儲存。</small>
                 <button class="demo-button primary small" type="button" id="save-card">儲存此地名</button>
             </footer>
         </article>
@@ -838,7 +833,6 @@
         </article>
     </section>
 
-    <p class="demo-legend"><strong>討論提示：</strong>本原型只示範版面與暫存操作；「填入」是否保留、可用音檔如何選定、儲存後如何進入「待檢查」，會在 UI 確認後再轉成資料庫與程式設計。</p>
 </main>
 
 <script>
@@ -895,7 +889,7 @@
             const canFill = row.dataset.decision === '可用';
             if (fillButton) {
                 fillButton.disabled = !canFill;
-                fillButton.textContent = canFill ? '填入' : '先判定可用';
+                fillButton.textContent = canFill ? '帶入' : '先判定可用';
             }
         });
     }
