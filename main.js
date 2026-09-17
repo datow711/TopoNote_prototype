@@ -1,5 +1,7 @@
+const IS_SHOWCASE_MODE = new URLSearchParams(window.location.search).get('mode') === 'showcase';
+
 // 註冊 Service Worker (PWA 必備)
-if ('serviceWorker' in navigator) {
+if (!IS_SHOWCASE_MODE && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
             .then(reg => console.log('Service Worker 註冊成功! PWA 已就緒。'))
@@ -1315,6 +1317,355 @@ const TUTORIAL_DEMO_PLACE = {
 };
 
 const TUTORIAL_AUDIO_DATA_URL = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+
+const SHOWCASE_USER = Object.freeze({
+    user_id: 'showcase-user',
+    account: 'showcase@example.org',
+    user_name: 'showcase@example.org',
+    role: 'user',
+    email: 'showcase@example.org',
+    name: '示範調查員',
+    phone: '0900-000-000'
+});
+
+const SHOWCASE_AUDIO_DATA_URL = TUTORIAL_AUDIO_DATA_URL;
+
+function createShowcasePlaces() {
+    return [
+        {
+            id: 'showcase-001',
+            sourceId: 'SHOWCASE-001',
+            placeName: '水流崙',
+            info: '位於山腳聚落邊緣，當地居民仍常使用這個地名。',
+            nameHistory: '舊稱：大水窟\n民國 50 年後逐漸改稱水流崙。',
+            location: '臺中市和平區東勢路附近',
+            longitude: 121.08,
+            latitude: 24.25,
+            county: '臺中市',
+            town: '和平區',
+            village: '博愛里',
+            type: '聚落',
+            taiClass: '一般',
+            hakClass: '一般',
+            tAssignee: SHOWCASE_USER.account,
+            hAssignee: SHOWCASE_USER.account,
+            assignedUsers: [SHOWCASE_USER.account],
+            hakArea: false,
+            recordingStatus: '台語完成',
+            taiAudioCount: 2,
+            hakAudioCount: 1
+        },
+        {
+            id: 'showcase-002',
+            sourceId: 'SHOWCASE-002',
+            placeName: '石壁潭',
+            info: '',
+            nameHistory: '',
+            location: '',
+            longitude: 120.91,
+            latitude: 23.97,
+            county: '南投縣',
+            town: '國姓鄉',
+            village: '北港村',
+            type: '自然地理實體',
+            taiClass: '一般',
+            hakClass: '一般',
+            tAssignee: SHOWCASE_USER.account,
+            hAssignee: '',
+            assignedUsers: [SHOWCASE_USER.account],
+            hakArea: false,
+            recordingStatus: '未錄音',
+            taiAudioCount: 0,
+            hakAudioCount: 0
+        },
+        {
+            id: 'showcase-003',
+            sourceId: 'SHOWCASE-003',
+            placeName: '新厝仔',
+            info: '可從村口道路進入，請先確認受訪者是否熟悉此地名。',
+            nameHistory: '',
+            location: '雲林縣古坑鄉新庄村',
+            longitude: 120.56,
+            latitude: 23.64,
+            county: '雲林縣',
+            town: '古坑鄉',
+            village: '新庄村',
+            type: '聚落',
+            taiClass: '一般',
+            hakClass: '一般',
+            tAssignee: '',
+            hAssignee: SHOWCASE_USER.account,
+            assignedUsers: [SHOWCASE_USER.account],
+            hakArea: true,
+            recordingStatus: '客語完成',
+            taiAudioCount: 1,
+            hakAudioCount: 2
+        },
+        {
+            id: 'showcase-004',
+            sourceId: 'SHOWCASE-004',
+            placeName: '舊車站',
+            info: '',
+            nameHistory: '曾作為地方輕便車停靠處。',
+            location: '嘉義縣竹崎鄉中和村',
+            longitude: 120.68,
+            latitude: 23.50,
+            county: '嘉義縣',
+            town: '竹崎鄉',
+            village: '中和村',
+            type: '公共設施',
+            taiClass: '一般',
+            hakClass: '一般',
+            tAssignee: SHOWCASE_USER.account,
+            hAssignee: SHOWCASE_USER.account,
+            assignedUsers: [SHOWCASE_USER.account],
+            hakArea: false,
+            recordingStatus: '全部完成',
+            taiAudioCount: 2,
+            hakAudioCount: 2
+        }
+    ];
+}
+
+function createShowcaseOtherPlaces() {
+    return [
+        {
+            id: 'showcase-101',
+            sourceId: 'SHOWCASE-101',
+            placeName: '溪底寮',
+            info: '',
+            nameHistory: '',
+            location: '',
+            longitude: '',
+            latitude: '',
+            county: '臺南市',
+            town: '楠西區',
+            village: '鹿陶洋',
+            type: '聚落',
+            taiClass: '一般',
+            hakClass: '一般',
+            assignedUsers: [],
+            hakArea: false,
+            recordingStatus: '未錄音',
+            taiAudioCount: 0,
+            hakAudioCount: 0
+        },
+        {
+            id: 'showcase-102',
+            sourceId: 'SHOWCASE-102',
+            placeName: '風櫃斗',
+            info: '',
+            nameHistory: '',
+            location: '南投縣信義鄉風櫃斗',
+            longitude: 120.88,
+            latitude: 23.67,
+            county: '南投縣',
+            town: '信義鄉',
+            village: '豐丘村',
+            type: '自然地理實體',
+            taiClass: '一般',
+            hakClass: '一般',
+            assignedUsers: [],
+            hakArea: true,
+            recordingStatus: '台語已有錄音',
+            taiAudioCount: 1,
+            hakAudioCount: 0
+        }
+    ];
+}
+
+function createShowcaseRecords() {
+    return [
+        {
+            recordId: 'showcase-record-001',
+            placeId: 'showcase-001',
+            language: '台語',
+            uploaderId: SHOWCASE_USER.account,
+            phonetic: 'Tsuí-liû-lūn',
+            url: 'showcase-record-001',
+            createdAt: '2026-09-10T02:30:00.000Z',
+            annotations: {
+                taihan: '水流崙',
+                tl1: 'Tsuí-liû-lūn',
+                tainote: '受訪者說這是較常用的讀法。'
+            },
+            respondentKey: 'R01',
+            linkMeta: null
+        },
+        {
+            recordId: 'showcase-record-002',
+            placeId: 'showcase-001',
+            language: '台語',
+            uploaderId: 'field.partner@example.org',
+            phonetic: 'Tsuí-liû-lūn',
+            url: 'showcase-record-002',
+            createdAt: '2026-09-09T07:15:00.000Z',
+            annotations: {
+                taihan: '水流崙',
+                tl1: 'Tsuí-liû-lūn'
+            },
+            respondentKey: 'R02',
+            linkMeta: null
+        },
+        {
+            recordId: 'showcase-record-003',
+            placeId: 'showcase-001',
+            language: '客語',
+            uploaderId: 'field.partner@example.org',
+            phonetic: 'Suiˇ liuˇ lunˇ',
+            url: 'showcase-record-003',
+            createdAt: '2026-09-08T06:45:00.000Z',
+            annotations: {
+                honzii: '水流崙',
+                hp1: 'Suiˇ liuˇ lunˇ',
+                haknote: '示範用的客語音讀備註。'
+            },
+            respondentKey: 'R03',
+            linkMeta: null
+        }
+    ];
+}
+
+function setShowcaseStatus(message, color = 'green') {
+    const status = document.getElementById('status');
+    if (!status) return;
+    status.innerText = message;
+    status.style.color = color;
+}
+
+function setShowcaseAudio(sourceLabel, file = null) {
+    audioBlob = new Blob(['showcase-audio'], { type: 'audio/wav' });
+    uploadedFileName = file?.name || '現場錄音.wav';
+    const playback = document.getElementById('audio-playback');
+    if (playback) playback.src = SHOWCASE_AUDIO_DATA_URL;
+    showAudioConfirmation(sourceLabel, file);
+}
+
+function installShowcaseSafetyGuards() {
+    window.openAnnouncementDialog = () => alert('此頁面是 UI 展示版本，公告內容不會連線載入。');
+    window.openFeedbackDialog = () => alert('此頁面是 UI 展示版本，問題回報不會送出。');
+    window.openTaskDownloadDialog = () => alert('此頁面是 UI 展示版本，不會下載任務資料。');
+    window.logout = () => alert('此頁面是 UI 展示版本，重新整理即可回到展示畫面。');
+    window.fetchAndPlayAudio = (driveUrl, recordId) => {
+        const target = String(recordId || '');
+        const containerId = target.startsWith('review-audio-') ? target : 'player-' + target;
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.autoplay = true;
+        audio.src = SHOWCASE_AUDIO_DATA_URL;
+        audio.style.width = '100%';
+        audio.style.height = '35px';
+        container.replaceChildren(audio);
+    };
+    window.startRecording = async () => {
+        document.querySelector('.audio-source-panel')?.classList.add('hidden');
+        document.getElementById('start-btn').style.display = 'none';
+        document.getElementById('file-btn').style.display = 'none';
+        document.getElementById('stop-btn').style.display = 'block';
+        setShowcaseStatus('🔴 展示模式：現場錄音中（不會啟用麥克風）。', 'red');
+    };
+    window.stopRecording = () => {
+        document.getElementById('stop-btn').style.display = 'none';
+        setShowcaseAudio('現場錄音');
+        setShowcaseStatus('錄音完成，請先播放確認。可以重錄，也可以直接上傳。');
+    };
+    window.showcaseSelectFile = () => {
+        const file = { name: '訪談錄音.m4a', size: 524288, type: 'audio/mp4' };
+        setShowcaseAudio('LINE/手機音檔', file);
+        setShowcaseStatus('已選擇音檔：訪談錄音.m4a，請先播放確認再上傳。');
+    };
+    window.chooseAudioAgain = () => {
+        resetRecordingState();
+    };
+    window.discardAudioAndRecordAgain = () => {
+        resetRecordingState();
+        window.startRecording();
+    };
+    window.uploadAudio = () => {
+        const uploadButton = document.getElementById('upload-btn');
+        if (uploadButton) {
+            uploadButton.innerText = '展示模式：不會上傳';
+            uploadButton.disabled = false;
+        }
+        setShowcaseStatus('展示模式：此按鈕不會真的上傳音檔。', '#2c3e50');
+    };
+}
+
+function bindShowcaseControls() {
+    const handlers = {
+        'start-btn': window.startRecording,
+        'stop-btn': window.stopRecording,
+        'file-btn': window.showcaseSelectFile,
+        'choose-again-btn': window.chooseAudioAgain,
+        'record-again-btn': window.discardAudioAndRecordAgain,
+        'upload-btn': window.uploadAudio
+    };
+    Object.entries(handlers).forEach(([id, handler]) => {
+        const button = document.getElementById(id);
+        if (button && typeof handler === 'function') button.onclick = handler;
+    });
+}
+
+function initShowcaseMode() {
+    document.title = '地名語音調查系統｜錄音調查員 UI 展示';
+    document.body.dataset.mode = 'showcase';
+    state.userDbId = SHOWCASE_USER.user_id;
+    state.userId = SHOWCASE_USER.account;
+    state.userName = SHOWCASE_USER.name;
+    state.userEmail = SHOWCASE_USER.email;
+    state.userPhone = SHOWCASE_USER.phone;
+    state.userRole = SHOWCASE_USER.role;
+    state.userSpecialty = '台語';
+    state.currentTab = 'assigned';
+    state.assignedPlaces = createShowcasePlaces();
+    state.allPlaces = createShowcaseOtherPlaces();
+    state.uploadedRecords = createShowcaseRecords();
+    state.uploadReportRecords = [];
+    state.allUsers = [];
+    state.allUserRecords = [
+        normalizeUserRecord(SHOWCASE_USER),
+        normalizeUserRecord({
+            account: 'field.partner@example.org',
+            email: 'field.partner@example.org',
+            name: '合作調查員',
+            role: 'user',
+            is_active: true
+        })
+    ];
+    state.announcements = [];
+    state.unreadAnnouncementCount = 0;
+    state.selectedStatuses = [...STATUS_FILTER_VALUES];
+    state.selectedHakArea = 'all';
+    state.selectedStatus = 'all';
+    state.selectedPlace = null;
+    state.selectedTowns = [];
+    state.availableTowns = [];
+    state.townDropdownOpen = false;
+    state.selectedTypes = [];
+    state.typeFiltersInitialized = false;
+    state.availableTypes = [];
+    state.classFiltersInitialized = false;
+    state.reviewQueue = [];
+    state.reviewWorkflowQueue = [];
+    state.reviewWorkflowAvailable = false;
+    state.selectedAssignTaskIds = new Set();
+
+    installShowcaseSafetyGuards();
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    renderUserInfo();
+    initFilters();
+    switchTab('assigned');
+
+    const firstPlace = state.assignedPlaces[0];
+    const firstItem = Array.from(document.querySelectorAll('.place-item'))
+        .find(item => item.dataset.taskId === String(firstPlace?.id || ''));
+    if (firstPlace && firstItem) openRecordingUI(firstPlace, firstItem);
+    bindShowcaseControls();
+}
 
 function cloneTutorialStateValue(value) {
     if (value instanceof Set) return new Set(value);
@@ -7824,4 +8175,10 @@ async function batchUnassignTasks() {
     }
 }
 
-window.addEventListener('DOMContentLoaded', restoreSession);
+window.addEventListener('DOMContentLoaded', () => {
+    if (IS_SHOWCASE_MODE) {
+        initShowcaseMode();
+        return;
+    }
+    restoreSession();
+});
