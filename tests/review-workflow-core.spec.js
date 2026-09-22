@@ -27,7 +27,7 @@ test.describe('review workflow core rules', () => {
   });
 
   test('claim and approval rules keep proofreader read-only to evidence', () => {
-    expect(core.canClaimCase({ assigned_to: 'proof@example.com', state: '待校對' }, 'proof@example.com')).toBe(true);
+    expect(core.canClaimCase({ assigned_to: 'proof@example.com', state: '草稿待檢查' }, 'proof@example.com')).toBe(true);
     expect(core.canApproveCase({
       role: 'proofreader',
       claimBy: 'proof@example.com',
@@ -42,12 +42,12 @@ test.describe('review workflow core rules', () => {
     })).toBe(false);
   });
 
-  test('recording case advances to 錄音標注中 once every audio record is assessed', () => {
+  test('recording case advances to 待判讀 once every audio record is assessed', () => {
     const base = { assignedTo: 'worker@example.com', className: '電話調查' };
     expect(core.deriveCaseState({ ...base, audioRecordCount: 3, assessedAudioCount: 2 }))
       .toBe(core.CASE_STATES.RECORDING);
     expect(core.deriveCaseState({ ...base, audioRecordCount: 3, assessedAudioCount: 3 }))
-      .toBe(core.CASE_STATES.RECORDING_ANNOTATION);
+      .toBe(core.CASE_STATES.AUDIO_PENDING_REVIEW);
     // No audio yet means there is nothing to have finished assessing.
     expect(core.deriveCaseState({ ...base, audioRecordCount: 0, assessedAudioCount: 0 }))
       .toBe(core.CASE_STATES.RECORDING);
@@ -63,7 +63,7 @@ test.describe('review workflow core rules', () => {
     // 待審聽 and 退回助理處理 are out of scope by decision D-004; 需追問 was a
     // front-end-only value that the RPCs never produced.
     const values = Object.values(core.CASE_STATES);
-    expect(values).toContain('錄音標注中');
+    expect(values).toContain('待判讀');
     expect(values).not.toContain('需追問');
     expect(values).not.toContain('待審聽');
     expect(values).not.toContain('退回助理處理');

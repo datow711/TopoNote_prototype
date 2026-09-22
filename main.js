@@ -899,11 +899,29 @@ function isWrittenAnnotationPlace(place) {
     return [place.taiClass, place.hakClass].every(isWrittenAnnotationClass);
 }
 
+const WORKFLOW_STATE_ALIASES = Object.freeze({
+    '待指派': '待發稿',
+    '尚未標注': '待發稿',
+    '書面標注中': '標注中',
+    '錄音中': '調查中',
+    '錄音標注中': '待判讀',
+    '待校對': '草稿待檢查',
+    '校對中': '草稿',
+    '已完成標注': '待審查',
+    '已完成': '待審查',
+    'legacy_unreviewed': '草稿待檢查'
+});
+
+function normalizeWorkflowStateValue(value) {
+    const state = String(value || '').trim();
+    return WORKFLOW_STATE_ALIASES[state] || state || '待發稿';
+}
+
 function normalizeReviewTask(t) {
     return {
         ...normalizeTask(t),
-        tReviewState: t.t_review_state || t.t_state || '尚未標注',
-        hReviewState: t.h_review_state || t.h_state || '尚未標注',
+        tReviewState: normalizeWorkflowStateValue(t.t_review_state || t.t_state),
+        hReviewState: normalizeWorkflowStateValue(t.h_review_state || t.h_state),
         recordCount: Number(t.record_count || 0)
     };
 }
@@ -4134,7 +4152,10 @@ async function loadReviewWorkflowQueue({ silent = false } = {}) {
         const rows = await reviewWorkflowRpc('get_review_workflow_queue', {
             p_actor_account: state.userId
         });
-        state.reviewWorkflowQueue = Array.isArray(rows) ? rows : [];
+        state.reviewWorkflowQueue = (Array.isArray(rows) ? rows : []).map(row => ({
+            ...row,
+            state: normalizeWorkflowStateValue(row.state)
+        }));
         if (isAudioReviewRole()) {
             try {
                 const claims = await reviewWorkflowRpc('get_audio_review_claims', {
@@ -4853,7 +4874,7 @@ function canAssessReviewWorkflowAudio(row) {
 
 function canAnnotateReviewWorkflowAudio(row) {
     if (!canAssessReviewWorkflowAudio(row)) return false;
-    if (row?.state === '已完成' || hasActiveReviewWorkflowProofingClaim(row)) return false;
+    if (['待審查', '已完成'].includes(row?.state) || hasActiveReviewWorkflowProofingClaim(row)) return false;
     return getReviewWorkflowUsableAudioEvidence(row).length > 0;
 }
 
@@ -5031,7 +5052,7 @@ function renderReviewWorkflowAudioAnnotationDraft(row, canAnnotate = false) {
     const config = REVIEW_FIELD_CONFIG[languageKey] || REVIEW_FIELD_CONFIG.tai;
     const usableEvidence = getReviewWorkflowUsableAudioEvidence(row);
     if (!canAnnotate) {
-        const reason = row?.state === '已完成'
+        const reason = ['待審查', '已完成'].includes(row?.state)
             ? '案件已完成，不能再建立音讀標注草稿。'
             : hasActiveReviewWorkflowProofingClaim(row)
                 ? '目前已有校對員鎖定此案件，音讀標注暫停編輯。'

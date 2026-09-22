@@ -6,7 +6,14 @@ var SUPABASE_SERVICE_ROLE_KEY_PROPERTY = 'SUPABASE_SERVICE_ROLE_KEY';
 var DEFAULT_SUPABASE_URL = 'https://sikconjhtomqdkicbjal.supabase.co';
 var THIRD_PHASE_SHEET_NAME = '第三期工作清單';
 var TEST_ENTRIES_SHEET_NAME = 'TestEntries';
-var REVIEW_DONE_STATE = '已完成標注';
+var REVIEW_DONE_STATE = '待審查';
+var STATE_WAITING_PUBLICATION = '待發稿';
+var STATE_WRITTEN_IN_PROGRESS = '標注中';
+var STATE_SURVEY_IN_PROGRESS = '調查中';
+var STATE_AUDIO_PENDING_REVIEW = '待判讀';
+var STATE_DRAFT_PENDING_CHECK = '草稿待檢查';
+var STATE_DRAFT_CHECKED = '草稿';
+var STATE_PENDING_REVIEW = '待審查';
 var DAILY_PREWORK_SYNC_HANDLER = 'runDailyPreworkSync';
 var DAILY_PREWORK_SYNC_HOUR = 6;
 var DAILY_PREWORK_SYNC_MINUTE = 30;
@@ -23,6 +30,38 @@ var SATELLITE_LOCKED_NOTE = '請勿填寫';
 
 function isWrittenAnnotationClassValue_(value) {
   return WRITTEN_ANNOTATION_CLASSES.indexOf(String(value || '').trim()) >= 0;
+}
+function normalizeWorkflowStateValue_(value) {
+  var state = String(value || '').trim();
+  var aliases = {
+    '待指派': STATE_WAITING_PUBLICATION,
+    '尚未標注': STATE_WAITING_PUBLICATION,
+    '書面標注中': STATE_WRITTEN_IN_PROGRESS,
+    '錄音中': STATE_SURVEY_IN_PROGRESS,
+    '錄音標注中': STATE_AUDIO_PENDING_REVIEW,
+    '待校對': STATE_DRAFT_PENDING_CHECK,
+    '校對中': STATE_DRAFT_CHECKED,
+    '已完成標注': STATE_PENDING_REVIEW,
+    '已完成': STATE_PENDING_REVIEW,
+    'legacy_unreviewed': STATE_DRAFT_PENDING_CHECK
+  };
+  return aliases[state] || state || STATE_WAITING_PUBLICATION;
+}
+
+function isWorkflowManagedState_(value) {
+  return [
+    STATE_WRITTEN_IN_PROGRESS,
+    STATE_SURVEY_IN_PROGRESS,
+    STATE_AUDIO_PENDING_REVIEW,
+    STATE_DRAFT_PENDING_CHECK,
+    STATE_DRAFT_CHECKED,
+    '待田調',
+    STATE_PENDING_REVIEW,
+    '審查中',
+    '審查完成',
+    '音檔查核中',
+    '已完成'
+  ].indexOf(normalizeWorkflowStateValue_(value)) >= 0;
 }
 var TEST_ENTRY_HEADERS = [
   'UUID', 'Source', 'Type', 'BatchID', 'County', 'Town', 'Village', 'HakArea', '經度', '緯度',
@@ -217,6 +256,7 @@ function runDailyPreworkSync() {
   try {
     var options = { silent: true, throwErrors: true };
     steps.push(runSyncStep_('APP 審查 workflow 回寫 queue', syncReviewWorkflowWritebacks, options));
+    steps.push(runSyncStep_('APP workflow State 單一路徑回寫至 Sheet', syncLanguageStatesToSheets, options));
     steps.push(runSyncStep_('APP錄音人指派回寫至 Sheet', syncTaskAssignmentsToSheets, options));
     steps.push(runSyncStep_('第三期完整清冊同步至 Supabase', syncThirdPhasePlacesToSupabase, options));
     steps.push(runSyncStep_('第三期任務索引同步至 Supabase', syncFinalTasksToSupabase, options));
@@ -429,10 +469,10 @@ function processExport(formObject) {
             case "緯度":      return getSVal(rowData, "Latitude", "緯度");
             case "PlaceName": return getSVal(rowData, "地名", "PlaceName");
             case "TaiClass":  return "未分類";
-            case "T_State":   return "";
+            case "T_State":   return STATE_WAITING_PUBLICATION;
             case "T_AssignmentStatus": return "未指派";
             case "HakClass":  return "未分類";
-            case "H_State":   return "";
+            case "H_State":   return STATE_WAITING_PUBLICATION;
             case "H_AssignmentStatus": return "未指派";
             // 自動填入時間戳記 (模擬 gasUpdateRows 的監測效果)
             case "T_CreatedAt": return 'L1總表匯入|'+timestamp;
@@ -649,12 +689,46 @@ function syncThirdPhasePlacesToSupabase(options) {
     colMap[String(headers[i]).trim()] = i;
   }
 
+  var existingSourceRowsByUuid = {};
+  fetchSupabaseRows_(
+    'third_phase_places?select=uuid,t_state,t_annotator,t_created_at,t_updated_at,h_state,h_annotator,h_created_at,h_updated_at'
+  ).forEach(function(sourceRow) {
+    existingSourceRowsByUuid[String(sourceRow.uuid || '').trim()] = sourceRow;
+  });
+  var protectedStateConflictCount = 0;
   var payload = [];
   for (var r = 1; r < data.length; r++) {
     var row = data[r];
     var uuid = String(getCellValue_(row, colMap, 'UUID') || '').trim();
     if (!uuid) continue;
 
+    var existingSourceRow = existingSourceRowsByUuid[uuid] || {};
+    var sheetTState = normalizeWorkflowStateValue_(getCellValue_(row, colMap, 'T_State'));
+    var sheetHState = normalizeWorkflowStateValue_(getCellValue_(row, colMap, 'H_State'));
+    var tState = sheetTState;
+    var tAnnotator = String(getCellValue_(row, colMap, 'T_Annotator') || '');
+    var tCreatedAt = String(getCellValue_(row, colMap, 'T_CreatedAt') || '');
+    var tUpdatedAt = String(getCellValue_(row, colMap, 'T_UpdatedAt') || '');
+    var hState = sheetHState;
+    var hAnnotator = String(getCellValue_(row, colMap, 'H_Annotator') || '');
+    var hCreatedAt = String(getCellValue_(row, colMap, 'H_CreatedAt') || '');
+    var hUpdatedAt = String(getCellValue_(row, colMap, 'H_UpdatedAt') || '');
+    if (isWorkflowManagedState_(existingSourceRow.t_state)) {
+      var dbTState = normalizeWorkflowStateValue_(existingSourceRow.t_state);
+      if (dbTState !== sheetTState) protectedStateConflictCount++;
+      tState = dbTState;
+      tAnnotator = String(existingSourceRow.t_annotator || '');
+      tCreatedAt = String(existingSourceRow.t_created_at || '');
+      tUpdatedAt = String(existingSourceRow.t_updated_at || '');
+    }
+    if (isWorkflowManagedState_(existingSourceRow.h_state)) {
+      var dbHState = normalizeWorkflowStateValue_(existingSourceRow.h_state);
+      if (dbHState !== sheetHState) protectedStateConflictCount++;
+      hState = dbHState;
+      hAnnotator = String(existingSourceRow.h_annotator || '');
+      hCreatedAt = String(existingSourceRow.h_created_at || '');
+      hUpdatedAt = String(existingSourceRow.h_updated_at || '');
+    }
     payload.push({
       uuid: uuid,
       source: String(getCellValue_(row, colMap, 'Source') || ''),
@@ -674,20 +748,20 @@ function syncThirdPhasePlacesToSupabase(options) {
       tai_note: String(getCellValue_(row, colMap, 'TaiNote') || ''),
       tai_class: String(getCellValue_(row, colMap, 'TaiClass') || ''),
       hak_class: String(getCellValue_(row, colMap, 'HakClass') || ''),
-      t_state: String(getCellValue_(row, colMap, 'T_State') || ''),
-      t_annotator: String(getCellValue_(row, colMap, 'T_Annotator') || ''),
-      t_created_at: String(getCellValue_(row, colMap, 'T_CreatedAt') || ''),
-      t_updated_at: String(getCellValue_(row, colMap, 'T_UpdatedAt') || ''),
+      t_state: tState,
+      t_annotator: tAnnotator,
+      t_created_at: tCreatedAt,
+      t_updated_at: tUpdatedAt,
       honzii: String(getCellValue_(row, colMap, 'Honzii') || ''),
       hp1: String(getCellValue_(row, colMap, 'HP1') || ''),
       hp2: String(getCellValue_(row, colMap, 'HP2') || ''),
       hp3: String(getCellValue_(row, colMap, 'HP3') || ''),
       h_dialect: String(getCellValue_(row, colMap, 'HDialect') || ''),
       hak_note: String(getCellValue_(row, colMap, 'HakNote') || ''),
-      h_state: String(getCellValue_(row, colMap, 'H_State') || ''),
-      h_annotator: String(getCellValue_(row, colMap, 'H_Annotator') || ''),
-      h_created_at: String(getCellValue_(row, colMap, 'H_CreatedAt') || ''),
-      h_updated_at: String(getCellValue_(row, colMap, 'H_UpdatedAt') || ''),
+      h_state: hState,
+      h_annotator: hAnnotator,
+      h_created_at: hCreatedAt,
+      h_updated_at: hUpdatedAt,
       batch_id: String(getCellValue_(row, colMap, 'BatchID') || ''),
       sync_warning: String(getCellValue_(row, colMap, '同步警告') || ''),
       location: String(getCellValue_(row, colMap, 'location') || ''),
@@ -705,7 +779,9 @@ function syncThirdPhasePlacesToSupabase(options) {
     var supabase = getSupabaseConfig_();
     var url = supabase.url + '/rest/v1/third_phase_places?on_conflict=uuid';
     postSupabaseBatches_(url, payload, 'resolution=merge-duplicates');
-    return notify_('✅ 已同步 ' + payload.length + ' 筆第三期完整清冊至 Supabase。', options);
+    var message = '✅ 已同步 ' + payload.length + ' 筆第三期完整清冊至 Supabase。';
+    if (protectedStateConflictCount > 0) message += ' 保留 ' + protectedStateConflictCount + ' 個 APP workflow State，未採用總表衝突值。';
+    return notify_(message, options);
   } catch (e) {
     return handleSyncError_('第三期清冊同步', e, options);
   }
@@ -1305,14 +1381,7 @@ function buildReviewWorkflowSheetUpdate_(job, headerMap) {
       updateData[header] = payload[header] == null ? '' : payload[header];
     }
   });
-  var stateHeader = job.language === '台語' ? 'T_State' : 'H_State';
-  var stampHeader = job.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
-  if (!headerMap[stateHeader] || !headerMap[stampHeader]) {
-    throw new Error('工作表缺少 workflow 狀態或來源 stamp 欄位');
-  }
   if (Object.keys(updateData).length === 0) throw new Error('writeback payload 沒有可寫入欄位');
-  updateData[stateHeader] = '已完成標注';
-  updateData[stampHeader] = 'APP workflow回寫|job=' + job.job_id + '|version=' + job.version_no + '|' + new Date().toISOString();
   return updateData;
 }
 
@@ -1395,6 +1464,217 @@ function syncReviewWorkflowWritebacks(options) {
     return handleSyncError_('APP workflow 回寫', e, options);
   }
 }
+function fetchLanguageStateSyncJobs_() {
+  return fetchSupabaseRows_('app_language_state_sync_queue?select=*&order=id.asc');
+}
+
+function callLanguageStateSyncRpc_(rpcName, payload) {
+  var supabase = getSupabaseConfig_();
+  var response = UrlFetchApp.fetch(supabase.url + '/rest/v1/rpc/' + rpcName, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: getSupabaseHeaders_(supabase),
+    payload: JSON.stringify(payload || {}),
+    muteHttpExceptions: true
+  });
+  var statusCode = response.getResponseCode();
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Supabase State sync HTTP ' + statusCode + ': ' + response.getContentText());
+  }
+  var body = response.getContentText() || '';
+  if (!body || body === 'null') return null;
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    return body;
+  }
+}
+
+function claimLanguageStateSyncJob_(jobId) {
+  var claimed = callLanguageStateSyncRpc_('claim_language_state_sync_job', {
+    p_job_id: Number(jobId)
+  });
+  if (Array.isArray(claimed)) return claimed[0] || null;
+  return claimed && claimed.id != null ? claimed : null;
+}
+
+function completeLanguageStateSyncJob_(jobId, sheetStamp) {
+  return callLanguageStateSyncRpc_('complete_language_state_sync_job', {
+    p_job_id: Number(jobId),
+    p_sheet_stamp: sheetStamp || null
+  }) === true;
+}
+
+function failLanguageStateSyncJob_(jobId, message, conflict) {
+  return callLanguageStateSyncRpc_('fail_language_state_sync_job', {
+    p_job_id: Number(jobId),
+    p_error: String(message || 'State sync failed'),
+    p_conflict: conflict === true
+  }) === true;
+}
+
+function syncLanguageStatesToSheets(options) {
+  try {
+    var jobs = fetchLanguageStateSyncJobs_();
+    if (!jobs || jobs.length === 0) return notify_('沒有待回寫的 APP workflow State。', options);
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var contexts = {};
+    var succeeded = 0;
+    var conflicts = 0;
+    var failed = 0;
+    var skipped = [];
+
+    function getContext(sheetName) {
+      if (contexts[sheetName]) return contexts[sheetName];
+      var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+        ? getOrCreateTestEntriesSheet_()
+        : ss.getSheetByName(sheetName);
+      if (!sheet) throw new Error('找不到工作表：' + sheetName);
+      var headerMap = getSheetHeaderMap_(sheet);
+      ['UUID', 'T_State', 'T_UpdatedAt', 'H_State', 'H_UpdatedAt'].forEach(function(header) {
+        if (!headerMap[header]) throw new Error(sheetName + ' 缺少欄位：' + header);
+      });
+      contexts[sheetName] = {
+        sheet: sheet,
+        headerMap: headerMap,
+        uuidRows: buildUuidRowMap_(sheet, headerMap)
+      };
+      return contexts[sheetName];
+    }
+
+    jobs.forEach(function(sourceJob) {
+      var job = null;
+      try {
+        job = claimLanguageStateSyncJob_(sourceJob.id);
+        if (!job) return;
+        var sheetName = getReviewWorkflowSheetName_(job.source_table);
+        var context = getContext(sheetName);
+        var rowNumber = context.uuidRows[String(job.source_id || '').trim()];
+        if (!rowNumber) throw new Error('找不到來源 UUID：' + job.source_id);
+
+        var stateHeader = job.language === '台語' ? 'T_State' : 'H_State';
+        var stampHeader = job.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
+        var currentState = String(context.sheet.getRange(rowNumber, context.headerMap[stateHeader]).getDisplayValue() || '').trim();
+        var currentStamp = String(context.sheet.getRange(rowNumber, context.headerMap[stampHeader]).getDisplayValue() || '').trim();
+        var expectedState = String(job.expected_state || '').trim();
+        var expectedStamp = String(job.expected_stamp || '').trim();
+
+        if (currentState === String(job.target_state || '').trim()) {
+          if (!completeLanguageStateSyncJob_(job.id, currentStamp)) throw new Error('State sync job 無法標記完成');
+          succeeded++;
+          return;
+        }
+        if ((expectedState && currentState !== expectedState)
+            || (expectedStamp && currentStamp !== expectedStamp)) {
+          var conflictMessage = 'Sheet State/stamp conflict：目前 State=' + currentState
+            + '、stamp=' + currentStamp + '；預期 State=' + expectedState
+            + '、stamp=' + expectedStamp;
+          failLanguageStateSyncJob_(job.id, conflictMessage, true);
+          conflicts++;
+          skipped.push(job.source_id + '：' + job.language + ' ' + conflictMessage);
+          return;
+        }
+
+        var newStamp = 'APP State sync|job=' + job.id + '|reason=' + job.reason + '|' + new Date().toISOString();
+        context.sheet.getRange(rowNumber, context.headerMap[stateHeader]).setValue(job.target_state);
+        context.sheet.getRange(rowNumber, context.headerMap[stampHeader]).setValue(newStamp);
+        if (!completeLanguageStateSyncJob_(job.id, newStamp)) throw new Error('State sync job 寫入後無法標記完成');
+        succeeded++;
+      } catch (error) {
+        failed++;
+        if (job && job.id != null) {
+          try { failLanguageStateSyncJob_(job.id, error.message, false); } catch (recordError) { Logger.log(recordError.message); }
+        }
+        skipped.push((job && job.source_id) || sourceJob.id + '：' + error.message);
+      }
+    });
+
+    var message = '✅ APP workflow State 回寫完成：成功 ' + succeeded + ' 筆，衝突 ' + conflicts + ' 筆，失敗 ' + failed + ' 筆。';
+    if (skipped.length > 0) message += '\n詳情：\n' + skipped.join('\n');
+    return notify_(message, options);
+  } catch (error) {
+    return handleSyncError_('APP workflow State 回寫', error, options);
+  }
+}
+
+function normalizeLegacyStatesInSheets() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('無法取得 State 詞彙整理鎖，請稍後重試。');
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var stamp = 'State vocabulary migration|' + new Date().toISOString();
+    var sheetNames = [THIRD_PHASE_SHEET_NAME, TEST_ENTRIES_SHEET_NAME];
+    var changedRows = 0;
+    var changedCells = 0;
+
+    function normalizeState(value, assignmentStatus, classValue) {
+      var state = String(value || '').trim();
+      var assigned = String(assignmentStatus || '').trim() === '已指派';
+      if (assigned && ['', '待指派', '尚未標注', STATE_WAITING_PUBLICATION].indexOf(state) >= 0) {
+        return isWrittenAnnotationClassValue_(classValue) ? STATE_WRITTEN_IN_PROGRESS : STATE_SURVEY_IN_PROGRESS;
+      }
+      var mapped = {
+        '': STATE_WAITING_PUBLICATION,
+        '待指派': STATE_WAITING_PUBLICATION,
+        '尚未標注': STATE_WAITING_PUBLICATION,
+        '書面標注中': STATE_WRITTEN_IN_PROGRESS,
+        '錄音中': STATE_SURVEY_IN_PROGRESS,
+        '錄音標注中': STATE_AUDIO_PENDING_REVIEW,
+        '待校對': STATE_DRAFT_PENDING_CHECK,
+        '校對中': STATE_DRAFT_CHECKED,
+        '已完成標注': STATE_PENDING_REVIEW,
+        '已完成': STATE_PENDING_REVIEW,
+        'legacy_unreviewed': STATE_DRAFT_PENDING_CHECK
+      };
+      return mapped[state] || state;
+    }
+
+    sheetNames.forEach(function(sheetName) {
+      var sheet = sheetName === TEST_ENTRIES_SHEET_NAME
+        ? getOrCreateTestEntriesSheet_()
+        : ss.getSheetByName(sheetName);
+      if (!sheet || sheet.getLastRow() < 2) return;
+      var headerMap = getSheetHeaderMap_(sheet);
+      var data = sheet.getDataRange().getValues();
+      var stateHeaders = [
+        ['T_State', 'T_AssignmentStatus', 'TaiClass', 'T_UpdatedAt'],
+        ['H_State', 'H_AssignmentStatus', 'HakClass', 'H_UpdatedAt']
+      ];
+      var dirty = false;
+      for (var rowIndex = 1; rowIndex < data.length; rowIndex++) {
+        var rowChanged = false;
+        stateHeaders.forEach(function(columns) {
+          if (!headerMap[columns[0]]) return;
+          var stateCol = headerMap[columns[0]] - 1;
+          var statusCol = headerMap[columns[1]] ? headerMap[columns[1]] - 1 : -1;
+          var classCol = headerMap[columns[2]] ? headerMap[columns[2]] - 1 : -1;
+          var stampCol = headerMap[columns[3]] ? headerMap[columns[3]] - 1 : -1;
+          var nextState = normalizeState(
+            data[rowIndex][stateCol],
+            statusCol >= 0 ? data[rowIndex][statusCol] : '',
+            classCol >= 0 ? data[rowIndex][classCol] : ''
+          );
+          if (String(data[rowIndex][stateCol] || '').trim() !== nextState) {
+            data[rowIndex][stateCol] = nextState;
+            if (stampCol >= 0) data[rowIndex][stampCol] = stamp;
+            rowChanged = true;
+            changedCells++;
+          }
+        });
+        if (rowChanged) {
+          changedRows++;
+          dirty = true;
+        }
+      }
+      if (!dirty) return;
+      sheet.getDataRange().setValues(data);
+    });
+    return '✅ State 詞彙整理完成：更新 ' + changedRows + ' 列、' + changedCells + ' 個 State 儲存格。';
+  } finally {
+    lock.releaseLock();
+  }
+}
 function normalizeLanguageAssignmentSync_(stateValue, annotatorValue, assignmentStatus) {
   var status = String(assignmentStatus || '').trim();
   if (status !== '已指派' && status !== '未指派') {
@@ -1404,8 +1684,12 @@ function normalizeLanguageAssignmentSync_(stateValue, annotatorValue, assignment
   var isAssigned = status === '已指派';
   var state = isAssigned ? String(stateValue || '').trim() : '';
   var annotator = isAssigned ? String(annotatorValue || '').trim() : '';
-  if (isAssigned && ['書面標注中', '錄音中'].indexOf(state) < 0) {
-    return { valid: false, reason: '已指派但主狀態不是書面標注中或錄音中' };
+  if (isAssigned && ['標注中', '調查中'].indexOf(state) >= 0) {
+    if (!annotator) return { valid: false, reason: '已指派但 Annotator 空白' };
+    return { valid: true, assignmentStatus: status, state: state, annotator: annotator };
+  }
+  if (isAssigned && state && ['標注中', '調查中', '書面標注中', '錄音中'].indexOf(state) < 0) {
+    return { valid: false, reason: '已指派但主狀態不是標注中或調查中' };
   }
   if (isAssigned && !annotator) {
     return { valid: false, reason: '已指派但 Annotator 空白' };
@@ -1479,15 +1763,8 @@ function syncTaskAssignmentsToSheets(options) {
         return false;
       }
 
-      var expectedState = normalized.state;
       var expectedAnnotator = normalized.annotator;
       var changed = false;
-      if (String(context.columns[stateHeader][rowIndex][0] || '') !== expectedState) {
-        context.columns[stateHeader][rowIndex][0] = expectedState;
-        context.dirtyColumns[stateHeader] = true;
-        changed = true;
-        changedCells++;
-      }
       if (String(context.columns[assignmentStatusHeader][rowIndex][0] || '') !== assignmentStatus) {
         context.columns[assignmentStatusHeader][rowIndex][0] = assignmentStatus;
         context.dirtyColumns[assignmentStatusHeader] = true;
@@ -1724,7 +2001,7 @@ function repairAssignedStatesFromSupabase(options) {
       var appState = String(review.app_state || '').trim();
       if (['台語', '客語'].indexOf(language) < 0) return;
       if (!assignedTo) return;
-      if (['尚未標注', '待指派'].indexOf(appState) < 0) return;
+      if (['尚未標注', '待指派', STATE_WAITING_PUBLICATION].indexOf(appState) < 0) return;
       if (seenReviewIds[String(review.id)]) return;
 
       var task = tasksById[String(review.task_id)];
@@ -1736,7 +2013,7 @@ function repairAssignedStatesFromSupabase(options) {
 
       var languageClass = language === '台語' ? source.tai_class : source.hak_class;
       var sourceState = language === '台語' ? source.t_state : source.h_state;
-      if (['', '待指派'].indexOf(String(sourceState || '').trim()) < 0) return;
+      if (['', '待指派', STATE_WAITING_PUBLICATION].indexOf(String(sourceState || '').trim()) < 0) return;
 
       candidates.push({
         task_id: Number(task.id),
@@ -1747,7 +2024,7 @@ function repairAssignedStatesFromSupabase(options) {
         assigned_to: assignedTo,
         app_state: appState,
         sheet_state: String(review.sheet_state || '').trim(),
-        expected_state: isWrittenAnnotationClassValue_(languageClass) ? '書面標注中' : '錄音中'
+        expected_state: isWrittenAnnotationClassValue_(languageClass) ? STATE_WRITTEN_IN_PROGRESS : STATE_SURVEY_IN_PROGRESS
       });
       seenReviewIds[String(review.id)] = true;
     });
@@ -1776,7 +2053,7 @@ function repairAssignedStatesFromSupabase(options) {
       var assignmentStatusHeader = candidate.language === '台語' ? 'T_AssignmentStatus' : 'H_AssignmentStatus';
       var updatedAtHeader = candidate.language === '台語' ? 'T_UpdatedAt' : 'H_UpdatedAt';
       var currentState = String(context.columns[stateHeader][rowIndex][0] || '').trim();
-      if (['', '待指派'].indexOf(currentState) < 0) return;
+      if (['', '待指派', STATE_WAITING_PUBLICATION].indexOf(currentState) < 0) return;
 
       var changed = false;
       if (currentState !== candidate.expected_state) {
@@ -2094,7 +2371,7 @@ function syncClassification() {
       rowUpdateData["T_State"] = "待審查";
       rowUpdateData["T_Annotator"] = "陳亮均";
     } else if (!hasAppManagedTAssignment) {
-      rowUpdateData["T_State"] = "待指派";
+      rowUpdateData["T_State"] = STATE_WAITING_PUBLICATION;
     }
 
     // --- 客文部分 ---
@@ -2113,7 +2390,7 @@ function syncClassification() {
       rowUpdateData["H_State"] = "待審查"; 
       rowUpdateData["H_Annotator"] = "陳亮均";
     } else if (!hasAppManagedHAssignment) {
-      rowUpdateData["H_State"] = "待指派";
+      rowUpdateData["H_State"] = STATE_WAITING_PUBLICATION;
     }
 
     // --- 新增 Info 欄位 (強化版) ---
@@ -2134,6 +2411,20 @@ function syncClassification() {
     }
 
     rowUpdateData["同步警告"] = hasWarning;
+
+    // 分類表只負責初始化尚未進入 APP workflow 的資料；已進入草稿、校對或審查的列，
+    // 不得被每日／手動拉取重新降級或覆蓋 State。
+    const isClassificationBaseState = value => ['', '待指派', '尚未標注', STATE_WAITING_PUBLICATION].includes(String(value || '').trim());
+    const currentTState = lCol["T_State"] === undefined ? '' : localData[i][lCol["T_State"]];
+    const currentHState = lCol["H_State"] === undefined ? '' : localData[i][lCol["H_State"]];
+    if (!hasAppManagedTAssignment && !isClassificationBaseState(currentTState)) {
+      delete rowUpdateData["T_State"];
+      delete rowUpdateData["T_Annotator"];
+    }
+    if (!hasAppManagedHAssignment && !isClassificationBaseState(currentHState)) {
+      delete rowUpdateData["H_State"];
+      delete rowUpdateData["H_Annotator"];
+    }
 
     updatePayload.push({
       row: i + 1,

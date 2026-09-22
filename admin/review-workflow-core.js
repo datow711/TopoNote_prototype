@@ -1,17 +1,18 @@
 (function exposeReviewWorkflowCore(global) {
   const LANGUAGES = ['台語', '客語'];
-  // Must stay in sync with the values written by the Supabase RPCs.
-  // See docs/review-workflow-implementation-gap.md and decision D-004:
-  // 待審聽 and 退回助理處理 are deliberately not part of the state machine.
+  // Public workflow values are projected to T_State/H_State.
+  // Supabase keeps legacy annotation_cases values internally and normalizes
+  // them at the APP/Sheet boundary.
   const CASE_STATES = Object.freeze({
-    UNASSIGNED: '待指派',
-    WRITTEN: '書面標注中',
-    RECORDING: '錄音中',
-    RECORDING_ANNOTATION: '錄音標注中',
-    PENDING_PROOFING: '待校對',
-    PROOFING: '校對中',
-    DONE: '已完成',
-    LEGACY: 'legacy_unreviewed'
+    UNASSIGNED: '待發稿',
+    WRITTEN: '標注中',
+    RECORDING: '調查中',
+    AUDIO_PENDING_REVIEW: '待判讀',
+    PENDING_PROOFING: '草稿待檢查',
+    PROOFING: '草稿',
+    PENDING_REVIEW: '待審查',
+    NEEDS_FIELDWORK: '待田調',
+    DONE: '已完成'
   });
   const AUDIO_DECISIONS = Object.freeze({
     USABLE: '可用',
@@ -37,7 +38,7 @@
 
   function canClaimCase(caseRow, actorAccount, now = Date.now()) {
     if (!caseRow || !actorAccount) return false;
-    if (caseRow.state === CASE_STATES.DONE) return false;
+    if (caseRow.state === CASE_STATES.DONE || caseRow.state === CASE_STATES.PENDING_REVIEW) return false;
     if (isClaimActive(caseRow.claim_until, now) && caseRow.claim_by !== actorAccount) return false;
     return !caseRow.assigned_to || caseRow.assigned_to === actorAccount || caseRow.claim_by === actorAccount;
   }
@@ -105,16 +106,14 @@
     assessedAudioCount,
     now
   } = {}) {
-    if (proofed) return CASE_STATES.DONE;
+    if (proofed) return CASE_STATES.PENDING_REVIEW;
     if (claimBy && isClaimActive(claimUntil, now)) return CASE_STATES.PROOFING;
     if (!assignedTo) return CASE_STATES.UNASSIGNED;
     if (hasDraft) return CASE_STATES.PENDING_PROOFING;
-    if (className === '書面標注') return CASE_STATES.WRITTEN;
+    if (className === '書面標注' || className === '直接標注') return CASE_STATES.WRITTEN;
     const total = Number(audioRecordCount) || 0;
     const assessed = Number(assessedAudioCount) || 0;
-    return total > 0 && assessed >= total
-      ? CASE_STATES.RECORDING_ANNOTATION
-      : CASE_STATES.RECORDING;
+    return total > 0 && assessed >= total ? CASE_STATES.AUDIO_PENDING_REVIEW : CASE_STATES.RECORDING;
   }
 
   function canApproveCase({ role, claimBy, actorAccount, annotationReady } = {}) {
