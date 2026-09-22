@@ -30,6 +30,10 @@ const cardSaveMigration = fs.readFileSync(
   path.join(__dirname, '..', 'db', '20260922_audio_review_card_save.sql'),
   'utf8'
 );
+const historyBackfillMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260922_audio_review_history_backfill.sql'),
+  'utf8'
+);
 
 const authWrapperGrantMigration = fs.readFileSync(
   path.join(__dirname, '..', 'db', '20260902_review_workflow_auth_wrapper_grants.sql'),
@@ -198,4 +202,19 @@ test('audio review card save is atomic and persists case-level review state', as
   expect(cardSaveMigration).not.toContain('follow-up reason is required');
   expect(cardSaveMigration).toContain("if new.state = U&'\\5f85\\6821\\5c0d' then");
   expect(cardSaveMigration).toContain("new.state := U&'\\5f85\\6aa2\\67e5'");
+});
+
+test('historical audio review data backfills case follow-up and appends notes', async () => {
+  expect(historyBackfillMigration).toContain('join public.audio_assessments aa');
+  expect(historyBackfillMigration).toContain("aa.decision = U&'\\5f85\\8ffd\\554f'");
+  expect(historyBackfillMigration).toContain('coalesce(aa.needs_followup, false)');
+  expect(historyBackfillMigration).toContain('aa.reason');
+  expect(historyBackfillMigration).toContain('aa.followup_reason_text');
+  expect(historyBackfillMigration).toContain('aa.unusable_reason_text');
+  expect(historyBackfillMigration).toContain('audio_review_note = case');
+  expect(historyBackfillMigration).toContain('needs_followup_review = coalesce(c.needs_followup_review, false)');
+  expect(historyBackfillMigration).toContain("when e.has_followup then U&'\\5f85\\6aa2\\67e5'");
+  expect(historyBackfillMigration).toContain("'audio_review_history_backfill'");
+  expect(historyBackfillMigration).toContain("'system_migration'");
+  expect(historyBackfillMigration).toContain("pe.payload ->> 'migration'");
 });
