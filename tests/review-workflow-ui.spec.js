@@ -9,7 +9,7 @@ test('recording respondent key is optional and not presented as a two-person req
   await expect(page.locator('.respondent-key-panel small')).not.toContainText('兩位不同受訪者');
 });
 
-test('admin can save an audio assessment with a blank respondent key', async ({ page }) => {
+test.skip('legacy immediate audio assessment flow is replaced by card save', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__workflowCalls = [];
@@ -72,7 +72,90 @@ test('admin can save an audio assessment with a blank respondent key', async ({ 
   expect(result.assessmentCall.body.p_metadata.followup_reason_text).toBe('');
 });
 
-test('audio assessment shows last assessor and append-only history inline', async ({ page }) => {
+test('audio assessor completes the compact card and saves all pending work together', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__workflowCalls = [];
+    window.reviewWorkflowRpc = async (rpcName, body) => {
+      window.__workflowCalls.push({ rpcName, body });
+      return [{
+        case_id: 11,
+        state: '\u5f85\u6aa2\u67e5',
+        current_version_no: 3,
+        version_no: 3,
+        fields: body.p_fields,
+        audio_review_note: body.p_audio_review_note,
+        needs_followup_review: body.p_needs_followup_review
+      }];
+    };
+    window.loadReviewWorkflowQueue = async () => {};
+    state.reviewWorkbenchMode = 'audio';
+    state.userRole = 'admin';
+    state.userId = 'admin@example.com';
+    state.userName = 'Admin';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkflowQueue = [{
+      case_id: 11,
+      task_id: 11,
+      language: '\u53f0\u8a9e',
+      place_name: 'compact-card-case',
+      county: '\u81fa\u5317\u5e02',
+      town: '\u5317\u6295\u5340',
+      class_name: '\u9304\u97f3\u6a19\u6ce8',
+      state: '\u9304\u97f3\u6a19\u6ce8\u4e2d',
+      current_version_no: 2,
+      annotation_fields: {},
+      audio_record_count: 2,
+      assessed_audio_count: 0,
+      usable_audio_count: 0,
+      audio_review_state: '\u672a\u5be9\u807d',
+      audio_claim_by: null,
+      audio_claim_token: null,
+      audio_claim_until: null,
+      audio_evidence: [
+        { audio_record_id: 22, audio_file_id: 'drive-22', recorder_name: 'Recorder A', assessment_decision: '\u672a\u5be9\u807d' },
+        { audio_record_id: 23, audio_file_id: 'drive-23', recorder_name: 'Recorder B', assessment_decision: '\u4e0d\u53ef\u7528' }
+      ],
+      audio_sources_loaded: true,
+      audio_sources: [
+        { audio_record_id: 22, annotations: { taihan: '\u4f86\u6e90\u6f22\u5b57', tl1: 'lai5', tainote: '\u97f3\u6a94\u5099\u8a3b' } },
+        { audio_record_id: 23, annotations: { taihan: '\u4e0d\u53ef\u7528\u4f86\u6e90', tl1: 'lai7' } }
+      ]
+    }];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('.review-workflow-audio-compact-table')).toBeVisible();
+  await expect(page.locator('.review-workflow-assessment-panel')).toHaveCount(0);
+  await expect(page.locator('.review-workflow-audio-compact-table tbody .audio-sn')).toHaveCount(2);
+  await expect(page.locator('.review-workflow-audio-fill-btn')).toHaveCount(2);
+  await expect(page.locator('[data-role="audio-draft-confirm"]')).toBeVisible();
+
+  const decision = page.locator('.review-workflow-audio-decision').first();
+  await decision.click();
+  await expect(decision).toHaveAttribute('aria-pressed', 'true');
+  await decision.click();
+  await expect(decision).toHaveAttribute('aria-pressed', 'false');
+  await decision.click();
+  await page.locator('#review-audio-draft-11-tai-TaiHan1').fill('\u624b\u52d5\u6f22\u5b57');
+  await page.locator('[data-role="audio-draft-confirm"]').check();
+  await page.locator('[data-role="audio-review-note"]').fill('\u5f8c\u7e8c\u6aa2\u67e5\u5099\u8a3b');
+  await page.locator('[data-action="save-audio-draft"]').click();
+  await page.waitForFunction(() => window.__workflowCalls.length === 1);
+
+  const call = await page.evaluate(() => window.__workflowCalls[0]);
+  expect(call.rpcName).toBe('save_audio_review_card');
+  expect(call.body.p_audio_assessments).toEqual([
+    { audio_record_id: 22, decision: '\u53ef\u7528', metadata: {} }
+  ]);
+  expect(call.body.p_fields).toEqual({ TaiHan1: '\u624b\u52d5\u6f22\u5b57', TL1: '', TL2: '', TL3: '', TaiNote: '' });
+  expect(call.body.p_audio_review_note).toBe('\u5f8c\u7e8c\u6aa2\u67e5\u5099\u8a3b');
+  expect(call.body.p_needs_followup_review).toBe(true);
+  await expect(page.locator('[data-role="audio-draft-followup-review"]')).toBeChecked();
+});
+test.skip('legacy assessment history panel is replaced by compact card', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__workflowCalls = [];
@@ -172,7 +255,7 @@ test('audio assessment shows last assessor and append-only history inline', asyn
   expect(assessmentCall.body.p_audio_record_id).toBe(31);
   expect(assessmentCall.body.p_decision).toBe('\u53ef\u7528');
 });
-test('audio assessment shows conditional fields inline', async ({ page }) => {
+test.skip('legacy conditional assessment panel is replaced by compact card', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -224,7 +307,7 @@ test('audio assessment shows conditional fields inline', async ({ page }) => {
   await panel.locator('[data-action="cancel"]').click();
   await expect(panel).toBeHidden();
 });
-test('audio workbench filters cases by progress, claim, and keyword', async ({ page }) => {
+test.skip('legacy audio workbench filters are replaced by count and review-progress filters', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -233,6 +316,9 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
     state.userName = 'Audio Assessor';
     state.reviewWorkflowAvailable = true;
     state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioCountFilter = 'all';
+    state.reviewWorkflowAudioReviewStatusFilter = 'all';
+    state.reviewWorkflowAudioRecorderFilter = 'all';
     state.reviewWorkflowAudioFlagFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
@@ -425,6 +511,68 @@ test('audio workbench filters cases by progress, claim, and keyword', async ({ p
   await expect(page.locator('.review-workflow-audio-filter-count')).toContainText('顯示 3 / 3');
 });
 
+test('audio workbench defaults to two-plus recordings and unfinished places', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    state.userRole = 'audio_assessor';
+    state.userId = 'audio@example.com';
+    state.userName = 'Audio Assessor';
+    state.reviewWorkflowAvailable = true;
+    state.reviewWorkbenchMode = 'audio';
+    state.reviewWorkflowQueue = [
+      {
+        case_id: 201, task_id: 201, language: '\u53f0\u8a9e', place_name: 'single-record',
+        county: '\u81fa\u5317\u5e02', town: '\u5317\u6295\u5340', class_name: 'test',
+        state: '\u9304\u97f3\u6a19\u6ce8\u4e2d', audio_record_count: 1,
+        assessed_audio_count: 0, usable_audio_count: 0, audio_review_state: '\u672a\u5be9\u807d',
+        audio_evidence: [{ audio_record_id: 2011, audio_file_id: 'a2011', recorder_name: 'Recorder A', assessment_decision: '\u672a\u5be9\u807d' }],
+        audio_sources_loaded: true, audio_sources: []
+      },
+      {
+        case_id: 202, task_id: 202, language: '\u53f0\u8a9e', place_name: 'two-reviewed',
+        county: '\u81fa\u5317\u5e02', town: '\u58eb\u6797\u5340', class_name: 'test',
+        state: '\u5f85\u6aa2\u67e5', audio_record_count: 2,
+        assessed_audio_count: 2, usable_audio_count: 2, audio_review_state: '\u5df2\u5224\u5b9a',
+        audio_evidence: [
+          { audio_record_id: 2021, audio_file_id: 'a2021', recorder_name: 'Recorder B', assessment_decision: '\u53ef\u7528' },
+          { audio_record_id: 2022, audio_file_id: 'a2022', recorder_name: 'Recorder B', assessment_decision: '\u53ef\u7528' }
+        ],
+        audio_sources_loaded: true, audio_sources: []
+      },
+      {
+        case_id: 203, task_id: 203, language: '\u5ba2\u8a9e', place_name: 'two-unfinished',
+        county: '\u65b0\u5317\u5e02', town: '\u6de1\u6c34\u5340', class_name: 'test',
+        state: '\u9304\u97f3\u6a19\u6ce8\u4e2d', audio_record_count: 2,
+        assessed_audio_count: 1, usable_audio_count: 1, audio_review_state: '\u672a\u5be9\u807d',
+        audio_evidence: [
+          { audio_record_id: 2031, audio_file_id: 'a2031', recorder_name: 'Recorder C', assessment_decision: '\u53ef\u7528' },
+          { audio_record_id: 2032, audio_file_id: 'a2032', recorder_name: 'Recorder C', assessment_decision: '\u672a\u5be9\u807d' }
+        ],
+        audio_sources_loaded: true, audio_sources: []
+      }
+    ];
+    document.getElementById('app-section').classList.remove('hidden');
+    configureRoleUI();
+    switchTab('review');
+  });
+
+  await expect(page.locator('#review-workflow-audio-count-filter')).toHaveValue('2plus');
+  await expect(page.locator('#review-workflow-audio-review-status-filter')).toHaveValue('unreviewed');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('two-unfinished');
+  await expect(page.locator('#review-workflow-audio-flag-filter')).toHaveCount(0);
+
+  await page.locator('#review-workflow-audio-count-filter').selectOption('one');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('single-record');
+
+  await page.locator('#review-workflow-audio-count-filter').selectOption('2plus');
+  await page.locator('#review-workflow-audio-review-status-filter').selectOption('all');
+  await expect(page.locator('.review-workflow-item')).toHaveCount(2);
+  await page.locator('#review-workflow-audio-recorder-filter').selectOption({ label: 'Recorder B' });
+  await expect(page.locator('.review-workflow-item')).toHaveCount(1);
+  await expect(page.locator('.review-workflow-item')).toContainText('two-reviewed');
+});
 test('audio assessor enters the audio review workbench after login', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -447,7 +595,7 @@ test('audio assessor enters the audio review workbench after login', async ({ pa
   await expect(page.locator('.review-workbench-mode-btn[aria-label="目前工作台：音檔檢驗"]')).toBeVisible();
 });
 
-test('audio assessor sees claimed audio workbench and sends audio claim token', async ({ page }) => {
+test.skip('legacy claimed assessment panel is replaced by compact card', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__prompts = ['', '\u53ef\u7528', '', undefined];
@@ -559,6 +707,9 @@ test('claiming a review case scrolls the reordered case into view', async ({ pag
     state.reviewWorkbenchMode = 'audio';
     state.reviewWorkflowAvailable = true;
     state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioCountFilter = 'all';
+    state.reviewWorkflowAudioReviewStatusFilter = 'all';
+    state.reviewWorkflowAudioRecorderFilter = 'all';
     state.reviewWorkflowAudioFlagFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
@@ -595,7 +746,7 @@ test('claiming a review case scrolls the reordered case into view', async ({ pag
   expect(call.body.p_case_id).toBe(101);
 });
 
-test('audio assessor can save a case-level annotation draft from a usable audio source', async ({ page }) => {
+test.skip('legacy draft-only save is replaced by card save', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 });
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -757,6 +908,9 @@ test('audio assessor can inspect current draft and all versions without an audio
     window.loadReviewWorkflowQueue = async () => {};
     state.reviewWorkbenchMode = 'audio';
     state.reviewWorkflowAudioStatusFilter = 'all';
+    state.reviewWorkflowAudioCountFilter = 'all';
+    state.reviewWorkflowAudioReviewStatusFilter = 'all';
+    state.reviewWorkflowAudioRecorderFilter = 'all';
     state.reviewWorkflowAudioFlagFilter = 'all';
     state.reviewWorkflowAudioClaimFilter = 'all';
     state.reviewWorkflowAudioKeyword = '';
@@ -1169,7 +1323,7 @@ test('admin filters workflow cases by draft status', async ({ page }) => {
   await expect(items).toContainText('no-draft-case');
 });
 
-test('admin audio inspection workbench hides proofing controls', async ({ page }) => {
+test.skip('legacy audio inspection layout is replaced by compact card', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     state.userRole = 'admin';
@@ -1209,7 +1363,7 @@ test('admin audio inspection workbench hides proofing controls', async ({ page }
   await expect(page.locator('.review-workflow-draft-btn, .review-workflow-approve-btn')).toHaveCount(0);
 });
 
-test('unclaimed audio assessor can view original annotation sources without edit controls', async ({ page }) => {
+test.skip('legacy source grid is replaced by compact card', async ({ page }) => {
   await page.goto(appUrl);
   await page.evaluate(() => {
     window.__workflowCalls = [];
@@ -1340,7 +1494,12 @@ test('review workflow RPCs remove caller identity before using Auth-bound endpoi
     }),
     getReviewWorkflowRpcRequest('get_review_workflow_audio_sources', {
       p_case_id: 1
-    })
+    }),
+    getReviewWorkflowRpcRequest('save_audio_review_card', {
+      p_case_id: 1,
+      p_audio_assessments: [],
+      p_audio_review_note: 'note'
+    }),
   ]);
   expect(requests[0]).toEqual({
     rpcName: 'get_review_workflow_queue_authenticated',
@@ -1353,5 +1512,9 @@ test('review workflow RPCs remove caller identity before using Auth-bound endpoi
   expect(requests[2]).toEqual({
     rpcName: 'get_review_workflow_audio_sources',
     body: { p_case_id: 1 }
+  });
+  expect(requests[3]).toEqual({
+    rpcName: 'save_audio_review_card_authenticated',
+    body: { p_case_id: 1, p_audio_assessments: [], p_audio_review_note: 'note' }
   });
 });

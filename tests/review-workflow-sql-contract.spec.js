@@ -26,6 +26,11 @@ const authWrapperMigration = fs.readFileSync(
 );
 
 
+const cardSaveMigration = fs.readFileSync(
+  path.join(__dirname, '..', 'db', '20260922_audio_review_card_save.sql'),
+  'utf8'
+);
+
 const authWrapperGrantMigration = fs.readFileSync(
   path.join(__dirname, '..', 'db', '20260902_review_workflow_auth_wrapper_grants.sql'),
   'utf8'
@@ -172,4 +177,25 @@ test('audio assessment follow-up state is derived from decision', async () => {
   expect(simplifiedAssessmentMigration).toContain("v_followup_reason_text := coalesce(nullif(trim(coalesce(p_metadata ->> 'followup_reason_text', '')), ''), coalesce(p_metadata ->> 'reason', ''));");
   expect(simplifiedAssessmentMigration).toContain("raise exception 'selected audio must be usable';");
   expect(simplifiedAssessmentMigration).not.toContain('coalesce(v_latest_assessment.needs_followup, false)');
+});
+test('audio review card save is atomic and persists case-level review state', async () => {
+  expect(cardSaveMigration).toContain('add column if not exists audio_review_note text not null default');
+  expect(cardSaveMigration).toContain('add column if not exists needs_followup_review boolean not null default false');
+  expect(cardSaveMigration).toContain('create table if not exists public.audio_review_card_requests');
+  expect(cardSaveMigration).toContain('create or replace function private.save_audio_review_card_authenticated(');
+  expect(cardSaveMigration).toContain('create or replace function public.save_audio_review_card_authenticated(');
+  expect(cardSaveMigration).toContain('p_audio_review_note text');
+  expect(cardSaveMigration).toContain('p_needs_followup_review boolean');
+  expect(cardSaveMigration).toContain("state = U&'\\5f85\\6aa2\\67e5'");
+  expect(cardSaveMigration).toContain("'audio_review_card_save'");
+  expect(cardSaveMigration).toContain('select count(*) < 2 into v_needs_followup');
+  expect(cardSaveMigration).toContain('grant execute on function public.save_audio_review_card_authenticated');
+  expect(cardSaveMigration).toContain('to authenticated;');
+  expect(cardSaveMigration).toContain('client_request_id');
+  expect(cardSaveMigration).toContain('for update');
+  expect(cardSaveMigration).not.toContain('selected audio must be usable');
+  expect(cardSaveMigration).not.toContain('unusable reason code is required');
+  expect(cardSaveMigration).not.toContain('follow-up reason is required');
+  expect(cardSaveMigration).toContain("if new.state = U&'\\5f85\\6821\\5c0d' then");
+  expect(cardSaveMigration).toContain("new.state := U&'\\5f85\\6aa2\\67e5'");
 });

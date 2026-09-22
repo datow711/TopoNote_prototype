@@ -4871,3 +4871,222 @@ button:disabled {
         box-sizing: border-box;
     }
 }
+/* Compact audio-review card */
+.review-workflow-grid.review-workflow-audio-card-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+}
+.review-workflow-audio-draft-column,
+.review-workflow-audio-column {
+    min-width: 0;
+}
+.review-workflow-audio-compact-list {
+    min-width: 0;
+    margin-top: 6px;
+    overflow: hidden;
+    border: 1px solid #dfe6eb;
+    border-radius: 8px;
+    background: #fff;
+}
+.review-workflow-audio-compact-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: .78rem;
+}
+.review-workflow-audio-compact-table th,
+.review-workflow-audio-compact-table td {
+    min-width: 0;
+    padding: 5px 3px;
+    border-bottom: 1px solid #e6edf1;
+    text-align: left;
+    vertical-align: middle;
+}
+.review-workflow-audio-compact-table th {
+    color: #526573;
+    background: #f7fafb;
+    font-size: .74rem;
+    font-weight: 700;
+}
+.review-workflow-audio-compact-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.review-workflow-audio-compact-table th:nth-child(1),
+.review-workflow-audio-compact-table td:nth-child(1) {
+    width: 7%;
+}
+.review-workflow-audio-compact-table th:nth-child(2),
+.review-workflow-audio-compact-table td:nth-child(2) {
+    width: 12%;
+}
+.review-workflow-audio-compact-table th:nth-child(3),
+.review-workflow-audio-compact-table td:nth-child(3) {
+    width: 13%;
+}
+.review-workflow-audio-compact-table th:nth-child(4),
+.review-workflow-audio-compact-table td:nth-child(4) {
+    width: 10%;
+}
+.review-workflow-audio-compact-table th:nth-child(5),
+.review-workflow-audio-compact-table td:nth-child(5) {
+    width: 26%;
+}
+.review-workflow-audio-compact-table th:nth-child(6),
+.review-workflow-audio-compact-table td:nth-child(6) {
+    width: 8%;
+}
+.review-workflow-audio-compact-table th:nth-child(7),
+.review-workflow-audio-compact-table td:nth-child(7) {
+    width: 24%;
+}
+.review-workflow-audio-compact-table .audio-sn,
+.review-workflow-audio-compact-table .audio-recorder {
+    padding-left: 3px;
+}
+.review-workflow-audio-compact-table .audio-sn {
+    position: relative;
+    white-space: nowrap;
+}
+.review-workflow-audio-compact-table .audio-recorder,
+.review-workflow-audio-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.review-workflow-audio-value {
+    position: relative;
+}
+.review-workflow-audio-fill-btn,
+.review-workflow-audio-field-fill {
+    display: none;
+    margin-left: 3px;
+    padding: 1px 3px;
+    border: 0;
+    border-radius: 3px;
+    background: #e2f2f7;
+    color: #155775;
+    font: inherit;
+    font-size: .7rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.review-workflow-audio-compact-table .audio-sn:hover .review-workflow-audio-fill-btn,
+.review-workflow-audio-compact-table .review-workflow-audio-value:hover .review-workflow-audio-field-fill,
+.review-workflow-audio-fill-btn:focus-visible,
+.review-workflow-audio-field-fill:focus-visible {
+    display: inline-block;
+}
+.review-workflow-audio-play-cell {
+    overflow: hidden;
+    text-align: center !important;
+}
+.review-workflow-audio-play {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #176b8b;
+    font: inherit;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.review-workflow-audio-play:hover,
+.review-workflow-audio-play:focus-visible {
+    color: #0d4054;
+}
+.review-workflow-audio-decision-cell {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding-right: 3px !important;
+}
+.review-workflow-audio-decision {
+    flex: 1 1 21px;
+    min-width: 0;
+    height: 21px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #8a98a2;
+    font: inherit;
+    font-size: .94rem;
+    line-height: 21px;
+    text-align: center;
+    cursor: pointer;
+}
+.review-workflow-audio-decision:hover,
+.review-workflow-audio-decision:focus-visible {
+    background: #edf3f6;
+    color: #20313d;
+}
+.review-workflow-audio-decision.is-selected {
+    background: #1f7a59;
+    color: #fff;
+    box-shadow: none;
+}
+.review-workflow-audio-decision.is-selected.is-danger {
+    background: #bd304c;
+    color: #fff;
+}
+.review-workflow-audio-decision.is-selected.is-followup {
+    background: #a5680f;
+    color: #fff;
+}
+.review-workflow-audio-decision:disabled {
+    cursor: default;
+    opacity: .72;
+}
+.review-workflow-audio-review-note {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    color: #526573;
+    font-weight: 700;
+}
+.review-workflow-audio-review-note textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 58px;
+    padding: 7px 8px;
+    border: 1px solid #d4e1e8;
+    border-radius: 6px;
+    color: #20313d;
+    font: inherit;
+    font-weight: 400;
+    resize: vertical;
+}
+.review-workflow-audio-draft-followup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: #526573;
+    font-size: .9rem;
+}
+.review-workflow-audio-draft-followup input {
+    accent-color: #176b8b;
+}
+#review-workflow-audio-recorder-filter {
+    width: 112px;
+}
+#review-workflow-audio-count-filter {
+    width: 92px;
+}
+#review-workflow-audio-review-status-filter {
+    width: 112px;
+}
+@media (max-width: 640px) {
+    .review-workflow-grid.review-workflow-audio-card-grid {
+        grid-template-columns: 1fr;
+    }
+    .review-workflow-audio-compact-table {
+        font-size: .74rem;
+    }
+    .review-workflow-audio-compact-table th,
+    .review-workflow-audio-compact-table td {
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+}

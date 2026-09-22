@@ -65,6 +65,7 @@ test.describe('review workflow core rules', () => {
     const values = Object.values(core.CASE_STATES);
     expect(values).toContain('錄音標注中');
     expect(values).not.toContain('需追問');
+    expect(core.CASE_STATES.PENDING_PROOFING).toBe('\u5f85\u6aa2\u67e5');
     expect(values).not.toContain('待審聽');
     expect(values).not.toContain('退回助理處理');
   });

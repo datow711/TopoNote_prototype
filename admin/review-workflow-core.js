@@ -8,7 +8,7 @@
     WRITTEN: '書面標注中',
     RECORDING: '錄音中',
     RECORDING_ANNOTATION: '錄音標注中',
-    PENDING_PROOFING: '待校對',
+    PENDING_PROOFING: '待檢查',
     PROOFING: '校對中',
     DONE: '已完成',
     LEGACY: 'legacy_unreviewed'
