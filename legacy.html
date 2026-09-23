@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地名語音調查系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=20260828-audio-filter-hierarchy">
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3498db">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+</head>
+<body>
+
+    <h1>地名語音調查系統</h1>
+
+    <div id="login-section" class="card">
+        <input type="email" id="email" placeholder="Email">
+        <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
+        <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
+        <div id="admin-login-fields" class="hidden">
+            <input type="password" id="password" placeholder="管理者密碼">
+            <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>
+        </div>
+        <div id="login-status" style="text-align: center; margin-top: 10px; color: red;"></div>
+    </div>
+
+    <div id="app-section" class="hidden">
+        <div class="tab-container">
+            <button class="tab-btn active" id="tab-assigned" onclick="switchTab('assigned')">📝 任務清單</button>
+            <button class="tab-btn" id="tab-other" onclick="switchTab('other')">🌍 其他地名</button>
+            <button class="tab-btn hidden" id="tab-review" onclick="switchTab('review')">審查清單</button>
+            <button class="tab-btn hidden" id="tab-uploads" onclick="switchTab('uploads')">上傳報告</button>
+            <button class="tab-btn hidden" id="tab-users" onclick="switchTab('users')">使用者管理</button>
+        </div>
+
+        <div class="filter-section">
+            <div class="mobile-filter-toolbar">
+                <button type="button" class="mobile-filter-toggle" id="mobile-filter-toggle" aria-expanded="false" aria-controls="filter-panel" onclick="openMobileFilterPanel()">
+                    <span>篩選條件</span>
+                    <span class="mobile-filter-count hidden" id="mobile-filter-count">0</span>
+                    <span class="mobile-filter-chevron" aria-hidden="true">調整</span>
+                </button>
+            </div>
+            <div class="mobile-filter-summary" id="mobile-filter-summary" aria-live="polite">目前使用全部條件</div>
+            <div class="mobile-filter-backdrop" id="mobile-filter-backdrop" onclick="closeMobileFilterPanel()"></div>
+
+            <div class="filter-panel" id="filter-panel">
+                <div class="mobile-filter-panel-header">
+                    <div>
+                        <strong id="mobile-filter-title">篩選條件</strong>
+                        <span>選取後立即更新結果</span>
+                    </div>
+                    <button type="button" class="mobile-filter-close" aria-label="關閉篩選條件" onclick="closeMobileFilterPanel()">×</button>
+                </div>
+
+                <div class="filter-panel-scroll">
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">行政區</h3>
+                        <div class="filter-row">
+                            <select id="county-filter" aria-label="縣市" onchange="resetTownFilters(); handleFilterChange()">
+                                <option value="">所有縣市</option>
+                            </select>
+                            <div class="town-multi-filter" id="town-filter">
+                                <button type="button" class="town-filter-button" id="town-filter-button" aria-haspopup="true" aria-expanded="false" onclick="toggleTownDropdown(event)">
+                                    <span id="town-filter-summary">所有鄉鎮</span>
+                                </button>
+                                <div class="town-filter-menu hidden" id="town-filter-menu" onclick="event.stopPropagation()"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group admin-filter-group" id="admin-class-filter-slot">
+                        <h3 class="mobile-filter-group-title">語言分級</h3>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">地名類別</h3>
+                        <div class="type-chips category-filter-group" id="type-container"></div>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">語區</h3>
+                        <div class="hak-area-chips" id="hak-area-container">
+                            <button type="button" class="hak-area-chip selected" aria-pressed="true" data-hak-area-filter="all" onclick="selectHakArea('all', this)">全部分區</button>
+                            <button type="button" class="hak-area-chip" aria-pressed="false" data-hak-area-filter="hak" onclick="selectHakArea('hak', this)">客語區</button>
+                            <button type="button" class="hak-area-chip" aria-pressed="false" data-hak-area-filter="non-hak" onclick="selectHakArea('non-hak', this)">非客語區</button>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group">
+                        <h3 class="mobile-filter-group-title">錄音狀態</h3>
+                        <div class="status-chips" id="status-container">
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="all" onclick="selectAllStatusFilters()">全部狀態</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="未錄音" onclick="toggleStatusFilter('未錄音')">未錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="台語已有錄音" onclick="toggleStatusFilter('台語已有錄音')">台語已有錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="客語已有錄音" onclick="toggleStatusFilter('客語已有錄音')">客語已有錄音</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="台語完成" onclick="toggleStatusFilter('台語完成')">台語完成</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="客語完成" onclick="toggleStatusFilter('客語完成')">客語完成</button>
+                            <button type="button" class="status-chip selected" aria-pressed="true" data-status-filter="全部完成" onclick="toggleStatusFilter('全部完成')">全部完成</button>
+                        </div>
+                    </section>
+
+                    <section class="mobile-filter-group admin-filter-group" id="admin-filter-controls">
+                        <h3 class="mobile-filter-group-title">調查員</h3>
+                    </section>
+                </div>
+
+                <div class="mobile-filter-panel-footer">
+                    <button type="button" class="mobile-filter-clear" onclick="clearMobileFilters()">清除條件</button>
+                    <button type="button" class="mobile-filter-results" id="mobile-filter-results" onclick="closeMobileFilterPanel()">查看 0 筆結果</button>
+                </div>
+            </div>
+
+            <input type="text" id="search-box" placeholder="🔍 搜尋地名關鍵字..." oninput="handleFilterChange()">
+            <div class="map-toolbar">
+                <button id="place-map-toggle" class="btn-map-toggle hidden" type="button" onclick="openPlaceMapView()">地圖檢視</button>
+                <span id="place-map-summary" class="place-map-summary"></span>
+            </div>
+        </div>
+
+        <div class="place-list" id="place-list-container"></div>
+
+        <div class="card" id="recording-section">
+            <h3 id="selected-place-title" style="margin-top:0; color:var(--secondary);">未選擇地名</h3>
+            <div id="selected-place-info" class="selected-place-info hidden">
+                <div id="selected-place-info-row" class="selected-place-info-main hidden">
+                    <strong>地名補充資訊：</strong>
+                    <span id="selected-place-info-content"></span>
+                </div>
+                <div id="selected-place-location-row" class="selected-place-info-main hidden">
+                    <strong>地理位置：</strong>
+                    <span id="selected-place-location-content"></span>
+                </div>
+                <div class="selected-place-info-actions">
+                    <button id="selected-place-history-btn" class="place-detail-btn hidden" type="button" aria-expanded="false" aria-controls="selected-place-name-history" onclick="toggleSelectedPlaceNameHistory()">歷史沿革</button>
+                    <div id="selected-place-name-history" class="selected-place-detail-panel hidden"></div>
+                    <button id="selected-place-location-btn" class="place-detail-btn hidden" type="button" onclick="openSelectedPlaceMap()">查看位置</button>
+                </div>
+            </div>
+            
+            <div class="language-tabs" role="radiogroup" aria-label="錄音語言">
+                <label class="language-tab active" data-lang="台語">
+                    <input type="radio" name="lang" value="台語" checked onchange="switchAnnotationLanguage('台語')">
+                    台語
+                </label>
+                <label class="language-tab" data-lang="客語">
+                    <input type="radio" name="lang" value="客語" onchange="switchAnnotationLanguage('客語')">
+                    客語
+                </label>
+            </div>
+            
+            <div class="annotation-panel">
+                <section class="annotation-group active" data-annotation-lang="台語">
+                    <h4>台語填寫區 <span>選填</span></h4>
+                    <input type="text" id="taihan-input" placeholder="地名台語漢字">
+                    <input type="text" id="tl1-input" placeholder="台語羅馬字(當地主音讀)">
+                    <textarea id="tainote-input" rows="4" placeholder="若有希望補充的資訊、發音，或覺得有疑問，請寫在這裡。"></textarea>
+                </section>
+
+                <section class="annotation-group" data-annotation-lang="客語">
+                    <h4>客語填寫區 <span>選填</span></h4>
+                    <input type="text" id="honzii-input" placeholder="地名客語漢字">
+                    <input type="text" id="hp1-input" placeholder="客語羅馬字(當地主音讀)">
+                    <textarea id="haknote-input" rows="4" placeholder="若有希望補充的資訊、說明腔調、發音，或覺得有疑問，請寫在這裡。"></textarea>
+                </section>
+            </div>
+            
+            <div class="respondent-key-panel">
+                <label for="respondent-key-input">受訪者代號（可留空）</label>
+                <input id="respondent-key-input" type="text" autocomplete="off" placeholder="例如：R01；請用不含姓名的穩定代號">
+                <small>如需辨識錄音來源，可填寫不含姓名的穩定代號。</small>
+            </div>
+            <div class="audio-source-panel">
+                <div class="audio-source-card">
+                    <div class="audio-source-copy">
+                        <strong>現場錄音</strong>
+                        <span>人在旁邊時，直接用手機或電腦錄。</span>
+                    </div>
+                    <button class="btn-record" id="start-btn" onclick="startRecording()">🎤 開始現場錄音</button>
+                </div>
+                <div class="audio-source-card">
+                    <div class="audio-source-copy">
+                        <strong>LINE 或手機音檔</strong>
+                        <span>聲音已經在 LINE、手機檔案或雲端硬碟時用這個。</span>
+                    </div>
+                    <input type="file" id="audio-file-input" accept="audio/*,.m4a,.mp3,.aac,.wav,.mp4,.3gp,.3gpp,.amr,.ogg,.opus,.caf" style="display:none;" onchange="handleFileUpload(event)">
+                    <button class="btn-file" id="file-btn" onclick="document.getElementById('audio-file-input').click()">📂 上傳 LINE 語音或手機音檔</button>
+                    <button class="line-help-toggle" type="button" onclick="toggleLineHelp()">LINE 語音怎麼找？</button>
+                </div>
+            </div>
+
+            <div class="line-help-box hidden" id="line-help-box">
+                <strong>如果音檔在 LINE 裡</strong>
+                <p>不要找 LINE 的內部資料夾。請先在 LINE 把語音分享或儲存成檔案，再回到本頁上傳。</p>
+                <div class="line-help-grid">
+                    <div>
+                        <b>Android</b>
+                        <span>LINE 長按語音 → 分享或儲存 → 存到「下載」、「Files」或 Google Drive → 回本頁選音檔。</span>
+                    </div>
+                    <div>
+                        <b>iPhone</b>
+                        <span>LINE 長按語音 → 分享 → 儲存到檔案 → 選「我的 iPhone」或 iCloud Drive → 回本頁從「最近項目」選取。</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-stop" id="stop-btn" onclick="stopRecording()">⏹️ 停止錄音</button>
+            <div class="audio-confirm-panel hidden" id="audio-confirm-panel">
+                <div class="audio-confirm-title">請先確認這筆音檔</div>
+                <div class="audio-file-summary" id="audio-file-summary"></div>
+                <audio id="audio-playback" controls style="width:100%; margin-bottom:10px; display:none;"></audio>
+                <div class="audio-confirm-actions">
+                    <button class="btn-file" id="choose-again-btn" onclick="chooseAudioAgain()">重新選擇</button>
+                    <button class="btn-record" id="record-again-btn" onclick="discardAudioAndRecordAgain()">重錄</button>
+                    <button class="btn-upload" id="upload-btn" onclick="uploadAudio()">⬆️ 確認上傳這筆音檔</button>
+                </div>
+            </div>
+            
+            <div id="status" style="text-align:center; font-weight:bold;"></div>
+
+            <div class="history-section" id="history-section">
+                <h4 style="margin-top:0;">此地名已上傳的紀錄：</h4>
+                <div id="history-list"></div>
+            </div>
+        </div>
+        <aside id="place-map-panel" class="place-map-panel hidden" aria-hidden="true">
+            <div class="place-map-shell">
+                <div class="place-map-header">
+                    <div>
+                        <strong>地圖檢視</strong>
+                        <span id="place-map-header-summary">目前篩選結果</span>
+                    </div>
+                    <button class="place-map-close" type="button" onclick="closePlaceMapView()" aria-label="返回清單">
+                        <span aria-hidden="true">←</span>
+                        <span class="place-map-close-label">返回清單</span>
+                    </button>
+                </div>
+                <div class="place-map-actions">
+                    <button id="place-map-locate-btn" class="place-map-action-btn" type="button" onclick="locateUserOnce()">顯示我的位置</button>
+                    <button id="place-map-selected-btn" class="place-map-action-btn" type="button" onclick="focusMapOnSelectedPlace()">回到選取地名</button>
+                </div>
+                <div id="place-map-status" class="place-map-status">尚未開啟地圖</div>
+                <div id="place-map-canvas" class="place-map-canvas"></div>
+                <div id="place-map-card" class="place-map-card hidden"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="review-workflow-core.js?v=20260806-review-workflow"></script>
+    <script src="main.js?v=20260917-ui-showcase"></script>
+</body>
+</html>
