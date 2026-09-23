@@ -151,6 +151,95 @@ button:disabled {
     transform: none;
 }
 
+/* Legacy entry point notice page */
+.redirect-page-body {
+    min-height: 100vh;
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.redirect-page-body #app-section {
+    display: none !important;
+}
+
+.redirect-page {
+    display: flex;
+    min-height: calc(100vh - 36px);
+    align-items: center;
+    justify-content: center;
+}
+
+.redirect-card {
+    width: min(100%, 640px);
+    margin: 0 auto;
+    padding: clamp(28px, 6vw, 52px);
+    text-align: center;
+}
+
+.redirect-eyebrow {
+    margin: 0 0 8px;
+    color: var(--accent-deep);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.redirect-card h1 {
+    margin: 0 0 28px;
+    padding-bottom: 17px;
+    text-align: center;
+}
+
+.redirect-card h1::after {
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.redirect-message,
+.redirect-contact {
+    color: var(--ink-soft);
+    font-size: 16px;
+    line-height: 1.9;
+    text-align: left;
+}
+
+.redirect-message p,
+.redirect-contact p {
+    margin: 0 0 12px;
+}
+
+.redirect-message p:last-child,
+.redirect-contact p:last-child {
+    margin-bottom: 0;
+}
+
+.redirect-contact {
+    margin-top: 22px;
+    padding: 16px 18px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 10px;
+    background: var(--surface-feature);
+}
+
+.redirect-contact a {
+    color: var(--accent-deep);
+    font-weight: 700;
+}
+
+.redirect-action {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    margin: 30px 0 0;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.redirect-action:hover {
+    color: var(--canvas);
+}
+
 .btn-primary {
     background: var(--accent);
     color: var(--ink);

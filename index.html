@@ -3,31 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地名語音調查系統</title>
+    <title>地名調查系統｜系統入口更新通知</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Iansui&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260828-audio-filter-hierarchy">
+    <link rel="stylesheet" href="style.css?v=20260923-redirect-page">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3498db">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" href="icon-192.png">
 
 </head>
-<body>
+<body class="redirect-page-body">
+    <main class="redirect-page" aria-labelledby="redirect-title">
+        <section class="card redirect-card">
+            <p class="redirect-eyebrow">地名調查系統</p>
+            <h1 id="redirect-title">系統入口已更新</h1>
 
-    <h1>地名語音調查系統</h1>
+            <div class="redirect-message">
+                <p>您好：</p>
+                <p>地名調查系統更新了，您已完成的工作不受影響，接下來請直接用新系統作業。</p>
+                <p>帳號一樣是電子郵件，且「不需要輸入密碼」直接登入。</p>
+            </div>
 
-    <div id="login-section" class="card">
-        <input type="email" id="email" placeholder="Email">
-        <button class="btn-primary" onclick="login()" id="login-btn">進入我的任務</button>
-        <button class="btn-secondary" onclick="toggleAdminLogin()" id="admin-toggle-btn">管理者登入</button>
-        <div id="admin-login-fields" class="hidden">
-            <input type="password" id="password" placeholder="管理者密碼">
-            <button class="btn-primary" onclick="loginAdmin()" id="admin-login-btn">進入管理模式</button>
-        </div>
-        <div id="login-status" style="text-align: center; margin-top: 10px; color: red;"></div>
-    </div>
+            <div class="redirect-contact">
+                <p>若有任何問題，請聯絡陳亮均</p>
+                <p>電話 02-7740-7669<br>mail: <a href="mailto:tanliangkun@mail.naer.edu.tw">tanliangkun@mail.naer.edu.tw</a></p>
+            </div>
+
+            <a class="btn-primary redirect-action" href="https://taigi1.naer.edu.tw/TaiwanPlaceNames">我知道了，進入新系統</a>
+        </section>
+    </main>
 
     <div id="app-section" class="hidden">
         <div class="tab-container">
@@ -251,8 +258,5 @@
         </aside>
     </div>
 
-    <script src="config.js"></script>
-    <script src="review-workflow-core.js?v=20260806-review-workflow"></script>
-    <script src="main.js?v=20260917-ui-showcase"></script>
 </body>
 </html>
