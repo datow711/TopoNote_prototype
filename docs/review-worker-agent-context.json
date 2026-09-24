@@ -1,0 +1,218 @@
+{
+  "schema_version": "1.0.0",
+  "document_type": "toponote_review_worker_agent_context",
+  "title": "TopoNote 審聽／校對員現況與資料流交接",
+  "generated_at": "2026-09-24",
+  "timezone": "Asia/Taipei",
+  "purpose": "提供其他 agent 可機器讀取的審聽員（audio_assessor）與校對員（proofreader）現況、權限、資料模型、API、整合流程、線上快照與風險。",
+  "scope": {
+    "included_roles": ["audio_assessor", "proofreader", "admin"],
+    "included_layers": ["/admin staff UI", "Supabase Auth", "Supabase workflow database", "Root GAS", "Places GAS", "Google Sheet"],
+    "interpretation": "本檔是 agent context，不是資料庫備份；以目前工作區程式碼與 2026-09-24 live readback 為準。",
+    "excluded": ["密碼值", "Auth access/refresh token", "service-role key", "anon key", "webhook", "Google Script Properties secret values"]
+  },
+  "source_of_truth_priority": [
+    {"priority": 1, "source": "2026-09-24 live Supabase readback", "meaning": "線上 role、Auth link、資料彙總、migration、function security 與 RLS 狀態。"},
+    {"priority": 2, "source": "目前工作區 main 分支與程式碼", "meaning": "目前 frontend、GAS、local migration、tests 的實際內容。"},
+    {"priority": 3, "source": "LATEST_HANDOFF.md 與 AUDIO_REVIEW_UIUX_HANDOFF_20260904.md", "meaning": "部署與操作脈絡；若和 live readback 衝突，以 live readback 為準。"},
+    {"priority": 4, "source": "2026-08-04 relaunch design documents", "meaning": "設計背景與未完成切換事項，不可單獨當成已部署現況。"}
+  ],
+  "privacy": {
+    "live_roster_contains_personal_data": true,
+    "included_personal_fields": ["id", "account", "email", "name", "role", "is_active", "auth_user_linked"],
+    "not_included": ["investigators.password", "phone", "life/survey area values", "Auth tokens"],
+    "sharing_note": "提供給其他 agent 前，確認該 agent 與工作區具有相同資料授權；若要公開分享，先刪除 live_snapshot.review_worker_roster。"
+  },
+  "repository_state": {
+    "observed_at": "2026-09-24",
+    "cwd": "C:\\Users\\user\\我的雲端硬碟 (kunui711@alum.naer.edu.tw)\\kunui711工作資料夾\\地名登錄工具_prototype\\TopoNote_App",
+    "branch": "main",
+    "head": {"commit": "dcefd9e", "subject": "feat: add legacy system entrypoint"},
+    "working_tree": "clean",
+    "remote": "https://github.com/datow711/TopoNote_prototype.git",
+    "note": "本次 git status 為 main 與 origin/main 同步；不要沿用舊 handoff 所記載的 ahead 1 或 ahead 5。"
+  },
+  "architecture": {
+    "staff_entry": {"path": "/admin", "html": "admin/index.html", "javascript": "admin/main.js", "allowed_roles": ["admin", "audio_assessor", "proofreader"]},
+    "ordinary_entry": {"html": "index.html", "javascript": "main.js", "note": "一般入口不是同一套 staff review UI。"},
+    "data_flow": [
+      "Supabase Auth session -> private.get_authenticated_investigator() -> active investigators profile",
+      "admin/main.js -> app_tasks_view / app_users_view / audio_records / Auth-bound review RPCs",
+      "audio assessment and case-level annotation draft -> Supabase workflow tables; not direct audio_records/formal fields",
+      "proofing approve -> versioned writeback job -> Places GAS -> 第三期工作清單 or TestEntries",
+      "Users Sheet -> Places GAS sync_sheet_users(jsonb) -> investigators; admin profile write-through uses Root GAS",
+      "Root GAS handles Drive audio, audio_records coordinator, legacy Records row and privileged admin actions"
+    ]
+  },
+  "roles": {
+    "audio_assessor": {
+      "label": "審聽員",
+      "queue_scope": "有有效音檔的 workflow cases；可自取案件。",
+      "can": ["登入 /admin", "播放音檔", "未 claim 唯讀查看完整原始標註", "未 claim 查看目前 draft/history", "claim 音檔案件", "在有效 audio claim token 下判定 可用／不可用／待追問", "在有效 claim 下建立案件層級音讀草稿"],
+      "cannot": ["未 claim 判定", "未 claim 帶入來源欄位", "未 claim 保存音讀草稿", "進行 proofing approve", "直接修改 audio_records", "直接修改正式 Sheet 標音欄位"],
+      "claim": {"field_set": ["audio_claim_by", "audio_claim_token", "audio_claim_until"], "duration": "30 minutes", "old_token_after_expiry": "不得提交判定或草稿"},
+      "source_refs": ["admin/main.js:4722-4739", "admin/main.js:5845-6018", "AUDIO_REVIEW_UIUX_HANDOFF_20260904.md", "db/20260904_audio_assessor_source_read_without_claim.sql"]
+    },
+    "proofreader": {
+      "label": "校對員",
+      "queue_scope": "被指派或本人已 claim 的 proofing cases。",
+      "can": ["claim proofing case", "查看版本與來源 evidence", "保存校對草稿", "查看 audio/draft history", "分別退回標注或音檔", "核准案件"],
+      "cannot": ["改寫 audio assessment event", "進入 audio inspection mode", "以未指派案件繞過 proofing claim"],
+      "approve_effect": "只建立 versioned writeback job；不直接覆蓋 Google Sheet。",
+      "source_refs": ["admin/main.js:6180-6295", "db/20260902_review_workflow_auth_wrappers.sql", "review-workflow-core.js:119-125"]
+    },
+    "admin": {
+      "label": "管理員",
+      "queue_scope": "全部 review workflow cases。",
+      "can": ["查看全部", "音檔檢驗", "proofing", "指派／改派", "核准", "管理使用者 active/profile/delete", "公告與高權限操作"],
+      "privileged_boundary": "高權限操作只透過 Root GAS + service_role；service_role key 不可進前端或本檔。",
+      "source_refs": ["admin/main.js:1195-1338", "admin/main.js:2790-2845", "gas/程式碼.js:140-635"]
+    },
+    "user": {"label": "一般調查員", "review_workflow_access": false, "purpose": "一般任務指派、錄音與上傳。"}
+  },
+  "authentication": {
+    "provider": "Supabase Auth",
+    "frontend_flow": "admin/main.js login -> performSupabaseAuthLogin -> signInWithSupabaseAuth -> fetchAuthenticatedInvestigator -> enterApp",
+    "required": ["email/login identifier", "password", "Auth session", "confirmed Auth email", "active investigators row"],
+    "database_identity_function": "private.get_authenticated_investigator()",
+    "public_wrapper": "public.get_authenticated_investigator()",
+    "matching_order": ["investigators.auth_user_id = auth.uid()", "auth_user_id 未連結時以 confirmed Auth email fallback"],
+    "rejection_conditions": ["無 auth.uid()", "email 未確認", "找不到 active investigator", "一個 Auth email 對到多筆 investigator"],
+    "key_rule": "UI 顯示 name；login、filter、assignment、DB writes 使用 account/email key。",
+    "legacy": "Root GAS doPost(action=login) 固定回 legacy_login_disabled；不要把舊 login RPC 當現行 staff login。"
+  },
+  "live_snapshot": {
+    "captured_at": "2026-09-24T02:27:47.288203+00:00",
+    "project_ref": "sikconjhtomqdkicbjal",
+    "role_counts": [
+      {"role": "admin", "is_active": true, "count": 3},
+      {"role": "audio_assessor", "is_active": true, "count": 4},
+      {"role": "proofreader", "is_active": true, "count": 1},
+      {"role": "user", "is_active": true, "count": 55}
+    ],
+    "review_worker_roster": [
+      {"id": "aef32119-86c3-46cc-94be-a02fc20300fb", "account": "daniela.helpbuy@gmail.com", "email": "daniela.helpbuy@gmail.com", "name": "羅苑禎", "role": "audio_assessor", "is_active": true, "auth_user_linked": true},
+      {"id": "1bb1ca05-92cd-4d5d-83c6-09a44ca81fcf", "account": "test.audio", "email": "datow711+audiotest@gmail.com", "name": "林聽聽", "role": "audio_assessor", "is_active": true, "auth_user_linked": true},
+      {"id": "3e233b49-edc8-4f4c-872d-b4b6d8f53362", "account": "test2@test.com", "email": "test2@test.com", "name": "林聽聽", "role": "audio_assessor", "is_active": true, "auth_user_linked": true},
+      {"id": "0a9e2b5d-780d-48a8-9ff1-ffbd800df9a9", "account": "una.cheng113@gmail.com", "email": "una.cheng113@gmail.com", "name": "潘尹崢", "role": "audio_assessor", "is_active": true, "auth_user_linked": true},
+      {"id": "7348e980-6c2b-44cf-89c4-8de4dc0e938d", "account": "test01@test.com", "email": "test01@test.com", "name": "校對員", "role": "proofreader", "is_active": true, "auth_user_linked": true}
+    ],
+    "case_state_counts": [
+      {"language": "台語", "state": "legacy_unreviewed", "count": 6824},
+      {"language": "台語", "state": "已完成", "count": 1},
+      {"language": "台語", "state": "待校對", "count": 25},
+      {"language": "台語", "state": "校對中", "count": 2},
+      {"language": "客語", "state": "legacy_unreviewed", "count": 6852}
+    ],
+    "audio_assessment_decision_counts": [{"decision": "不可用", "count": 29}, {"decision": "可用", "count": 369}, {"decision": "待追問", "count": 282}],
+    "annotation_version_source_counts": [
+      {"source_type": "app", "version_kind": "draft", "count": 2},
+      {"source_type": "app", "version_kind": "legacy", "count": 174},
+      {"source_type": "audio_assessor", "version_kind": "draft", "count": 267},
+      {"source_type": "satellite", "version_kind": "draft", "count": 27}
+    ],
+    "writeback_job_status_counts": [{"status": "succeeded", "count": 1}],
+    "freshness_note": "這是 live query 當下快照，不是永久常數；寫入或部署前重新 readback。",
+    "stale_handoff_reconciliation": ["舊 handoff 曾記錄 test2@test.com 尚無 Auth；本次 live readback 顯示 auth_user_linked=true，舊描述已過期。"]
+  },
+  "data_model": {
+    "units": {"case": "地名 × 語種", "assessment": "音檔 × 地名 × 語種"},
+    "tables": {
+      "investigators": {"purpose": "使用者 profile、role、active 與 Auth link。", "important_columns": ["id", "account", "user_name", "role", "email", "is_active", "name", "phone", "languages", "hakka_dialect", "life_area_1..3", "survey_area_1..3", "sheet_synced_at", "auth_user_id", "auth_login_email", "password_onboarding_acknowledged_at"], "secret_column_excluded": "password"},
+      "annotation_cases": {"purpose": "一筆地名×語種 workflow case。", "important_columns": ["id", "task_id", "language", "state", "assigned_to", "claim_by", "claim_token", "claim_until", "current_version_no", "source_stamp", "legacy_unreviewed", "audio_claim_by", "audio_claim_token", "audio_claim_until"]},
+      "annotation_versions": {"purpose": "案件層級 annotation snapshot 與 audio_assessor restricted draft。", "important_columns": ["id", "case_id", "version_no", "version_kind", "fields", "created_by", "source_type", "source_actor", "source_stamp", "client_request_id"]},
+      "audio_assessments": {"purpose": "append-only 音檔判定；不更新 audio_records 原始列。", "important_columns": ["id", "task_id", "language", "audio_record_id", "assessor_account", "respondent_key", "decision", "reason", "unusable_reason_code", "unusable_reason_text", "needs_followup", "followup_reason_text", "created_at"]},
+      "audio_records": {"purpose": "Drive audio metadata、原始 note/annotations、soft unlink。", "assessor_rule": "審聽員不能直接修改。", "important_columns": ["id", "task_id", "language", "audio_file_id", "recorder_name", "respondent_key", "note", "unlinked_at"]},
+      "proofing_events": {"purpose": "claim、assessment、draft、return、approve 的 append-only history。"},
+      "writeback_jobs": {"purpose": "核准後可重試、冪等的 Sheet writeback job。"}
+    },
+    "views": {
+      "app_review_workflow_queue": {"purpose": "聚合 case、最新 version、audio summary/evidence、Sheet stamp。", "important_fields": ["case_id", "task_id", "source_id", "source_table", "language", "state", "assigned_to", "claim_*", "annotation_fields", "audio_record_count", "assessed_audio_count", "usable_audio_count", "unusable_audio_count", "follow_up_audio_count", "distinct_respondent_count", "audio_gate_passed", "audio_review_state", "audio_evidence", "current_sheet_stamp"]},
+      "app_users_view": {"purpose": "前端讀取 name/email/role/active。"},
+      "app_tasks_view": {"purpose": "一般 task 與 Root GAS upload authorization 的 task snapshot。"}
+    },
+    "compatibility_to_preserve": ["task_assignments", "final_tasks.assigned_to", "T_Annotator/H_Annotator", "AssignedUsers", "Records Sheet", "app_review_queue_view"]
+  },
+  "workflow": {
+    "audio_assessment": ["有音檔的 case 進 queue", "未 claim 可播放與查看原始 annotation", "audio_assessor claim 30 分鐘", "有效 claim 下判定 可用／不可用／待追問", "新增 audio_assessments 與 proofing_events，不覆蓋舊事件"],
+    "audio_decisions": {"可用": "可作 audio annotation draft source。", "不可用": "需無聲／聽不清楚／其他 code；其他需文字。", "待追問": "需 follow-up reason；needs_followup 由 decision 推導。"},
+    "audio_annotation_draft": {"allowed_roles": ["admin", "audio_assessor"], "tai_fields": ["TaiHan1", "TL1", "TL2", "TL3", "TaiNote"], "hak_fields": ["Honzii", "HP1", "HP2", "HP3", "HDialect", "HakNote"], "guards": ["audio_assessor 必須持有 active claim token", "case 未完成且未被 proofing lock", "來源音檔 active", "latest decision = 可用", "base version 一致", "client_request_id idempotency", "至少一個非空欄位"]},
+    "proofing": ["claim case", "讀取 version/evidence", "保存 draft", "可分別退回標注或音檔並填原因", "核准建立 writeback job"],
+    "state_contract": {"local_public_values": ["待發稿", "標注中", "調查中", "待判讀", "草稿待檢查", "草稿", "待審查", "待田調", "已完成"], "live_internal_examples": ["legacy_unreviewed", "待校對", "校對中", "已完成"], "cutover_note": "local state-alignment migration 尚未列入 live applied migrations。"},
+    "respondent_key_reconciliation": "respondent_key 可留空，是 audit label，不是兩人 gate；雖然 live queue 尚有 audio_gate_passed 欄位，2026-09-09 migration、review-workflow-core.js 與 UI tests 已確認現行不應重新引入兩位受訪者硬性門檻。"
+  },
+  "rpc_contract": {
+    "frontend_mapping": {
+      "get_review_workflow_queue": "get_review_workflow_queue_authenticated",
+      "get_audio_review_claims": "get_audio_review_claims_authenticated",
+      "get_audio_assessment_history": "get_audio_assessment_history_authenticated",
+      "claim_review_case": "claim_review_case_authenticated",
+      "release_review_case": "release_review_case_authenticated",
+      "assign_review_case": "assign_review_case_authenticated",
+      "save_annotation_version": "save_annotation_version_authenticated",
+      "save_proofing_draft": "save_proofing_draft_authenticated",
+      "claim_audio_review_case": "claim_audio_review_case_authenticated",
+      "release_audio_review_case": "release_audio_review_case_authenticated",
+      "submit_audio_assessment": "submit_audio_assessment_authenticated",
+      "return_review_case": "return_review_case_authenticated",
+      "approve_review_case": "approve_review_case_authenticated",
+      "get_review_workflow_audio_sources": "authenticated one-argument wrapper; old two-argument actor version is not frontend entry",
+      "save_audio_annotation_draft": "authenticated one-argument actor-free wrapper",
+      "get_audio_annotation_draft_history": "authenticated actor-free read-only wrapper"
+    },
+    "frontend_security": ["admin/main.js:3988-4050 maps logical names", "removes p_actor_account and p_assessor_account", "uses current Supabase Auth access token"],
+    "privilege_rule": "caller-controlled public review functions are service_role-only or otherwise not authenticated frontend entry points。"
+  },
+  "integrations": {
+    "root_gas": {"directory": "gas/", "route": "gas/程式碼.js:140-170", "actions": ["upload", "linkAudioRecords", "getAudio", "submitFeedback", "setInvestigatorActive", "deleteInvestigatorUser", "changeAdminPassword", "updateUserProfile", "unlinkAudioRecord", "getAnnouncements", "markAnnouncementRead", "createAnnouncement"], "upload_scope": ["active investigator", "non-admin must be assigned to task", "admin bypass", "same clientUploadId retry deduplicated"], "source_refs": ["gas/程式碼.js:240-335", "gas/程式碼.js:423-635", "gas/程式碼.js:776-1028"]},
+    "places_gas": {"directory": "places-gas/gas/", "users_sheet": {"required": ["email", "name"], "profile_fields": ["phone", "languages", "hakka_dialect", "life_area_1..3", "survey_area_1..3", "active", "role"], "allowed_non_admin_roles": ["user", "proofreader", "audio_assessor"], "rpc": "sync_sheet_users(jsonb), service_role only"}, "daily_sync": {"handler": "runDailyPreworkSync", "intended_time": "Asia/Taipei about 06:30", "order": ["syncReviewWorkflowWritebacks", "syncLanguageStatesToSheets", "syncTaskAssignmentsToSheets", "syncThirdPhasePlacesToSupabase", "syncFinalTasksToSupabase", "syncUsersToSupabase"], "guard": "LockService + expected State/stamp conflict check"}, "writeback": {"targets": ["第三期工作清單", "TestEntries"], "tai_fields": ["TaiHan1", "TL1", "TL2", "TL3", "TaiNote"], "hak_fields": ["Honzii", "HP1", "HP2", "HP3", "HDialect", "HakNote"]}}
+  },
+  "ui_contract": {
+    "tabs": ["任務清單／全部地名清單", "審查工作台", "上傳報告（admin）", "使用者管理（admin）"],
+    "audio_filters": ["語種", "進度／音檔判定狀態", "待追問／不可用", "claim mine/available/other", "縣市", "複選鄉鎮", "關鍵字"],
+    "visibility": ["未 claim audio_assessor：播放、原始標註與 draft/history 唯讀。", "已 claim audio_assessor：出現判定與可用來源 draft controls。", "proofreader/admin：proofing controls 依 claim 顯示。", "已完成案件保持唯讀。", "一般 user 不能進 review workbench。"]
+  },
+  "live_security_readback": {
+    "relevant_applied_migrations": ["20260831040744_audio_assessor_annotation_draft", "20260831050654_audio_assessment_history", "20260831050807_audio_assessment_history_ambiguity_fix", "20260902062653_audio_annotation_draft_history_supabase_auth", "20260902074434_review_workflow_auth_wrappers", "20260902074716_review_workflow_auth_wrapper_grants", "20260902091649_auth_login_identifier", "20260902102734_auth_password_onboarding", "20260903100941_fix_auth_wrapper_composite_returns", "20260904043603_audio_assessor_source_read_without_claim", "20260909050123_simplify_audio_assessment_decision"],
+    "not_observed_as_applied": [{"local_file": "supabase/migrations/20260922120000_state_workflow_alignment.sql", "meaning": "local-only evidence; 2026-09-24 live migration list 未出現。"}],
+    "wrapper_security": {"private_helpers": "SECURITY DEFINER；private schema 對 public/anon revoke，authenticated 使用指定 helper。", "public_wrappers": "主要為 SECURITY INVOKER；authenticated execute。", "legacy_actor_functions": "live readback 顯示主要僅 service_role execute。"},
+    "rls": {"enabled": ["audio_records", "investigators", "task_language_reviews"], "disabled": ["annotation_cases", "annotation_versions", "audio_assessments", "proofing_events", "writeback_errors", "writeback_jobs"], "warning": "這是 live security finding；本檔只記錄，不直接 enable RLS。"}
+  },
+  "tests_and_validation": {
+    "relevant_specs": ["tests/review-workflow-ui.spec.js", "tests/review-workflow-sql-contract.spec.js", "tests/review-workflow-core.spec.js", "tests/supabase-auth.spec.js", "tests/auth-login-contract.spec.js", "tests/user-role-policy.spec.js", "tests/assignment-status-contract.spec.js"],
+    "covered": ["unclaimed source read is read-only", "claim token on assessment/draft", "blank respondent key allowed", "append-only assessment history", "draft history read-only", "proofreader draft/return/approve", "ordinary user blocked", "caller actor fields stripped", "Users Sheet role allowlist"],
+    "documented_results": [{"spec": "tests/review-workflow-ui.spec.js", "result": "18/18", "date": "2026-09-04"}, {"spec": "tests/review-workflow-sql-contract.spec.js", "result": "6/6", "date": "2026-09-04"}, {"suite": "broader Playwright baseline", "result": "90/90", "date": "2026-09-02", "note": "歷史文件結果；本次沒有重跑。"}],
+    "next_quick_checks": ["node --check main.js", "node --check admin/main.js", "node --check gas/程式碼.js", "node --check places-gas/gas/程式碼.js", "git diff --check", "schema/function grants/RLS live readback before DB or deployment changes"]
+  },
+  "known_risks_and_open_work": [
+    {"item": "workflow tables RLS disabled", "impact": "不能只依賴 wrapper；需另開 security/database session 設計 policies。", "do_not": "不要無 policy/readback 直接 enable RLS。"},
+    {"item": "state workflow alignment not live", "impact": "local public state vocabulary 與 live legacy internal state 並存。", "do_not": "不要把 local migration/docs 當 production cutover。"},
+    {"item": "legacy compatibility layers", "impact": "task_assignments、final_tasks.assigned_to、T/H annotator、Records、satellite flow 仍可能被讀取。", "do_not": "不要任意刪表、欄位或 GAS function。"},
+    {"item": "deployment", "impact": "本次沒有 push 或靜態網站部署。", "do_not": "不要宣稱 production /admin 已使用目前 local code。"},
+    {"item": "password field drift", "impact": "歷史 migration 曾出現 password 與 admin_password；改 login/password 前 live readback。", "do_not": "不要輸出任何密碼值。"}
+  ],
+  "handoff_for_next_agent": {
+    "first_read": ["docs/review-worker-agent-context.json", "LATEST_HANDOFF.md", "AUDIO_REVIEW_UIUX_HANDOFF_20260904.md"],
+    "before_change": ["確認 git status/remote/log", "確認目標是 /admin staff flow 還是一般 main.js", "重新 read live role/auth/migration/grants/RLS", "先判斷是否只做 UI 或涉及 DB/GAS"],
+    "do_not": ["不要讓未 claim audio_assessor 判定或保存", "不要把原始 audio annotation 寫回正式欄位", "不要把 respondent key 重新變成兩人硬性 gate", "不要使用 caller-supplied actor account 授權", "不要把 secrets/passwords 放入 repo 或 agent context", "不要把 local-only migration 當 live deployed"],
+    "verification": "完成修改後做對應 syntax/contract/UI test；涉及 Supabase、GAS、Sheet 或 deployment 時做 live readback，沒有證據就標為未驗證。"
+  },
+  "evidence_index": [
+    {"path": "admin/main.js", "ranges": ["1180-1360", "2790-2845", "3288-3410", "3988-4050", "4635-4765", "5465-5535", "5845-6018", "6180-6295"], "role": "登入、角色 gate、資料載入、Auth RPC、claim、判定、audio draft、proofing actions"},
+    {"path": "admin/index.html", "ranges": ["1-45"], "role": "/admin staff entrance"},
+    {"path": "review-workflow-core.js", "ranges": ["1-150"], "role": "公開 state、audio decision、claim/ready/approve contract"},
+    {"path": "db/20260805_audio_review_claims.sql", "role": "audio claim、queue view、evidence、summary"},
+    {"path": "db/20260831_audio_assessor_annotation_draft.sql", "role": "審聽員 restricted case-level draft"},
+    {"path": "db/20260902_audio_annotation_draft_history.sql", "role": "Auth identity、draft history、actor-free wrappers"},
+    {"path": "db/20260902_review_workflow_auth_wrappers.sql", "role": "review workflow Auth-bound wrappers"},
+    {"path": "db/20260904_audio_assessor_source_read_without_claim.sql", "role": "未 claim 可讀原始來源；判定／草稿仍需 claim"},
+    {"path": "db/20260909_simplify_audio_assessment_decision.sql", "role": "respondent key optional、decision-derived follow-up、usable source guard"},
+    {"path": "gas/程式碼.js", "ranges": ["140-170", "240-335", "423-635", "776-1028"], "role": "Root GAS route、admin write、upload scope"},
+    {"path": "places-gas/gas/程式碼.js", "ranges": ["245-340", "572-680", "1290-1465", "1516-1600", "1705-..."], "role": "Users sync、daily sync、workflow writeback、Sheet projection"},
+    {"path": "places-gas/gas/UserRolePolicy.js", "role": "Users Sheet role allowlist"},
+    {"path": "tests/review-workflow-ui.spec.js", "role": "review UI behavior contract"},
+    {"path": "tests/review-workflow-sql-contract.spec.js", "role": "SQL/Auth/claim/draft contract"},
+    {"path": "AUDIO_REVIEW_UIUX_HANDOFF_20260904.md", "role": "可查看與可修改 hard boundary"},
+    {"path": "LATEST_HANDOFF.md", "role": "overall architecture and handoff; date older than current live snapshot"}
+  ]
+}
