@@ -396,6 +396,10 @@ revoke all on function public.workflow_state_normalize_(text) from public, anon,
 revoke all on function public.workflow_is_written_class_(text) from public, anon, authenticated;
 revoke all on function public.workflow_state_for_assignment_(integer, text, text, text) from public, anon, authenticated;
 revoke all on function public.queue_language_state_sync_(integer, text, text, text, text) from public, anon, authenticated;
+revoke all on function public.normalize_task_language_review_state_() from public, anon, authenticated;
+revoke all on function public.queue_task_language_review_state_() from public, anon, authenticated;
+revoke all on function public.project_annotation_case_state_() from public, anon, authenticated;
+revoke all on function public.mark_audio_record_pending_review() from public, anon, authenticated;
 revoke all on function public.claim_language_state_sync_job(bigint) from public, anon, authenticated;
 revoke all on function public.complete_language_state_sync_job(bigint, text) from public, anon, authenticated;
 revoke all on function public.fail_language_state_sync_job(bigint, text, boolean) from public, anon, authenticated;

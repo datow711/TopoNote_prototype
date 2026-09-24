@@ -368,3 +368,45 @@ flowchart TD
 新的設計將 T_State／H_State 從多個同步函數各自寫入，整理成「Supabase workflow 狀態 → DB trigger → language_state_sync_queue → syncLanguageStatesToSheets() → Google Sheet」的單一路徑。每日同步則固定先處理 APP State queue，再執行 Sheet 回拉，並在回拉時保護已進入 APP workflow 的 Supabase 狀態。
 
 本次已完成本地程式、migration、測試與文件整理；尚未完成線上 migration、GAS 部署、舊值批次轉換與部署後 readback。
+
+## 16. 2026-09-24 正式切換完成紀錄
+
+本節更新並取代前面「尚未部署」的部署前快照。2026-09-24 已完成正式切換，前面第 10、13、14 節仍保留作為切換前歷史紀錄。
+
+### 16.1 切換前保護點
+
+- Google Sheet 備份：Places__backup_before_state_cutover_20260924。
+- Google Sheet backup ID：1nsy_RrGgqk5QeAnE-aN3ovEyoDC8e5YON633P0Pd7-k。
+- Supabase 備份 schema：backup_state_workflow_cutover_20260924。
+- Supabase 備份筆數：third_phase_places 6,842、test_places 10、final_tasks 18,201、task_language_reviews 25,100、annotation_cases 13,704、annotation_versions 470、audio_assessments 680、proofing_events 1,616。
+
+### 16.2 線上 schema 與 GAS
+
+- Supabase migration 已套用：remote version 20260924040916，name 為 state_workflow_alignment_20260922。
+- public.language_state_sync_queue 與 public.app_language_state_sync_queue 已存在。
+- task_language_reviews normalization／queue trigger、annotation_cases projection trigger、audio pending-review trigger 已存在。
+- queue claim／complete RPC：service_role 可執行，anon 不可執行；trigger 專用函數一般角色不可直接執行。
+- Places GAS 已完成 clasp push，clasp status 讀回沒有 untracked files。
+
+### 16.3 Google Sheet 最終 State
+
+正式表「第三期工作清單」共 6,842 筆：
+
+- T_State：待發稿 4,121、待審查 1,812、調查中 903、標注中 6。
+- H_State：待發稿 6,557、調查中 187、待審查 98。
+
+測試表 TestEntries 共 10 筆：
+
+- T_State：待審查 1、調查中 9。
+- H_State：待發稿 6、調查中 1、待審查 3。
+
+抽查切換前副本確認：未改動的 State 保留原有 UpdatedAt；實際轉換的 State 才寫入 State workflow cutover 時間戳。未改寫其他資料欄位。
+
+### 16.4 Supabase 最終一致性
+
+- active workflow 範圍內的舊 State 詞彙筆數：0。
+- APP app_state 與來源 third_phase_places／test_places State 差異：0。
+- APP app_state 與 task_language_reviews.sheet_state 差異：0。
+- language_state_sync_queue：11,791 筆，全部為 succeeded。
+- 已實際驗證第 1 筆 queue 的 claim／complete RPC，完成後狀態為 succeeded，無 error。
+- 仍保留 legacy 來源 moi_placename_raw：尚未標注 47、待指派 11,349；這些資料不納入新 Sheet workflow queue。
