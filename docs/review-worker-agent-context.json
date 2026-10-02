@@ -197,6 +197,16 @@
     "do_not": ["不要讓未 claim audio_assessor 判定或保存", "不要把原始 audio annotation 寫回正式欄位", "不要把 respondent key 重新變成兩人硬性 gate", "不要使用 caller-supplied actor account 授權", "不要把 secrets/passwords 放入 repo 或 agent context", "不要把 local-only migration 當 live deployed"],
     "verification": "完成修改後做對應 syntax/contract/UI test；涉及 Supabase、GAS、Sheet 或 deployment 時做 live readback，沒有證據就標為未驗證。"
   },
+  "annotation_data_export": {
+    "path": "docs/review-worker-annotation-data-export.json",
+    "document_type": "toponote_audio_assessor_annotation_data_export",
+    "generated_at": "2026-10-02",
+    "source_filter": "public.annotation_versions.source_type = 'audio_assessor'",
+    "all_versions": 267,
+    "latest_by_case": 191,
+    "stable_key": "place.source_id + place.source_table + language",
+    "note": "匯入新系統通常使用 latest_by_case；all_versions 保留審聽員填寫歷程。"
+  },
   "evidence_index": [
     {"path": "admin/main.js", "ranges": ["1180-1360", "2790-2845", "3288-3410", "3988-4050", "4635-4765", "5465-5535", "5845-6018", "6180-6295"], "role": "登入、角色 gate、資料載入、Auth RPC、claim、判定、audio draft、proofing actions"},
     {"path": "admin/index.html", "ranges": ["1-45"], "role": "/admin staff entrance"},
